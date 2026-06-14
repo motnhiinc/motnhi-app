@@ -45,8 +45,10 @@ dependencies:
   collection: ^1.19.1
   uuid: ^4.5.1
   camera: ^0.12.0+1
-  arkit_plugin: ^1.4.0
-  arcore_flutter_plugin: ^0.1.0
+  # Native image-target AR (arkit_plugin / arcore_flutter_plugin) is deferred to
+  # the dedicated "wire native AR" slice, where it will be validated on-device.
+  # AR currently runs as a camera-preview overlay (see features/ar/), so no
+  # native AR package is needed yet.
 
 dev_dependencies:
   flutter_test:

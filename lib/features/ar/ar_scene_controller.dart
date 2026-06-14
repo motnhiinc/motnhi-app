@@ -14,14 +14,15 @@ enum ArTrackingMode {
   cameraPreview,
 }
 
-/// Capability gate for AR. Real image-target tracking via `arkit_plugin`
-/// (iOS) / `arcore_flutter_plugin` (Android) needs native configuration, a
-/// physical device, and printed reference images. Until that hardware path is
-/// validated, [resolveMode] selects the camera-preview realization so the
+/// Capability gate for AR. Real image-target tracking will use a native
+/// ARKit (iOS) / ARCore (Android) plugin, which needs native configuration, a
+/// physical device, and printed reference images. That native AR package is
+/// not a dependency yet — it lands in the dedicated "wire native AR" slice.
+/// Until then, [resolveMode] selects the camera-preview realization so the
 /// experience runs everywhere.
 abstract final class ArCapabilities {
-  /// Flip to true once the native ARKit/ARCore image-anchor controllers are
-  /// wired and validated on-device (the remaining hardware follow-up).
+  /// Flip to true once a native ARKit/ARCore image-anchor plugin is added and
+  /// validated on-device (the remaining hardware follow-up).
   static const bool nativeImageTrackingWired = false;
 
   static bool get _isMobile {
