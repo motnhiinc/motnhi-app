@@ -1,0 +1,102 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/dashboard/parent_dashboard_screen.dart';
+import '../../features/library/library_screen.dart';
+import '../../features/onboarding/onboarding_screen.dart';
+import '../../features/parental_gate/parental_gate_providers.dart';
+import '../../features/ar/ar_story_screen.dart';
+import '../../features/parental_gate/parental_gate_screen.dart';
+import '../../features/player/story_player_screen.dart';
+import '../../features/profile/profile_providers.dart';
+import '../../features/settings/settings_screen.dart';
+
+/// Route paths. `/gate` is deliberately NOT under `/parent` so guarding
+/// `/parent*` never traps the gate itself in a redirect loop.
+abstract final class AppRoutes {
+  static const onboarding = '/onboarding';
+  static const home = '/home';
+  static const gate = '/gate';
+  static const parent = '/parent';
+  static const settings = '/parent/settings';
+
+  static String story(String id) => '/story/$id';
+  static String ar(String storyId, String pageId) =>
+      '/story/$storyId/ar/$pageId';
+}
+
+final goRouterProvider = Provider<GoRouter>((ref) {
+  final refresh = _RouterRefresh(ref);
+  ref.onDispose(refresh.dispose);
+
+  return GoRouter(
+    initialLocation: AppRoutes.home,
+    refreshListenable: refresh,
+    redirect: (context, state) {
+      final onboarded = ref.read(isOnboardedProvider);
+      final loc = state.matchedLocation;
+
+      // Onboarding gate (§7.2.1): nothing else is reachable until consent +
+      // profile exist.
+      final goingToOnboarding = loc == AppRoutes.onboarding;
+      if (!onboarded && !goingToOnboarding) return AppRoutes.onboarding;
+      if (onboarded && goingToOnboarding) return AppRoutes.home;
+
+      // Parental gate (§7.2.3): guard parent-only surfaces.
+      if (loc.startsWith(AppRoutes.parent)) {
+        final unlocked = ref.read(parentalGateUnlockedProvider);
+        if (!unlocked) {
+          return '${AppRoutes.gate}?redirect=${Uri.encodeComponent(loc)}';
+        }
+      }
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: AppRoutes.onboarding,
+        builder: (_, _) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.home,
+        builder: (_, _) => const LibraryScreen(),
+      ),
+      GoRoute(
+        path: '/story/:storyId',
+        builder: (_, state) =>
+            StoryPlayerScreen(storyId: state.pathParameters['storyId']!),
+      ),
+      GoRoute(
+        path: '/story/:storyId/ar/:pageId',
+        builder: (_, state) => ArStoryScreen(
+          storyId: state.pathParameters['storyId']!,
+          pageId: state.pathParameters['pageId']!,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.gate,
+        builder: (_, state) => ParentalGateScreen(
+          redirectTo:
+              state.uri.queryParameters['redirect'] ?? AppRoutes.parent,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.parent,
+        builder: (_, _) => const ParentDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (_, _) => const ReadingSettingsScreen(),
+      ),
+    ],
+  );
+});
+
+/// Bridges Riverpod state changes into a [Listenable] for go_router so guards
+/// re-evaluate when onboarding or gate state changes.
+class _RouterRefresh extends ChangeNotifier {
+  _RouterRefresh(Ref ref) {
+    ref.listen(isOnboardedProvider, (_, _) => notifyListeners());
+    ref.listen(parentalGateUnlockedProvider, (_, _) => notifyListeners());
+  }
+}

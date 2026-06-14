@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Storybook Voice + AR — System Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" integrity="sha384-en/ztfPSRkGfME4KIm05joYXynqzUgbsG5nMrj/xEFAHXkeZfO3yMK8QQ+mP7p1/" crossorigin="anonymous"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'JetBrains Mono', monospace; background: #020617; min-height: 100vh; padding: 2rem; color: white; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { margin-bottom: 1.5rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; flex-shrink: 0; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.85rem; margin-left: 1.75rem; }
+    .intro { color: #cbd5e1; font-size: 0.8rem; line-height: 1.6; margin: 1rem 0 0 1.75rem; max-width: 70ch; }
+    .intro code, .footer code { background: rgba(30,41,59,0.7); border: 1px solid #1e293b; border-radius: 4px; padding: 1px 5px; font-size: 0.75rem; color: #e2e8f0; }
+    .diagram-section { margin-top: 2.75rem; }
+    .section-head { margin-bottom: 0.75rem; padding-left: 0.25rem; border-left: 3px solid #22d3ee; padding-left: 0.75rem; }
+    .section-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em; }
+    .section-sub { color: #94a3b8; font-size: 0.78rem; margin-top: 0.25rem; }
+    .diagram-container { background: rgba(15, 23, 42, 0.5); border-radius: 1rem; border: 1px solid #1e293b; padding: 1.25rem; overflow-x: auto; }
+    svg { width: 100%; min-width: 900px; display: block; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+    .card { background: rgba(15, 23, 42, 0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.1rem 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .card-dot.cyan { background: #22d3ee; } .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; } .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; } .card-dot.orange { background: #fb923c; }
+    .card h3 { font-size: 0.83rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.74rem; line-height: 1.5; }
+    .card li { margin-bottom: 0.35rem; }
+    .footer { text-align: center; margin-top: 2.5rem; color: #475569; font-size: 0.75rem; }
+    .toolbar { display: flex; gap: 0.5rem; margin-left: auto; flex-shrink: 0; align-items: center; }
+    .toolbar-toggle { background: transparent; border: none; color: #475569; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0.25rem 0.5rem; border-radius: 0.375rem; transition: color 0.2s, background 0.2s; }
+    .toolbar-toggle:hover { color: #94a3b8; background: rgba(30, 41, 59, 0.5); }
+    .toolbar-actions { display: none; gap: 0.5rem; }
+    .toolbar.expanded .toolbar-actions { display: flex; }
+    .toolbar-actions button { background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; color: #94a3b8; padding: 0.375rem 0.75rem; border-radius: 0.375rem; font-family: inherit; font-size: 0.75rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .toolbar-actions button:hover { background: rgba(51, 65, 85, 0.8); color: white; border-color: #475569; }
+    @media print { body { background: #020617; padding: 1rem; } .toolbar { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="container" id="report-container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Interactive Storybook Voice + AR — System Architecture</h1>
+        <div class="toolbar">
+          <div class="toolbar-actions">
+            <button onclick="copyAsImage(this)">📋 Copy</button>
+            <button onclick="downloadPNG(this)">🖼️ PNG</button>
+            <button onclick="downloadPDF(this)">📄 PDF</button>
+          </div>
+          <button class="toolbar-toggle" onclick="this.parentElement.classList.toggle('expanded')" title="Export options" aria-label="Export options">⋯</button>
+        </div>
+      </div>
+      <p class="subtitle">High-level system + AR, voice/audio, and content-publishing subsystems</p>
+      <p class="intro">Companion to <code>SYSTEM_ARCHITECTURE.md</code>, derived from <code>interactive_storybook_voice_ar_product_technical_spec.md</code> (v1.0). Four diagrams: (1) the four-layer system, (2) AR recognition &amp; scene pipeline, (3) voice &amp; audio production + playback, (4) content production &amp; publishing flow. Use the ⋯ menu (top-right) to export the whole board as PNG or PDF.</p>
+    </div>
+<section class="diagram-section">
+  <div class="section-head"><h2 class="section-title">Interactive Storybook Voice + AR App — High-Level System Architecture</h2><p class="section-sub">Mobile client, 9 backend API services, 6 async workers, and shared data layer (spec sections 9.1, 9.2, 9.5, 11, 18)</p></div>
+  <div class="diagram-container"><svg viewBox="0 0 1320 800" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="hl-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f1d33" stroke-width="0.5"/>
+      </pattern>
+      <marker id="hl-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/></marker>
+      <marker id="hl-arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/></marker>
+      <marker id="hl-arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#fb923c"/></marker>
+    </defs>
+
+    <rect x="0" y="0" width="1320" height="800" fill="#020617"/>
+    <rect x="0" y="0" width="1320" height="800" fill="url(#hl-grid)"/>
+
+    <!-- ============ REGION BOXES ============ -->
+    <!-- Region 1: Client (cyan) -->
+    <rect x="40" y="36" width="1240" height="118" rx="12" fill="rgba(8,51,68,0.05)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="56" y="56" fill="#22d3ee" font-size="11" font-weight="700">1 · Mobile Client</text>
+
+    <!-- Region 2: API (emerald) -->
+    <rect x="40" y="186" width="1240" height="118" rx="12" fill="rgba(6,78,59,0.05)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="56" y="206" fill="#34d399" font-size="11" font-weight="700">2 · Backend API Services</text>
+
+    <!-- Region 3: Workers (orange) -->
+    <rect x="40" y="336" width="1240" height="118" rx="12" fill="rgba(251,146,60,0.05)" stroke="#fb923c" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="56" y="356" fill="#fb923c" font-size="11" font-weight="700">3 · Async Workers (queue-driven)</text>
+
+    <!-- Region 4: Data (violet) -->
+    <rect x="40" y="486" width="1240" height="118" rx="12" fill="rgba(76,29,149,0.05)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4"/>
+    <text x="56" y="506" fill="#a78bfa" font-size="11" font-weight="700">4 · Data Layer</text>
+
+    <!-- ============ EDGES (drawn first, behind boxes) ============ -->
+    <!-- Client -> API sync (cyan) -->
+    <g fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#hl-arrow-cyan)">
+      <path d="M 175 130 L 140 224"/>
+      <path d="M 190 130 L 360 224"/>
+      <path d="M 200 130 L 490 224"/>
+      <path d="M 215 130 L 740 224"/>
+      <path d="M 225 130 L 870 224"/>
+      <path d="M 410 130 L 615 224"/>
+      <path d="M 1015 130 L 360 224"/>
+      <path d="M 1030 130 L 745 224"/>
+    </g>
+    <!-- cyan edge labels -->
+    <g fill="#94a3b8" font-size="8" text-anchor="middle">
+      <text x="118" y="180">parent auth</text>
+      <text x="300" y="172">GET /v1/stories</text>
+      <text x="455" y="160">signed audio URL</text>
+      <text x="700" y="150">POST sessions</text>
+      <text x="555" y="178">image-target manifest</text>
+      <text x="935" y="166">manage profile</text>
+    </g>
+
+    <!-- Admin/Publisher -> Workers async (orange) -->
+    <g fill="none" stroke="#fb923c" stroke-width="1.5" marker-end="url(#hl-arrow-orange)">
+      <path d="M 1190 280 L 150 374"/>
+      <path d="M 1195 280 L 415 374"/>
+      <path d="M 1200 280 L 680 374"/>
+      <path d="M 1205 280 L 945 374"/>
+    </g>
+    <text x="760" y="326" fill="#94a3b8" font-size="9" text-anchor="middle">enqueue async jobs</text>
+
+    <!-- Workers -> Object Storage / Postgres data (violet) -->
+    <g fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#hl-arrow-violet)">
+      <path d="M 150 428 L 690 524"/>
+      <path d="M 415 428 L 700 524"/>
+      <path d="M 680 428 L 710 524"/>
+      <path d="M 945 428 L 720 524"/>
+      <path d="M 670 428 L 215 524"/>
+    </g>
+    <g fill="#94a3b8" font-size="8" text-anchor="middle">
+      <text x="450" y="476">write assets</text>
+      <text x="430" y="498">update status</text>
+    </g>
+
+    <!-- Object Storage -> CDN (violet, short) -->
+    <path d="M 800 560 L 950 560" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#hl-arrow-violet)"/>
+    <text x="875" y="552" fill="#94a3b8" font-size="8" text-anchor="middle">origin → edge</text>
+
+    <!-- Analytics service -> Analytics Warehouse (violet) -->
+    <path d="M 1015 280 L 1090 524" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#hl-arrow-violet)"/>
+    <text x="1075" y="400" fill="#94a3b8" font-size="8" text-anchor="middle">forward events</text>
+
+    <!-- LEFT margin curved VIOLET bypass: API region <-> Data region -->
+    <path d="M 96 240 C 24 320, 24 420, 96 540" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="2,3" marker-end="url(#hl-arrow-violet)"/>
+    <text x="28" y="395" fill="#94a3b8" font-size="8" text-anchor="middle" transform="rotate(-90 28 395)">API services read / write · PostgreSQL + Redis</text>
+
+    <!-- RIGHT margin curved CYAN bypass: Client region -> CDN -->
+    <path d="M 1255 120 C 1300 300, 1300 420, 1110 545" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="2,3" marker-end="url(#hl-arrow-cyan)"/>
+    <text x="1296" y="330" fill="#94a3b8" font-size="8" text-anchor="middle" transform="rotate(-90 1296 330)">download audio + AR assets (signed URL)</text>
+
+    <!-- ============ NODES ============ -->
+    <!-- ===== Region 1: Client (5 nodes) ===== -->
+    <!-- positions: x starts 70, width 220, gap -->
+    <g>
+      <rect x="70" y="72" width="216" height="58" rx="6" fill="#0f172a"/>
+      <rect x="70" y="72" width="216" height="58" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="178" y="94" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Child Story Player</text>
+      <text x="178" y="110" fill="#94a3b8" font-size="8" text-anchor="middle">main reading interface,</text>
+      <text x="178" y="120" fill="#94a3b8" font-size="8" text-anchor="middle">narration playback</text>
+    </g>
+    <g>
+      <rect x="304" y="72" width="216" height="58" rx="6" fill="#0f172a"/>
+      <rect x="304" y="72" width="216" height="58" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="412" y="94" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AR Module</text>
+      <text x="412" y="110" fill="#94a3b8" font-size="8" text-anchor="middle">Unity/AR Foundation or ARKit/</text>
+      <text x="412" y="120" fill="#94a3b8" font-size="8" text-anchor="middle">ARCore, on-device targets</text>
+    </g>
+    <g>
+      <rect x="538" y="72" width="216" height="58" rx="6" fill="#0f172a"/>
+      <rect x="538" y="72" width="216" height="58" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="646" y="94" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Playback Engine</text>
+      <text x="646" y="110" fill="#94a3b8" font-size="8" text-anchor="middle">gapless segments, bedtime</text>
+      <text x="646" y="120" fill="#94a3b8" font-size="8" text-anchor="middle">profile, preload</text>
+    </g>
+    <g>
+      <rect x="772" y="72" width="216" height="58" rx="6" fill="#0f172a"/>
+      <rect x="772" y="72" width="216" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="880" y="94" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Offline Cache</text>
+      <text x="880" y="110" fill="#94a3b8" font-size="8" text-anchor="middle">SQLite/Drift/Hive — cached</text>
+      <text x="880" y="120" fill="#94a3b8" font-size="8" text-anchor="middle">audio, AR assets, metadata</text>
+    </g>
+    <g>
+      <rect x="1006" y="72" width="216" height="58" rx="6" fill="#0f172a"/>
+      <rect x="1006" y="72" width="216" height="58" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="1114" y="94" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Parent Dashboard</text>
+      <text x="1114" y="110" fill="#94a3b8" font-size="8" text-anchor="middle">reading history, settings,</text>
+      <text x="1114" y="120" fill="#94a3b8" font-size="8" text-anchor="middle">recommendations</text>
+    </g>
+
+    <!-- ===== Region 2: API (9 narrow nodes, ~115px) ===== -->
+    <!-- 9 nodes from x=78, width 115, gap ~17 -->
+    <g>
+      <rect x="78" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="78" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="135" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Auth</text>
+      <text x="135" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">parent login,</text>
+      <text x="135" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">sessions, gate</text>
+    </g>
+    <g>
+      <rect x="210" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="210" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="267" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Child Profile</text>
+      <text x="267" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">age band, lang,</text>
+      <text x="267" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">permissions</text>
+    </g>
+    <g>
+      <rect x="342" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="342" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="399" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Story Content</text>
+      <text x="399" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">story/page meta,</text>
+      <text x="399" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">narration scripts</text>
+    </g>
+    <g>
+      <rect x="474" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="474" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="531" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Asset</text>
+      <text x="531" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">signed URLs,</text>
+      <text x="531" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">versions</text>
+    </g>
+    <g>
+      <rect x="606" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="606" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="663" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AR Asset</text>
+      <text x="663" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">scene meta,</text>
+      <text x="663" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">target manifest</text>
+    </g>
+    <g>
+      <rect x="738" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="738" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="795" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Story Session</text>
+      <text x="795" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">start/complete,</text>
+      <text x="795" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">resume, events</text>
+    </g>
+    <g>
+      <rect x="870" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="870" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="927" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Entitlement</text>
+      <text x="927" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">subscription,</text>
+      <text x="927" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">codes, license</text>
+    </g>
+    <g>
+      <rect x="1002" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="1002" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="1059" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Analytics</text>
+      <text x="1059" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">ingest story/scan/</text>
+      <text x="1059" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">question events</text>
+    </g>
+    <g>
+      <rect x="1134" y="224" width="115" height="58" rx="6" fill="#0f172a"/>
+      <rect x="1134" y="224" width="115" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="1191" y="248" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Admin / Pub</text>
+      <text x="1191" y="263" fill="#94a3b8" font-size="8" text-anchor="middle">upload, review,</text>
+      <text x="1191" y="273" fill="#94a3b8" font-size="8" text-anchor="middle">publish, rights</text>
+    </g>
+
+    <!-- ===== Region 3: Workers (6 nodes) ===== -->
+    <!-- 6 nodes from x=78, width ~180, gap -->
+    <g>
+      <rect x="78" y="374" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="78" y="374" width="180" height="58" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="168" y="398" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Voice Generation</text>
+      <text x="168" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">TTS over</text>
+      <text x="168" y="424" fill="#94a3b8" font-size="8" text-anchor="middle">narration script</text>
+    </g>
+    <g>
+      <rect x="278" y="374" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="278" y="374" width="180" height="58" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="368" y="398" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Processing</text>
+      <text x="368" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">normalization,</text>
+      <text x="368" y="424" fill="#94a3b8" font-size="8" text-anchor="middle">SFX/music mixing</text>
+    </g>
+    <g>
+      <rect x="478" y="374" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="478" y="374" width="180" height="58" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="568" y="398" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AR Asset Processing</text>
+      <text x="568" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">optimize assets,</text>
+      <text x="568" y="424" fill="#94a3b8" font-size="8" text-anchor="middle">build device bundles</text>
+    </g>
+    <g>
+      <rect x="678" y="374" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="678" y="374" width="180" height="58" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="768" y="398" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Image Target Proc.</text>
+      <text x="768" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">image validation,</text>
+      <text x="768" y="424" fill="#94a3b8" font-size="8" text-anchor="middle">ref-image DB gen</text>
+    </g>
+    <g>
+      <rect x="878" y="374" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="878" y="374" width="180" height="58" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="968" y="398" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Safety Review</text>
+      <text x="968" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">policy filters +</text>
+      <text x="968" y="424" fill="#94a3b8" font-size="8" text-anchor="middle">age classifier</text>
+    </g>
+    <g>
+      <rect x="1078" y="374" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="1078" y="374" width="180" height="58" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="1168" y="398" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Recommendation</text>
+      <text x="1168" y="414" fill="#94a3b8" font-size="8" text-anchor="middle">suggested next</text>
+      <text x="1168" y="424" fill="#94a3b8" font-size="8" text-anchor="middle">stories (rule-based)</text>
+    </g>
+
+    <!-- ===== Region 4: Data (5 nodes) — PostgreSQL, Redis, Analytics Warehouse, Object Storage, CDN ===== -->
+    <g>
+      <rect x="78" y="524" width="216" height="58" rx="6" fill="#0f172a"/>
+      <rect x="78" y="524" width="216" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="186" y="546" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">PostgreSQL</text>
+      <text x="186" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">system of record — users,</text>
+      <text x="186" y="572" fill="#94a3b8" font-size="8" text-anchor="middle">stories, sessions, segments</text>
+    </g>
+    <g>
+      <rect x="312" y="524" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="312" y="524" width="180" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="402" y="546" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Redis Cache</text>
+      <text x="402" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">hot API responses,</text>
+      <text x="402" y="572" fill="#94a3b8" font-size="8" text-anchor="middle">session/resume state</text>
+    </g>
+    <g>
+      <rect x="510" y="524" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="510" y="524" width="180" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="600" y="546" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Analytics Warehouse</text>
+      <text x="600" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">aggregated product/</text>
+      <text x="600" y="572" fill="#94a3b8" font-size="8" text-anchor="middle">learning/tech metrics</text>
+    </g>
+    <g>
+      <rect x="708" y="524" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="708" y="524" width="180" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="798" y="546" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Object Storage</text>
+      <text x="798" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">S3-compatible — audio, AR</text>
+      <text x="798" y="572" fill="#94a3b8" font-size="8" text-anchor="middle">bundles, images, targets</text>
+    </g>
+    <g>
+      <rect x="950" y="524" width="180" height="58" rx="6" fill="#0f172a"/>
+      <rect x="950" y="524" width="180" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="1040" y="546" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">CDN</text>
+      <text x="1040" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">Cloudflare/cloud CDN</text>
+      <text x="1040" y="572" fill="#94a3b8" font-size="8" text-anchor="middle">fronts asset downloads</text>
+    </g>
+
+    <!-- ============ LEGEND (below region 4) ============ -->
+    <g font-size="9" fill="#94a3b8">
+      <rect x="78" y="640" width="14" height="12" rx="3" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="98" y="650">Client / UI</text>
+      <rect x="178" y="640" width="14" height="12" rx="3" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="198" y="650">Service</text>
+      <rect x="268" y="640" width="14" height="12" rx="3" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="288" y="650">Worker</text>
+      <rect x="358" y="640" width="14" height="12" rx="3" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="378" y="650">Data store</text>
+
+      <line x1="470" y1="646" x2="500" y2="646" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#hl-arrow-cyan)"/>
+      <text x="506" y="650">sync (client call)</text>
+      <line x1="610" y1="646" x2="640" y2="646" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#hl-arrow-violet)"/>
+      <text x="646" y="650">data (read/write)</text>
+      <line x1="752" y1="646" x2="782" y2="646" stroke="#fb923c" stroke-width="1.5" marker-end="url(#hl-arrow-orange)"/>
+      <text x="788" y="650">async (enqueue job)</text>
+    </g>
+  </svg></div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><div class="card-dot cyan"></div><h3>Thin client, signed-URL assets</h3></div>
+      <ul>
+        <li>• Five modules: Child Story Player, AR Module, Audio Playback Engine, Offline Cache, Parent Dashboard (Flutter/RN + Unity/native AR, §9.2).</li>
+        <li>• API services return signed URLs; the client downloads audio + AR bundles directly from the CDN, never streamed by the API.</li>
+        <li>• Offline Cache (SQLite/Drift/Hive) holds cached audio, AR assets, and page metadata for offline playback.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot emerald"></div><h3>9 read-mostly API services</h3></div>
+      <ul>
+        <li>• Auth, Child Profile, Story Content, Audio Asset, AR Asset, Story Session, Entitlement, Analytics, Admin/Publisher (§9.5).</li>
+        <li>• All read/write PostgreSQL; Story Content and Story Session lean on Redis for hot responses and resume state.</li>
+        <li>• Admin/Publisher enqueues the heavy lifting onto async workers rather than doing it inline.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot violet"></div><h3>Workers + shared data layer</h3></div>
+      <ul>
+        <li>• 6 queue-driven workers (Voice Gen, Audio Proc, AR Asset, Image Target, Safety Review, Recommendation) write assets to Object Storage and update status in PostgreSQL.</li>
+        <li>• Data layer: PostgreSQL (record), Redis (cache), Analytics Warehouse, Object Storage, CDN (origin → edge).</li>
+        <li>• All child-facing assets are pre-generated and human-reviewed before publish (§18.2, §13.2).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+<section class="diagram-section">
+  <div class="section-head"><h2 class="section-title">AR Recognition &amp; Scene Pipeline</h2><p class="section-sub">Reference-image detection to 2D scene render (MVP on-device, spec 9.3 / 11.5)</p></div>
+  <div class="diagram-container"><svg viewBox="0 0 1320 580" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="ar-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0e1a33" stroke-width="1"/>
+      </pattern>
+      <marker id="ar-arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+      </marker>
+      <marker id="ar-arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
+      </marker>
+      <marker id="ar-arrow-sync" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+      </marker>
+      <marker id="ar-arrow-control" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb7185"/>
+      </marker>
+    </defs>
+
+    <rect x="0" y="0" width="1320" height="580" fill="#020617"/>
+    <rect x="0" y="0" width="1320" height="580" fill="url(#ar-grid)"/>
+
+    <!-- ===== REGION BOXES ===== -->
+    <!-- TOP emerald lane -->
+    <rect x="30" y="70" width="1260" height="150" rx="12" fill="rgba(6,78,59,0.05)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="8,4"/>
+    <text x="48" y="92" fill="#34d399" font-size="12" font-weight="700">Content Production · server-side (9.3.1 / 9.5.5 / 18.1)</text>
+
+    <!-- BOTTOM cyan lane -->
+    <rect x="30" y="330" width="1260" height="150" rx="12" fill="rgba(8,51,68,0.05)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="8,4"/>
+    <text x="48" y="352" fill="#22d3ee" font-size="12" font-weight="700">On-Device AR Module (MVP, 7.1.4 / 11.5)</text>
+
+    <!-- ===== EDGES (drawn before boxes) ===== -->
+    <!-- TOP lane flow: book -> validation -> db gen -->
+    <line x1="210" y1="150" x2="280" y2="150" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+    <text x="245" y="143" fill="#94a3b8" font-size="8" text-anchor="middle">submit page art</text>
+    <line x1="450" y1="150" x2="520" y2="150" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+    <text x="485" y="143" fill="#94a3b8" font-size="8" text-anchor="middle">validated image</text>
+
+    <!-- db gen -> image target worker (data) -->
+    <line x1="690" y1="150" x2="760" y2="150" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ar-arrow-data)"/>
+    <text x="725" y="143" fill="#94a3b8" font-size="8" text-anchor="middle">feature data</text>
+
+    <!-- validation -> image target worker (control), curve over the top -->
+    <path d="M 585 118 C 640 96, 760 96, 815 118" fill="none" stroke="#fb7185" stroke-width="1.5" marker-end="url(#ar-arrow-control)"/>
+    <text x="700" y="98" fill="#94a3b8" font-size="8" text-anchor="middle">trigger DB build</text>
+
+    <!-- image target worker -> AR asset service (data) -->
+    <line x1="930" y1="150" x2="1000" y2="150" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ar-arrow-data)"/>
+    <text x="965" y="143" fill="#94a3b8" font-size="8" text-anchor="middle">target manifest</text>
+
+    <!-- image target worker -> object storage, gentle curve dipping below the row to avoid AR Asset box -->
+    <path d="M 870 182 C 920 215, 1110 215, 1160 182" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ar-arrow-data)"/>
+    <text x="1015" y="212" fill="#94a3b8" font-size="8" text-anchor="middle">store ref-image DB</text>
+
+    <!-- AR asset service -> object storage (data) -->
+    <line x1="1110" y1="135" x2="1150" y2="135" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ar-arrow-data)"/>
+    <text x="1130" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">store scene</text>
+
+    <!-- object storage -> CDN (data) -->
+    <line x1="1230" y1="170" x2="1255" y2="170" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ar-arrow-data)"/>
+    <text x="1242" y="190" fill="#94a3b8" font-size="8" text-anchor="middle">origin</text>
+
+    <!-- VERTICAL handoff CDN(top) -> Download Manifest(bottom) data, bold -->
+    <line x1="1232" y1="200" x2="1192" y2="400" stroke="#a78bfa" stroke-width="3" marker-end="url(#ar-arrow-data)"/>
+    <text x="1255" y="290" fill="#94a3b8" font-size="9" text-anchor="middle">GET image-target-manifest</text>
+    <text x="1255" y="302" fill="#94a3b8" font-size="9" text-anchor="middle">CDN delivers bundle</text>
+
+    <!-- download manifest -> AR asset service (sync) up to top lane, routed along right margin -->
+    <path d="M 1140 380 C 1090 300, 1090 200, 1055 170" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ar-arrow-sync)"/>
+    <text x="1078" y="270" fill="#94a3b8" font-size="8" text-anchor="middle">GET manifest</text>
+
+    <!-- BOTTOM lane flow pointing LEFT -->
+    <!-- download manifest -> camera (on-device DB ready) -->
+    <line x1="1080" y1="410" x2="1010" y2="410" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+    <text x="1045" y="403" fill="#94a3b8" font-size="8" text-anchor="middle">on-device DB ready</text>
+    <!-- camera -> load scene (detected page_id) -->
+    <line x1="840" y1="410" x2="770" y2="410" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+    <text x="805" y="403" fill="#94a3b8" font-size="8" text-anchor="middle">detected page_id</text>
+    <!-- load scene -> render (scene_json assets) -->
+    <line x1="600" y1="410" x2="530" y2="410" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+    <text x="565" y="403" fill="#94a3b8" font-size="8" text-anchor="middle">scene_json assets</text>
+    <!-- render -> tap (default animation) -->
+    <line x1="360" y1="410" x2="290" y2="410" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+    <text x="325" y="403" fill="#94a3b8" font-size="8" text-anchor="middle">default animation</text>
+
+    <!-- load scene -> AR asset service (sync) fallback, route up along left-center -->
+    <path d="M 660 380 C 660 300, 1000 240, 1000 152" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ar-arrow-sync)"/>
+    <text x="760" y="300" fill="#94a3b8" font-size="8" text-anchor="middle">fallback / scene update</text>
+
+    <!-- tap -> CDN (sync) fetch audio_segment_id, route along left margin up -->
+    <path d="M 150 440 C 90 470, 90 250, 1255 175" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ar-arrow-sync)"/>
+    <text x="110" y="360" fill="#94a3b8" font-size="8" text-anchor="middle">fetch audio_segment_id</text>
+
+    <!-- ===== NODES ===== -->
+    <!-- TOP LANE: stage=cyan, worker=orange, service=emerald, store=violet -->
+    <!-- Book Page Image (stage/cyan) -->
+    <rect x="50" y="120" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="50" y="120" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="130" y="146" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Book Page Image</text>
+    <text x="130" y="160" fill="#94a3b8" font-size="8" text-anchor="middle">story_pages.</text>
+    <text x="130" y="170" fill="#94a3b8" font-size="8" text-anchor="middle">page_image_asset_id</text>
+
+    <!-- Image Quality Validation (stage/cyan) -->
+    <rect x="290" y="120" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="290" y="120" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="370" y="146" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Image Quality Validation</text>
+    <text x="370" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">gate before DB build</text>
+
+    <!-- Reference Image DB Gen (stage/cyan) -->
+    <rect x="530" y="120" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="530" y="120" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="610" y="146" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Reference Image DB Gen</text>
+    <text x="610" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">build feature DB</text>
+
+    <!-- Image Target Worker (worker/orange) -->
+    <rect x="770" y="120" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="770" y="120" width="160" height="60" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="850" y="146" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Image Target Worker</text>
+    <text x="850" y="163" fill="#94a3b8" font-size="8" text-anchor="middle">async; ref-image DB + manifest</text>
+
+    <!-- AR Asset Service (service/emerald) -->
+    <rect x="1000" y="105" width="110" height="60" rx="6" fill="#0f172a"/>
+    <rect x="1000" y="105" width="110" height="60" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1055" y="130" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AR Asset Service</text>
+    <text x="1055" y="146" fill="#94a3b8" font-size="8" text-anchor="middle">page_id to scene,</text>
+    <text x="1055" y="156" fill="#94a3b8" font-size="8" text-anchor="middle">bundle versions</text>
+
+    <!-- Object Storage (store/violet) -->
+    <rect x="1150" y="140" width="80" height="60" rx="6" fill="#0f172a"/>
+    <rect x="1150" y="140" width="80" height="60" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="1190" y="164" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Object</text>
+    <text x="1190" y="177" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Storage</text>
+    <text x="1190" y="191" fill="#94a3b8" font-size="8" text-anchor="middle">S3 AR + ref</text>
+
+    <!-- CDN (store/violet) -->
+    <rect x="1255" y="140" width="60" height="60" rx="6" fill="#0f172a"/>
+    <rect x="1255" y="140" width="60" height="60" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="1285" y="167" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">CDN</text>
+    <text x="1285" y="182" fill="#94a3b8" font-size="8" text-anchor="middle">edge</text>
+
+    <!-- BOTTOM LANE: stages cyan, right->left -->
+    <!-- Download Manifest (under CDN) -->
+    <rect x="1080" y="380" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="1080" y="380" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="1160" y="406" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Download Manifest</text>
+    <text x="1160" y="423" fill="#94a3b8" font-size="8" text-anchor="middle">GET image-target-manifest</text>
+
+    <!-- Camera Detects Target -->
+    <rect x="840" y="380" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="840" y="380" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="920" y="406" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Camera Detects Target</text>
+    <text x="920" y="423" fill="#94a3b8" font-size="8" text-anchor="middle">ARKit/ARCore augmented img</text>
+
+    <!-- Load AR Scene -->
+    <rect x="600" y="380" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="600" y="380" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="680" y="406" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Load AR Scene</text>
+    <text x="680" y="423" fill="#94a3b8" font-size="8" text-anchor="middle">resolve page_id to scene_json</text>
+
+    <!-- Render 2D Character -->
+    <rect x="360" y="380" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="360" y="380" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="440" y="406" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Render 2D Character</text>
+    <text x="440" y="423" fill="#94a3b8" font-size="8" text-anchor="middle">Rive/Lottie/Spine/Unity 2D</text>
+
+    <!-- Tap Triggers Audio -->
+    <rect x="120" y="380" width="160" height="60" rx="6" fill="#0f172a"/>
+    <rect x="120" y="380" width="160" height="60" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="200" y="406" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Tap Triggers Audio</text>
+    <text x="200" y="423" fill="#94a3b8" font-size="8" text-anchor="middle">tap to play_audio_segment</text>
+
+    <!-- ===== LEGEND (outside regions) ===== -->
+    <g>
+      <rect x="50" y="510" width="14" height="14" rx="3" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="72" y="521" fill="#94a3b8" font-size="9">stage</text>
+      <rect x="140" y="510" width="14" height="14" rx="3" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="162" y="521" fill="#94a3b8" font-size="9">worker</text>
+      <rect x="235" y="510" width="14" height="14" rx="3" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="257" y="521" fill="#94a3b8" font-size="9">service</text>
+      <rect x="330" y="510" width="14" height="14" rx="3" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="352" y="521" fill="#94a3b8" font-size="9">store</text>
+
+      <line x1="440" y1="517" x2="475" y2="517" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ar-arrow-flow)"/>
+      <text x="483" y="521" fill="#94a3b8" font-size="9">flow</text>
+      <line x1="530" y1="517" x2="565" y2="517" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#ar-arrow-data)"/>
+      <text x="573" y="521" fill="#94a3b8" font-size="9">data</text>
+      <line x1="620" y1="517" x2="655" y2="517" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#ar-arrow-sync)"/>
+      <text x="663" y="521" fill="#94a3b8" font-size="9">sync</text>
+      <line x1="710" y1="517" x2="745" y2="517" stroke="#fb7185" stroke-width="1.5" marker-end="url(#ar-arrow-control)"/>
+      <text x="753" y="521" fill="#94a3b8" font-size="9">control</text>
+    </g>
+  </svg></div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><div class="card-dot emerald"></div><h3>Server-Side Production</h3></div>
+      <ul>
+        <li>• Book page art passes an image-quality validation gate before any reference-image DB is built — poor source images are rejected early.</li>
+        <li>• The Image Target Worker builds the reference-image feature DB and the per-story image-target manifest asynchronously.</li>
+        <li>• AR Asset Service maps page_id to scene_json and manages asset-bundle versions; Object Storage and CDN front the finished assets.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot violet"></div><h3>Manifest Handoff</h3></div>
+      <ul>
+        <li>• The CDN-delivered image-target manifest plus asset bundle is the single handoff from production to device (GET /v1/stories/{id}/image-target-manifest, 11.5).</li>
+        <li>• Object Storage is the origin; the CDN serves the bundle at the edge for low-latency, offline-tolerant downloads.</li>
+        <li>• AR Asset Service version control prevents manifest-vs-cached-bundle skew.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot cyan"></div><h3>On-Device AR (MVP)</h3></div>
+      <ul>
+        <li>• Detection runs on-device from the downloaded target DB: camera detects target, resolves page_id, loads scene_json, renders the 2D character.</li>
+        <li>• A tap triggers play_audio_segment, fetching the linked audio from the CDN — the only live server call in the device loop.</li>
+        <li>• Server recognition is fallback/update only; this keeps AR page detection under the &lt;2 s target (17).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+<section class="diagram-section">
+  <div class="section-head"><h2 class="section-title">Voice &amp; Audio Pipeline</h2><p class="section-sub">Offline production (pre-generate + review) and on-device playback of approved audio assets</p></div>
+  <div class="diagram-container"><svg viewBox="0 0 1320 900" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="vp-grid" width="34" height="34" patternUnits="userSpaceOnUse">
+        <path d="M 34 0 L 0 0 0 34" fill="none" stroke="#0e1a30" stroke-width="0.6"/>
+      </pattern>
+      <marker id="vp-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+      </marker>
+      <marker id="vp-arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
+      </marker>
+      <marker id="vp-arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb923c"/>
+      </marker>
+      <marker id="vp-arrow-rose" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb7185"/>
+      </marker>
+      <marker id="vp-arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+      </marker>
+    </defs>
+
+    <rect x="0" y="0" width="1320" height="900" fill="#020617"/>
+    <rect x="0" y="0" width="1320" height="900" fill="url(#vp-grid)"/>
+
+    <!-- ===================== REGION BOXES ===================== -->
+    <!-- Region A: Production Pipeline (emerald) -->
+    <rect x="36" y="60" width="1248" height="300" rx="12" fill="rgba(6,78,59,0.05)" stroke="#34d399" stroke-width="1.2" stroke-dasharray="8,4"/>
+    <text x="52" y="82" fill="#34d399" font-size="11" font-weight="600">A · Production Pipeline (offline, server/worker)</text>
+
+    <!-- External satellite (slate) -->
+    <rect x="36" y="378" width="320" height="118" rx="12" fill="rgba(30,41,59,0.05)" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="8,4"/>
+    <text x="52" y="400" fill="#94a3b8" font-size="11" font-weight="600">External Services</text>
+
+    <!-- Region B: AI Safety Gate (rose) -->
+    <rect x="376" y="378" width="908" height="118" rx="12" fill="rgba(136,19,55,0.05)" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="8,4"/>
+    <text x="392" y="400" fill="#fb7185" font-size="11" font-weight="600">AI Safety Gate (§13.2)</text>
+
+    <!-- Region C: Delivery (violet) -->
+    <rect x="376" y="516" width="908" height="118" rx="12" fill="rgba(76,29,149,0.05)" stroke="#a78bfa" stroke-width="1.2" stroke-dasharray="8,4"/>
+    <text x="392" y="538" fill="#a78bfa" font-size="11" font-weight="600">Delivery · storage + CDN</text>
+
+    <!-- Region D: Playback (cyan) -->
+    <rect x="376" y="652" width="908" height="138" rx="12" fill="rgba(8,51,68,0.05)" stroke="#22d3ee" stroke-width="1.2" stroke-dasharray="8,4"/>
+    <text x="392" y="674" fill="#22d3ee" font-size="11" font-weight="600">B · Playback (on-device)</text>
+
+    <!-- ===================== EDGES (drawn BEFORE boxes) ===================== -->
+    <!-- ---- Region A row1 chain (flow / slate) ---- -->
+    <line x1="248" y1="135" x2="280" y2="135" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="448" y1="135" x2="480" y2="135" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="648" y1="135" x2="680" y2="135" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="848" y1="135" x2="880" y2="135" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="1048" y1="135" x2="1080" y2="135" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <text x="264" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">cleaned text</text>
+    <text x="464" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">pages</text>
+    <text x="664" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">speaker assign</text>
+    <text x="864" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">script segments</text>
+    <text x="1064" y="128" fill="#94a3b8" font-size="8" text-anchor="middle">voice + emotion</text>
+
+    <!-- right turn: Voice Style Assignment -> Voice Generation Worker (flow) -->
+    <path d="M 1170 166 L 1170 250" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <text x="1212" y="210" fill="#94a3b8" font-size="8" text-anchor="middle">to TTS</text>
+
+    <!-- ---- Region A row2 chain right->left (flow / slate) ---- -->
+    <line x1="1080" y1="281" x2="1048" y2="281" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="880" y1="281" x2="848" y2="281" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="680" y1="281" x2="648" y2="281" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <text x="1064" y="274" fill="#94a3b8" font-size="8" text-anchor="middle">generated audio</text>
+    <text x="864" y="274" fill="#94a3b8" font-size="8" text-anchor="middle">normalize</text>
+    <text x="664" y="274" fill="#94a3b8" font-size="8" text-anchor="middle">normalized track</text>
+
+    <!-- External TTS two-way (sync / cyan) below Voice Generation Worker -->
+    <path d="M 1158 312 L 1158 438 L 290 438" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#vp-arrow-cyan)"/>
+    <path d="M 200 438 L 1146 438 L 1146 312" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#vp-arrow-cyan)"/>
+    <text x="700" y="431" fill="#94a3b8" font-size="8" text-anchor="middle">external TTS (synthesize / raw audio)</text>
+
+    <!-- left turn: Sound Effect Mixing -> Policy Filters (flow) -->
+    <path d="M 540 312 L 540 350 L 466 350 L 466 412" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <text x="466" y="370" fill="#94a3b8" font-size="8" text-anchor="middle">mixed audio draft</text>
+
+    <!-- ---- Region B gate chain left->right (flow) ---- -->
+    <line x1="556" y1="443" x2="600" y2="443" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="760" y1="443" x2="804" y2="443" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <line x1="964" y1="443" x2="1008" y2="443" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <text x="578" y="436" fill="#94a3b8" font-size="8" text-anchor="middle">policy-checked</text>
+    <text x="782" y="436" fill="#94a3b8" font-size="8" text-anchor="middle">age-classified</text>
+    <text x="986" y="436" fill="#94a3b8" font-size="8" text-anchor="middle">queue review</text>
+    <!-- Human Editorial Review -> Locked Assets (control / rose) -->
+    <line x1="1168" y1="443" x2="1212" y2="443" stroke="#fb7185" stroke-width="1.5" marker-end="url(#vp-arrow-rose)"/>
+    <text x="1190" y="436" fill="#94a3b8" font-size="8" text-anchor="middle">approve</text>
+
+    <!-- right turn: Locked Assets -> Object Storage (flow) -->
+    <path d="M 1226 470 L 1226 502 L 466 502 L 466 547" fill="none" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+    <text x="700" y="495" fill="#94a3b8" font-size="8" text-anchor="middle">publish audio assets</text>
+
+    <!-- Region C: Object Storage -> CDN (data / violet) -->
+    <line x1="556" y1="581" x2="600" y2="581" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#vp-arrow-violet)"/>
+    <text x="578" y="574" fill="#94a3b8" font-size="8" text-anchor="middle">distribute</text>
+    <!-- Object Storage -> Audio Asset Service (data / violet) gentle curve under region C -->
+    <path d="M 506 612 C 540 660 720 660 808 612" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#vp-arrow-violet)"/>
+    <text x="660" y="652" fill="#94a3b8" font-size="8" text-anchor="middle">register URLs + version</text>
+
+    <!-- low-key long VIOLET curve hugging LEFT margin: Narration Script -> Story Content Service -->
+    <path d="M 880 166 C 360 200 18 320 18 560 C 18 600 200 581 1008 581" fill="none" stroke="#a78bfa" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#vp-arrow-violet)" opacity="0.75"/>
+    <text x="64" y="450" fill="#94a3b8" font-size="8" text-anchor="middle" transform="rotate(-90 64 450)">store narration script</text>
+
+    <!-- ---- Region D Playback edges ---- -->
+    <!-- Audio Playback Engine -> Story Content Service (sync / cyan) -->
+    <path d="M 600 690 C 720 640 900 600 1058 612" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#vp-arrow-cyan)"/>
+    <text x="850" y="635" fill="#94a3b8" font-size="8" text-anchor="middle">GET narration script</text>
+    <!-- Audio Playback Engine <-> Audio Asset Service (sync / cyan) two-way -->
+    <path d="M 540 690 L 880 642" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#vp-arrow-cyan)"/>
+    <path d="M 894 644 L 554 692" fill="none" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#vp-arrow-cyan)"/>
+    <text x="700" y="660" fill="#94a3b8" font-size="8" text-anchor="middle">signed URL</text>
+    <!-- CDN -> Audio Playback Engine (data / violet) -->
+    <path d="M 670 612 C 640 650 560 660 500 690" fill="none" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#vp-arrow-violet)"/>
+    <text x="560" y="640" fill="#94a3b8" font-size="8" text-anchor="middle">stream approved audio</text>
+    <!-- Audio Playback Engine <-> Offline Cache (data / violet) two-way -->
+    <line x1="560" y1="715" x2="700" y2="715" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#vp-arrow-violet)"/>
+    <line x1="700" y1="731" x2="560" y2="731" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#vp-arrow-violet)"/>
+    <text x="630" y="752" fill="#94a3b8" font-size="8" text-anchor="middle">download / offline</text>
+
+    <!-- ===================== NODES ===================== -->
+    <!-- Region A row1 -->
+    <!-- Story Manuscript -->
+    <rect x="68" y="104" width="180" height="62" rx="6" fill="#0f172a"/>
+    <rect x="68" y="104" width="180" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="158" y="130" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Story Manuscript</text>
+    <text x="158" y="146" fill="#94a3b8" font-size="8" text-anchor="middle">uploaded text + pages</text>
+    <text x="158" y="156" fill="#94a3b8" font-size="8" text-anchor="middle">(§7.3.1)</text>
+
+    <!-- Text Cleaning -->
+    <rect x="280" y="104" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="280" y="104" width="168" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="364" y="134" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Text Cleaning</text>
+    <text x="364" y="150" fill="#94a3b8" font-size="8" text-anchor="middle">§9.4.1</text>
+
+    <!-- Page Segmentation -->
+    <rect x="480" y="104" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="480" y="104" width="168" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="564" y="134" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Page Segmentation</text>
+    <text x="564" y="150" fill="#94a3b8" font-size="8" text-anchor="middle">§9.4.1</text>
+
+    <!-- Character Detect / Assign -->
+    <rect x="680" y="104" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="680" y="104" width="168" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="764" y="130" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Character Detect/Assign</text>
+    <text x="764" y="146" fill="#94a3b8" font-size="8" text-anchor="middle">AI + manual</text>
+    <text x="764" y="156" fill="#94a3b8" font-size="8" text-anchor="middle">assignment</text>
+
+    <!-- Narration Script -->
+    <rect x="880" y="104" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="880" y="104" width="168" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="964" y="128" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Narration Script</text>
+    <text x="964" y="144" fill="#94a3b8" font-size="8" text-anchor="middle">JSON: speaker, voice_id,</text>
+    <text x="964" y="154" fill="#94a3b8" font-size="8" text-anchor="middle">emotion, speed, timing</text>
+
+    <!-- Voice Style Assignment -->
+    <rect x="1080" y="104" width="180" height="62" rx="6" fill="#0f172a"/>
+    <rect x="1080" y="104" width="180" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="1170" y="128" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Voice Style Assignment</text>
+    <text x="1170" y="144" fill="#94a3b8" font-size="8" text-anchor="middle">licensed voices only,</text>
+    <text x="1170" y="154" fill="#94a3b8" font-size="8" text-anchor="middle">emotion + pacing</text>
+
+    <!-- Region A row2 (right->left) -->
+    <!-- Voice Generation Worker -->
+    <rect x="1080" y="250" width="180" height="62" rx="6" fill="#0f172a"/>
+    <rect x="1080" y="250" width="180" height="62" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="1170" y="276" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Voice Generation Worker</text>
+    <text x="1170" y="292" fill="#94a3b8" font-size="8" text-anchor="middle">calls external TTS</text>
+    <text x="1170" y="302" fill="#94a3b8" font-size="8" text-anchor="middle">(§9.1)</text>
+
+    <!-- Audio Processing Worker -->
+    <rect x="880" y="250" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="880" y="250" width="168" height="62" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="964" y="276" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Processing Worker</text>
+    <text x="964" y="292" fill="#94a3b8" font-size="8" text-anchor="middle">normalize +</text>
+    <text x="964" y="302" fill="#94a3b8" font-size="8" text-anchor="middle">SFX/music mix</text>
+
+    <!-- Audio Normalization -->
+    <rect x="680" y="250" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="680" y="250" width="168" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="764" y="276" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Normalization</text>
+    <text x="764" y="292" fill="#94a3b8" font-size="8" text-anchor="middle">volume normalize</text>
+    <text x="764" y="302" fill="#94a3b8" font-size="8" text-anchor="middle">across stories</text>
+
+    <!-- Sound Effect Mixing -->
+    <rect x="480" y="250" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="480" y="250" width="168" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="564" y="276" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Sound Effect Mixing</text>
+    <text x="564" y="292" fill="#94a3b8" font-size="8" text-anchor="middle">narration / music</text>
+    <text x="564" y="302" fill="#94a3b8" font-size="8" text-anchor="middle">/ SFX</text>
+
+    <!-- External TTS API satellite -->
+    <rect x="110" y="416" width="168" height="62" rx="6" fill="#0f172a"/>
+    <rect x="110" y="416" width="168" height="62" rx="6" fill="rgba(30,41,59,0.70)" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="194" y="442" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">External TTS API</text>
+    <text x="194" y="458" fill="#94a3b8" font-size="8" text-anchor="middle">buy/API, licensed</text>
+    <text x="194" y="468" fill="#94a3b8" font-size="8" text-anchor="middle">voices (§25)</text>
+
+    <!-- Region B gate nodes -->
+    <!-- Policy Filters -->
+    <rect x="392" y="412" width="164" height="62" rx="6" fill="#0f172a"/>
+    <rect x="392" y="412" width="164" height="62" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="474" y="442" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Policy Filters</text>
+    <text x="474" y="458" fill="#94a3b8" font-size="8" text-anchor="middle">§13.2</text>
+
+    <!-- Age Classifier -->
+    <rect x="600" y="412" width="160" height="62" rx="6" fill="#0f172a"/>
+    <rect x="600" y="412" width="160" height="62" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="680" y="438" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Age Classifier</text>
+    <text x="680" y="454" fill="#94a3b8" font-size="8" text-anchor="middle">age-appropriateness</text>
+    <text x="680" y="464" fill="#94a3b8" font-size="8" text-anchor="middle">§13.2</text>
+
+    <!-- Safety Review Worker -->
+    <rect x="804" y="412" width="160" height="62" rx="6" fill="#0f172a"/>
+    <rect x="804" y="412" width="160" height="62" rx="6" fill="rgba(251,146,60,0.20)" stroke="#fb923c" stroke-width="1.5"/>
+    <text x="884" y="438" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Safety Review Worker</text>
+    <text x="884" y="454" fill="#94a3b8" font-size="8" text-anchor="middle">review workflow</text>
+    <text x="884" y="464" fill="#94a3b8" font-size="8" text-anchor="middle">(§9.1)</text>
+
+    <!-- Human Editorial Review -->
+    <rect x="1008" y="412" width="160" height="62" rx="6" fill="#0f172a"/>
+    <rect x="1008" y="412" width="160" height="62" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+    <text x="1088" y="438" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Human Editorial Review</text>
+    <text x="1088" y="454" fill="#94a3b8" font-size="8" text-anchor="middle">Safety Reviewer approves;</text>
+    <text x="1088" y="464" fill="#94a3b8" font-size="8" text-anchor="middle">never real-time</text>
+
+    <!-- Locked Assets -->
+    <rect x="1212" y="412" width="64" height="62" rx="6" fill="#0f172a"/>
+    <rect x="1212" y="412" width="64" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="1244" y="436" fill="#ffffff" font-size="9" font-weight="600" text-anchor="middle">Locked</text>
+    <text x="1244" y="448" fill="#ffffff" font-size="9" font-weight="600" text-anchor="middle">Assets</text>
+    <text x="1244" y="462" fill="#94a3b8" font-size="7" text-anchor="middle">version-locked</text>
+
+    <!-- Region C: Delivery nodes -->
+    <!-- Object Storage -->
+    <rect x="392" y="550" width="164" height="62" rx="6" fill="#0f172a"/>
+    <rect x="392" y="550" width="164" height="62" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="474" y="576" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Object Storage</text>
+    <text x="474" y="592" fill="#94a3b8" font-size="8" text-anchor="middle">published audio</text>
+    <text x="474" y="602" fill="#94a3b8" font-size="8" text-anchor="middle">assets (§9.1)</text>
+
+    <!-- CDN -->
+    <rect x="600" y="550" width="160" height="62" rx="6" fill="#0f172a"/>
+    <rect x="600" y="550" width="160" height="62" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="680" y="576" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">CDN</text>
+    <text x="680" y="592" fill="#94a3b8" font-size="8" text-anchor="middle">aggressive caching</text>
+    <text x="680" y="602" fill="#94a3b8" font-size="8" text-anchor="middle">(§18.2)</text>
+
+    <!-- Audio Asset Service -->
+    <rect x="808" y="550" width="160" height="62" rx="6" fill="#0f172a"/>
+    <rect x="808" y="550" width="160" height="62" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="888" y="576" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Asset Service</text>
+    <text x="888" y="592" fill="#94a3b8" font-size="8" text-anchor="middle">signed URLs, versions,</text>
+    <text x="888" y="602" fill="#94a3b8" font-size="8" text-anchor="middle">review status</text>
+
+    <!-- Story Content Service -->
+    <rect x="1058" y="550" width="180" height="62" rx="6" fill="#0f172a"/>
+    <rect x="1058" y="550" width="180" height="62" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="1148" y="576" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Story Content Service</text>
+    <text x="1148" y="592" fill="#94a3b8" font-size="8" text-anchor="middle">serves narration</text>
+    <text x="1148" y="602" fill="#94a3b8" font-size="8" text-anchor="middle">script (§9.5.3)</text>
+
+    <!-- Region D: Playback nodes -->
+    <!-- Audio Playback Engine -->
+    <rect x="420" y="690" width="180" height="62" rx="6" fill="#0f172a"/>
+    <rect x="420" y="690" width="180" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="510" y="716" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Playback Engine</text>
+    <text x="510" y="732" fill="#94a3b8" font-size="8" text-anchor="middle">gapless, preload, channels,</text>
+    <text x="510" y="742" fill="#94a3b8" font-size="8" text-anchor="middle">bedtime, offline</text>
+
+    <!-- Offline Cache -->
+    <rect x="700" y="690" width="180" height="62" rx="6" fill="#0f172a"/>
+    <rect x="700" y="690" width="180" height="62" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="790" y="716" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Offline Cache</text>
+    <text x="790" y="732" fill="#94a3b8" font-size="8" text-anchor="middle">downloaded audio</text>
+    <text x="790" y="742" fill="#94a3b8" font-size="8" text-anchor="middle">+ metadata (§7.1.7)</text>
+
+    <!-- ===================== LEGEND (outside regions) ===================== -->
+    <g>
+      <rect x="36" y="812" width="1248" height="62" rx="10" fill="rgba(15,23,42,0.6)" stroke="#1e293b" stroke-width="1"/>
+      <text x="52" y="832" fill="#cbd5e1" font-size="10" font-weight="600">Edge kinds</text>
+      <line x1="130" y1="828" x2="166" y2="828" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#vp-arrow-cyan)"/>
+      <text x="172" y="831" fill="#94a3b8" font-size="9">sync</text>
+      <line x1="230" y1="828" x2="266" y2="828" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#vp-arrow-violet)"/>
+      <text x="272" y="831" fill="#94a3b8" font-size="9">data</text>
+      <line x1="330" y1="828" x2="366" y2="828" stroke="#fb923c" stroke-width="1.5" marker-end="url(#vp-arrow-orange)"/>
+      <text x="372" y="831" fill="#94a3b8" font-size="9">async</text>
+      <line x1="436" y1="828" x2="472" y2="828" stroke="#fb7185" stroke-width="1.5" marker-end="url(#vp-arrow-rose)"/>
+      <text x="478" y="831" fill="#94a3b8" font-size="9">control</text>
+      <line x1="546" y1="828" x2="582" y2="828" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#vp-arrow-flow)"/>
+      <text x="588" y="831" fill="#94a3b8" font-size="9">flow</text>
+
+      <text x="52" y="858" fill="#cbd5e1" font-size="10" font-weight="600">Node kinds</text>
+      <rect x="130" y="850" width="12" height="12" rx="3" fill="rgba(8,51,68,0.72)" stroke="#22d3ee"/>
+      <text x="148" y="860" fill="#94a3b8" font-size="9">client / stage</text>
+      <rect x="246" y="850" width="12" height="12" rx="3" fill="rgba(6,78,59,0.72)" stroke="#34d399"/>
+      <text x="264" y="860" fill="#94a3b8" font-size="9">service</text>
+      <rect x="338" y="850" width="12" height="12" rx="3" fill="rgba(251,146,60,0.20)" stroke="#fb923c"/>
+      <text x="356" y="860" fill="#94a3b8" font-size="9">worker</text>
+      <rect x="420" y="850" width="12" height="12" rx="3" fill="rgba(76,29,149,0.55)" stroke="#a78bfa"/>
+      <text x="438" y="860" fill="#94a3b8" font-size="9">store</text>
+      <rect x="492" y="850" width="12" height="12" rx="3" fill="rgba(30,41,59,0.70)" stroke="#94a3b8"/>
+      <text x="510" y="860" fill="#94a3b8" font-size="9">external</text>
+      <rect x="578" y="850" width="12" height="12" rx="3" fill="rgba(136,19,55,0.60)" stroke="#fb7185"/>
+      <text x="596" y="860" fill="#94a3b8" font-size="9">gate</text>
+    </g>
+  </svg></div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><div class="card-dot emerald"></div><h3>Offline production, never real-time</h3></div>
+      <ul>
+        <li>• Manuscript flows through text cleaning, page segmentation, and character detect/assign into a structured narration script (speaker, voice_id, emotion, speed, timing).</li>
+        <li>• The Voice Generation Worker is the only component that calls the External TTS API; Audio Processing handles normalization and SFX/music mixing.</li>
+        <li>• §18.2 mandates pre-generate + cache narration and avoid real-time TTS for child sessions.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot rose"></div><h3>AI safety gate before lock</h3></div>
+      <ul>
+        <li>• Mixed audio draft passes policy filters, then an age-appropriateness classifier, then the Safety Review Worker queue.</li>
+        <li>• Human Editorial Review is the binding approval gate — only on approve do assets become version-locked.</li>
+        <li>• Locked assets are then published to Object Storage; nothing unreviewed ever reaches the child app (§13.2, §27.4).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot cyan"></div><h3>Signed-URL playback on device</h3></div>
+      <ul>
+        <li>• Object Storage distributes to CDN and registers signed URLs + versions with the Audio Asset Service.</li>
+        <li>• Playback Engine GETs the narration script from Story Content Service and exchanges signed URLs with Audio Asset Service.</li>
+        <li>• Approved audio streams from CDN; the Offline Cache holds downloaded audio + metadata for gapless, bedtime, offline playback.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+<section class="diagram-section">
+  <div class="section-head"><h2 class="section-title">Content Production &amp; Publishing Flow</h2><p class="section-sub">Publishing state machine, human gates, and AI-gated content for the child app (spec §7.3, §8, §12, §13.2, §19)</p></div>
+  <div class="diagram-container"><svg viewBox="0 0 1320 760" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="cp-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f1d33" stroke-width="1"/>
+      </pattern>
+      <marker id="cp-arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+      </marker>
+      <marker id="cp-arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
+      </marker>
+      <marker id="cp-arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb923c"/>
+      </marker>
+      <marker id="cp-arrow-rose" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#fb7185"/>
+      </marker>
+      <marker id="cp-arrow-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+      </marker>
+    </defs>
+
+    <rect x="0" y="0" width="1320" height="760" fill="#020617"/>
+    <rect x="0" y="0" width="1320" height="760" fill="url(#cp-grid)"/>
+
+    <!-- ======================= REGION BOXES ======================= -->
+    <g font-family="'JetBrains Mono', monospace">
+      <!-- Admin Roles -->
+      <rect x="24" y="70" width="212" height="470" rx="12" fill="rgba(120,53,15,0.10)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="8,4"/>
+      <text x="40" y="88" fill="#fbbf24" font-size="10" font-weight="600">Admin Roles (§19.1)</text>
+
+      <!-- AI Draft Generation -->
+      <rect x="300" y="58" width="470" height="88" rx="12" fill="rgba(136,19,55,0.10)" stroke="#fb7185" stroke-width="1" stroke-dasharray="8,4"/>
+      <text x="316" y="76" fill="#fb7185" font-size="10" font-weight="600">AI Draft Generation (§13.1, §13.2)</text>
+
+      <!-- Content Tooling & Services -->
+      <rect x="300" y="172" width="460" height="200" rx="12" fill="rgba(6,78,59,0.12)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+      <text x="316" y="190" fill="#34d399" font-size="10" font-weight="600">Content Tooling &amp; Services (§7.3, §9.5)</text>
+
+      <!-- Delivery & Environments -->
+      <rect x="946" y="214" width="344" height="210" rx="12" fill="rgba(76,29,149,0.16)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4"/>
+      <text x="962" y="234" fill="#a78bfa" font-size="10" font-weight="600">Delivery &amp; Environments (§18.3)</text>
+
+      <!-- Publishing State Machine -->
+      <rect x="24" y="552" width="996" height="112" rx="12" fill="rgba(8,51,68,0.16)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+      <text x="40" y="572" fill="#22d3ee" font-size="10" font-weight="600">Publishing State Machine (§19.2, §12.1)</text>
+    </g>
+
+    <!-- ======================= EDGES (drawn first) ======================= -->
+    <g fill="none" stroke-width="1.5">
+      <!-- AI chain: AI Drafts -> Policy Filters -> Age Classifier -->
+      <path d="M 442 103 L 466 103" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+      <path d="M 598 103 L 622 103" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+      <!-- Age Classifier -> Content Studio (down) -->
+      <path d="M 690 128 L 690 160 L 405 160 L 405 196" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+
+      <!-- Actors -> Content Studio (control) -->
+      <path d="M 220 121 L 270 121 L 270 214 L 316 219" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+      <path d="M 220 199 L 280 199 L 280 222 L 316 223" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+      <path d="M 220 277 L 290 277 L 290 232 L 316 228" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+
+      <!-- System Admin -> Admin/Publisher Svc (control roles/RBAC+MFA) -->
+      <path d="M 220 511 L 540 511 L 540 256" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+      <!-- Publisher Admin -> Admin/Publisher Svc (data view reports) -->
+      <path d="M 220 433 L 560 433 L 560 256" stroke="#a78bfa" marker-end="url(#cp-arrow-violet)"/>
+
+      <!-- Content Studio -> Admin/Publisher Svc (submit, sync) -->
+      <path d="M 490 222 L 556 222" stroke="#22d3ee" marker-end="url(#cp-arrow-cyan)"/>
+      <!-- Content Studio -> Rights Mgmt (attach rights, data) -->
+      <path d="M 405 256 L 405 296" stroke="#a78bfa" marker-end="url(#cp-arrow-violet)"/>
+      <!-- Admin/Publisher Svc -> Audit Trail (log, data) -->
+      <path d="M 650 256 L 648 296" stroke="#a78bfa" marker-end="url(#cp-arrow-violet)"/>
+
+      <!-- Admin/Publisher Svc -> Draft (create Draft) -->
+      <path d="M 600 256 L 600 408 L 100 408 L 100 578" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+
+      <!-- State machine chain (flow) -->
+      <path d="M 160 609 L 206 609" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+      <path d="M 340 609 L 380 609" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+      <path d="M 514 609 L 554 609" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+      <path d="M 678 609 L 718 609" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+      <path d="M 842 609 L 882 609" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+
+      <!-- Safety Reviewer -> Safety Review (control) -->
+      <path d="M 200 540 L 280 540 L 380 600" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+
+      <!-- Device QA -> Staging / Review Env (deploy, flow) -->
+      <path d="M 660 582 L 700 470 L 966 380" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+      <!-- Published -> Production (lock + deploy, flow) -->
+      <path d="M 800 582 L 880 430 L 1130 308" stroke="#94a3b8" marker-end="url(#cp-arrow-slate)"/>
+
+      <!-- Production -> Child App (serve approved assets, data) -->
+      <path d="M 1205 308 L 1205 336" stroke="#a78bfa" marker-end="url(#cp-arrow-violet)"/>
+      <!-- Entitlement / Activation Svc -> Child App (redeem code, sync) -->
+      <path d="M 1106 295 L 1132 360" stroke="#22d3ee" marker-end="url(#cp-arrow-cyan)"/>
+
+      <!-- Rights Mgmt -> Archived (disable expired, control) -->
+      <path d="M 405 356 L 405 470 L 946 510 L 946 582" stroke="#fb7185" marker-end="url(#cp-arrow-rose)"/>
+      <!-- Rights Mgmt -> Entitlement/Activation Svc (license/campaign scope, data) -->
+      <path d="M 490 320 L 920 290 L 962 279" stroke="#a78bfa" marker-end="url(#cp-arrow-violet)"/>
+    </g>
+
+    <!-- ======================= EDGE LABELS ======================= -->
+    <g font-family="'JetBrains Mono', monospace" font-size="8" fill="#94a3b8" text-anchor="middle">
+      <text x="690" y="153">drafts into studio — never the child app</text>
+      <text x="266" y="170">upload / produce</text>
+      <text x="385" y="505">roles / RBAC + MFA</text>
+      <text x="412" y="427">view reports</text>
+      <text x="523" y="215">submit</text>
+      <text x="430" y="278">attach rights</text>
+      <text x="672" y="278">log</text>
+      <text x="320" y="402">create Draft</text>
+      <text x="280" y="528">approve · 11-pt checklist</text>
+      <text x="812" y="475">deploy</text>
+      <text x="960" y="430">lock + deploy</text>
+      <text x="1245" y="326">serve · signed URL</text>
+      <text x="1086" y="335">redeem → unlock</text>
+      <text x="600" y="488">disable expired</text>
+      <text x="760" y="286">license / campaign scope</text>
+    </g>
+
+    <!-- ======================= NODES ======================= -->
+    <g font-family="'JetBrains Mono', monospace">
+
+      <!-- ===== Admin Roles (amber actors) ===== -->
+      <g>
+        <rect x="40" y="92" width="180" height="58" rx="6" fill="#0f172a"/>
+        <rect x="40" y="92" width="180" height="58" rx="6" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="130" y="116" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Content Editor</text>
+        <text x="130" y="133" fill="#94a3b8" font-size="8" text-anchor="middle">authors text / metadata</text>
+      </g>
+      <g>
+        <rect x="40" y="170" width="180" height="58" rx="6" fill="#0f172a"/>
+        <rect x="40" y="170" width="180" height="58" rx="6" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="130" y="194" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audio Producer</text>
+        <text x="130" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">records / masters voice</text>
+      </g>
+      <g>
+        <rect x="40" y="248" width="180" height="58" rx="6" fill="#0f172a"/>
+        <rect x="40" y="248" width="180" height="58" rx="6" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="130" y="272" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AR Designer</text>
+        <text x="130" y="289" fill="#94a3b8" font-size="8" text-anchor="middle">builds 3D / AR scenes</text>
+      </g>
+      <g>
+        <rect x="40" y="326" width="180" height="58" rx="6" fill="#0f172a"/>
+        <rect x="40" y="326" width="180" height="58" rx="6" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="130" y="350" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Safety Reviewer</text>
+        <text x="130" y="367" fill="#94a3b8" font-size="8" text-anchor="middle">child-safety sign-off</text>
+      </g>
+      <g>
+        <rect x="40" y="404" width="180" height="58" rx="6" fill="#0f172a"/>
+        <rect x="40" y="404" width="180" height="58" rx="6" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="130" y="428" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Publisher Admin</text>
+        <text x="130" y="445" fill="#94a3b8" font-size="8" text-anchor="middle">release / reports</text>
+      </g>
+      <g>
+        <rect x="40" y="482" width="180" height="58" rx="6" fill="#0f172a"/>
+        <rect x="40" y="482" width="180" height="58" rx="6" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="130" y="506" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">System Admin</text>
+        <text x="130" y="523" fill="#94a3b8" font-size="8" text-anchor="middle">RBAC + MFA config</text>
+      </g>
+
+      <!-- ===== AI Draft Generation ===== -->
+      <g>
+        <rect x="314" y="78" width="128" height="50" rx="6" fill="#0f172a"/>
+        <rect x="314" y="78" width="128" height="50" rx="6" fill="rgba(30,41,59,0.70)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="378" y="100" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">AI Drafts</text>
+        <text x="378" y="116" fill="#94a3b8" font-size="8" text-anchor="middle">LLM-generated content</text>
+      </g>
+      <g>
+        <rect x="470" y="78" width="128" height="50" rx="6" fill="#0f172a"/>
+        <rect x="470" y="78" width="128" height="50" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="534" y="100" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Policy Filters</text>
+        <text x="534" y="116" fill="#94a3b8" font-size="8" text-anchor="middle">safety / policy gate</text>
+      </g>
+      <g>
+        <rect x="626" y="78" width="128" height="50" rx="6" fill="#0f172a"/>
+        <rect x="626" y="78" width="128" height="50" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="690" y="100" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Age Classifier</text>
+        <text x="690" y="116" fill="#94a3b8" font-size="8" text-anchor="middle">age-band gate</text>
+      </g>
+
+      <!-- ===== Content Tooling & Services ===== -->
+      <g>
+        <rect x="320" y="200" width="170" height="56" rx="6" fill="#0f172a"/>
+        <rect x="320" y="200" width="170" height="56" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="405" y="223" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Content Studio</text>
+        <text x="405" y="240" fill="#94a3b8" font-size="8" text-anchor="middle">authoring / assembly</text>
+      </g>
+      <g>
+        <rect x="560" y="200" width="180" height="56" rx="6" fill="#0f172a"/>
+        <rect x="560" y="200" width="180" height="56" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="650" y="223" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Admin / Publisher Svc</text>
+        <text x="650" y="240" fill="#94a3b8" font-size="8" text-anchor="middle">RBAC, workflow, reports</text>
+      </g>
+      <g>
+        <rect x="320" y="300" width="170" height="56" rx="6" fill="#0f172a"/>
+        <rect x="320" y="300" width="170" height="56" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="405" y="323" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Rights Mgmt</text>
+        <text x="405" y="340" fill="#94a3b8" font-size="8" text-anchor="middle">licenses / expiry</text>
+      </g>
+      <g>
+        <rect x="560" y="300" width="170" height="56" rx="6" fill="#0f172a"/>
+        <rect x="560" y="300" width="170" height="56" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="645" y="323" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Audit Trail</text>
+        <text x="645" y="340" fill="#94a3b8" font-size="8" text-anchor="middle">immutable action log</text>
+      </g>
+
+      <!-- ===== Publishing State Machine ===== -->
+      <g>
+        <rect x="40" y="582" width="120" height="54" rx="6" fill="#0f172a"/>
+        <rect x="40" y="582" width="120" height="54" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="100" y="604" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Draft</text>
+        <text x="100" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">editable</text>
+      </g>
+      <g>
+        <rect x="210" y="582" width="130" height="54" rx="6" fill="#0f172a"/>
+        <rect x="210" y="582" width="130" height="54" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="275" y="604" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Internal Review</text>
+        <text x="275" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">editorial gate</text>
+      </g>
+      <g>
+        <rect x="384" y="582" width="130" height="54" rx="6" fill="#0f172a"/>
+        <rect x="384" y="582" width="130" height="54" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="449" y="604" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Safety Review</text>
+        <text x="449" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">11-pt checklist</text>
+      </g>
+      <g>
+        <rect x="558" y="582" width="120" height="54" rx="6" fill="#0f172a"/>
+        <rect x="558" y="582" width="120" height="54" rx="6" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="618" y="604" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Device QA</text>
+        <text x="618" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">on-device pass</text>
+      </g>
+      <g>
+        <rect x="722" y="582" width="120" height="54" rx="6" fill="#0f172a"/>
+        <rect x="722" y="582" width="120" height="54" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="782" y="604" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Published</text>
+        <text x="782" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">live to child app</text>
+      </g>
+      <g>
+        <rect x="886" y="582" width="120" height="54" rx="6" fill="#0f172a"/>
+        <rect x="886" y="582" width="120" height="54" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="946" y="604" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Archived</text>
+        <text x="946" y="620" fill="#94a3b8" font-size="8" text-anchor="middle">retired / expired</text>
+      </g>
+
+      <!-- ===== Delivery & Environments ===== -->
+      <g>
+        <rect x="966" y="250" width="140" height="58" rx="6" fill="#0f172a"/>
+        <rect x="966" y="250" width="140" height="58" rx="6" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1036" y="274" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Entitlement Svc</text>
+        <text x="1036" y="291" fill="#94a3b8" font-size="8" text-anchor="middle">activation / redeem</text>
+      </g>
+      <g>
+        <rect x="1132" y="250" width="146" height="58" rx="6" fill="#0f172a"/>
+        <rect x="1132" y="250" width="146" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1205" y="274" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Production</text>
+        <text x="1205" y="291" fill="#94a3b8" font-size="8" text-anchor="middle">locked release env</text>
+      </g>
+      <g>
+        <rect x="966" y="340" width="140" height="58" rx="6" fill="#0f172a"/>
+        <rect x="966" y="340" width="140" height="58" rx="6" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1036" y="364" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Staging / Review</text>
+        <text x="1036" y="381" fill="#94a3b8" font-size="8" text-anchor="middle">QA preview env</text>
+      </g>
+      <g>
+        <rect x="1132" y="340" width="146" height="58" rx="6" fill="#0f172a"/>
+        <rect x="1132" y="340" width="146" height="58" rx="6" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1205" y="364" fill="#ffffff" font-size="11" font-weight="600" text-anchor="middle">Child App</text>
+        <text x="1205" y="381" fill="#94a3b8" font-size="8" text-anchor="middle">serves approved assets</text>
+      </g>
+    </g>
+
+    <!-- ======================= LEGEND ======================= -->
+    <g font-family="'JetBrains Mono', monospace" font-size="9" fill="#94a3b8">
+      <text x="40" y="694" fill="#cbd5e1" font-size="10" font-weight="600">Legend</text>
+      <rect x="40" y="704" width="14" height="10" rx="2" fill="rgba(8,51,68,0.72)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="60" y="713">client / stage</text>
+      <rect x="156" y="704" width="14" height="10" rx="2" fill="rgba(6,78,59,0.72)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="176" y="713">service</text>
+      <rect x="246" y="704" width="14" height="10" rx="2" fill="rgba(76,29,149,0.55)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="266" y="713">store / env</text>
+      <rect x="352" y="704" width="14" height="10" rx="2" fill="rgba(136,19,55,0.60)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="372" y="713">gate</text>
+      <rect x="430" y="704" width="14" height="10" rx="2" fill="rgba(120,53,15,0.50)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="450" y="713">actor</text>
+      <rect x="510" y="704" width="14" height="10" rx="2" fill="rgba(30,41,59,0.70)" stroke="#94a3b8" stroke-width="1.5"/>
+      <text x="530" y="713">external</text>
+      <line x1="616" y1="709" x2="646" y2="709" stroke="#22d3ee" stroke-width="1.5"/><text x="652" y="713">sync</text>
+      <line x1="706" y1="709" x2="736" y2="709" stroke="#a78bfa" stroke-width="1.5"/><text x="742" y="713">data</text>
+      <line x1="792" y1="709" x2="822" y2="709" stroke="#fb7185" stroke-width="1.5"/><text x="828" y="713">control</text>
+      <line x1="900" y1="709" x2="930" y2="709" stroke="#94a3b8" stroke-width="1.5"/><text x="936" y="713">flow</text>
+    </g>
+  </svg></div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-header"><div class="card-dot cyan"></div><h3>Human-gated state machine</h3></div>
+      <ul>
+        <li>• Draft → Internal Review → Safety Review → Device QA → Published → Archived; no state advances without a human approval.</li>
+        <li>• Safety Review enforces an 11-point child-safety checklist before content can reach Device QA.</li>
+        <li>• Device QA deploys to Staging; only Published locks and promotes to Production for the child app.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot amber"></div><h3>Roles, least-privilege &amp; audit</h3></div>
+      <ul>
+        <li>• Six scoped admin roles (Editor, Audio, AR, Safety, Publisher, System) — each touches only its stage.</li>
+        <li>• System Admin owns RBAC + MFA; Publisher Admin gets read-only reports, never edit rights.</li>
+        <li>• AI drafts pass Policy + Age gates into Content Studio — never directly into the child app; every action hits the Audit Trail.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-dot violet"></div><h3>Rights, entitlement &amp; delivery</h3></div>
+      <ul>
+        <li>• Rights Mgmt attaches licenses, scopes campaigns to Entitlement Svc, and auto-disables expired content (→ Archived).</li>
+        <li>• Production serves approved assets to the Child App over signed URLs.</li>
+        <li>• Entitlement / Activation Svc handles redeem-code → unlock so codes gate access to delivered content.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+    <p class="footer">Interactive Storybook Voice + AR · System Architecture · generated from product/technical spec v1.0</p>
+  </div>
+  <script>
+    async function copyAsImage(btn) {
+      const orig = btn.textContent;
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        btn.textContent = '✓ Copied!';
+      } catch (e) { btn.textContent = '✗ Failed'; }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+    async function downloadPNG(btn) {
+      const orig = btn.textContent; btn.textContent = '⏳ ...';
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const link = document.createElement('a');
+        link.download = 'storybook-architecture.png';
+        link.href = canvas.toDataURL('image/png'); link.click();
+        btn.textContent = '✓ Done!';
+      } catch (e) { btn.textContent = '✗ Failed'; }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+    async function downloadPDF(btn) {
+      const orig = btn.textContent; btn.textContent = '⏳ ...';
+      try {
+        const el = document.getElementById('report-container');
+        const r = el.getBoundingClientRect();
+        const pad = 32;
+        const canvas = await html2canvas(document.body, { backgroundColor: '#020617', scale: 2, useCORS: true, ignoreElements: (e) => e.classList && e.classList.contains('toolbar'), x: r.left + window.scrollX - pad, y: r.top + window.scrollY - pad, width: r.width + pad * 2, height: r.height + pad * 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        const orientation = canvas.width > canvas.height ? 'landscape' : 'portrait';
+        const pdf = new jsPDF({ orientation, unit: 'px', format: [canvas.width, canvas.height], hotfixes: ['px_scaling'] });
+        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.save('storybook-architecture.pdf');
+        btn.textContent = '✓ Done!';
+      } catch (e) { btn.textContent = '✗ Failed'; }
+      setTimeout(() => btn.textContent = orig, 2000);
+    }
+  </script>
+</body>
+</html>

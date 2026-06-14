@@ -1,0 +1,109 @@
+{
+  "story": {
+    "id": "story_lola_share",
+    "title": "Lola Learns to Share",
+    "slug": "lola_learns_to_share",
+    "description": "Lola the ladybug discovers that sharing her berries makes playtime sweeter.",
+    "age_min": 5,
+    "age_max": 6,
+    "language_code": "en",
+    "duration_seconds": 220,
+    "cover_asset_id": "assets/images/covers/lola_learns_to_share.png",
+    "content_status": "published",
+    "rights_owner_id": "studio_original",
+    "themes": ["emotions", "friendship"],
+    "is_downloaded": false,
+    "is_unlocked": true
+  },
+  "pages": [
+    {
+      "id": "page_lola_01",
+      "story_id": "story_lola_share",
+      "page_number": 1,
+      "page_text": "Lola found a big pile of sweet red berries.",
+      "page_image_asset_id": "assets/images/pages/lola_01.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_lola_02",
+      "story_id": "story_lola_share",
+      "page_number": 2,
+      "page_text": "Her friend Beetle had none and looked very hungry.",
+      "page_image_asset_id": "assets/images/pages/lola_02.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_lola_03",
+      "story_id": "story_lola_share",
+      "page_number": 3,
+      "page_text": "Lola shared her berries, and they giggled all afternoon.",
+      "page_image_asset_id": "assets/images/pages/lola_03.png",
+      "image_target_id": null
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_lola_p1_1",
+      "story_id": "story_lola_share",
+      "page_id": "page_lola_01",
+      "speaker_key": "narrator",
+      "text": "Lola found a big pile of sweet red berries.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "happy",
+      "speed": 1.0,
+      "start_ms": 0,
+      "end_ms": 3200,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_lola_p2_1",
+      "story_id": "story_lola_share",
+      "page_id": "page_lola_02",
+      "speaker_key": "beetle",
+      "text": "I wish I had something to eat too.",
+      "voice_id": "beetle_soft_en_v1",
+      "emotion": "worried",
+      "speed": 1.0,
+      "start_ms": 0,
+      "end_ms": 2800,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_lola_p3_1",
+      "story_id": "story_lola_share",
+      "page_id": "page_lola_03",
+      "speaker_key": "lola",
+      "text": "Here, let's share! Sharing makes it more fun.",
+      "voice_id": "lola_bright_en_v1",
+      "emotion": "happy",
+      "speed": 1.0,
+      "start_ms": 0,
+      "end_ms": 3400,
+      "sort_order": 1
+    }
+  ],
+  "ar_scenes": [],
+  "questions": [
+    {
+      "id": "q_lola_01",
+      "page_id": "page_lola_02",
+      "type": "choose_the_emotion",
+      "prompt": "How did Beetle feel with no berries?",
+      "choices": [
+        { "id": "a_hungry", "label": "Sad", "emoji": "😟", "is_correct": true },
+        { "id": "a_silly", "label": "Silly", "emoji": "🤪", "is_correct": false }
+      ]
+    },
+    {
+      "id": "q_lola_02",
+      "page_id": "page_lola_03",
+      "type": "multiple_choice_image",
+      "prompt": "What did Lola do that was kind?",
+      "choices": [
+        { "id": "a_share", "label": "Shared", "emoji": "🤝", "is_correct": true },
+        { "id": "a_hide", "label": "Hid them", "emoji": "🙈", "is_correct": false },
+        { "id": "a_run", "label": "Ran away", "emoji": "🏃", "is_correct": false }
+      ]
+    }
+  ]
+}

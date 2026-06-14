@@ -1,0 +1,257 @@
+{
+  "story": {
+    "id": "story_bunny_forest",
+    "title": "Bunny and the Moon",
+    "slug": "bunny_and_the_moon",
+    "description": "On a quiet night, Bunny meets a wise Owl who shares a gentle secret about the moon.",
+    "age_min": 3,
+    "age_max": 5,
+    "language_code": "en",
+    "duration_seconds": 300,
+    "cover_asset_id": "assets/images/covers/bunny_and_the_moon.png",
+    "content_status": "published",
+    "rights_owner_id": "studio_original",
+    "themes": ["animals", "bedtime"],
+    "is_downloaded": true,
+    "is_unlocked": true
+  },
+  "pages": [
+    {
+      "id": "page_bunny_01",
+      "story_id": "story_bunny_forest",
+      "page_number": 1,
+      "page_text": "One quiet night, Bunny looked up at the sky.",
+      "page_image_asset_id": "assets/images/pages/bunny_01.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_bunny_02",
+      "story_id": "story_bunny_forest",
+      "page_number": 2,
+      "page_text": "Bunny hopped softly into the whispering forest.",
+      "page_image_asset_id": "assets/images/pages/bunny_02.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_bunny_03",
+      "story_id": "story_bunny_forest",
+      "page_number": 3,
+      "page_text": "High in a tree, a wise old Owl blinked her big eyes.",
+      "page_image_asset_id": "assets/images/pages/bunny_03.png",
+      "image_target_id": "target_bunny_page_03"
+    },
+    {
+      "id": "page_bunny_04",
+      "story_id": "story_bunny_forest",
+      "page_number": 4,
+      "page_text": "Bunny felt warm and safe under the gentle moon.",
+      "page_image_asset_id": "assets/images/pages/bunny_04.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_bunny_05",
+      "story_id": "story_bunny_forest",
+      "page_number": 5,
+      "page_text": "Bunny hopped home and curled up cozy and sleepy.",
+      "page_image_asset_id": "assets/images/pages/bunny_05.png",
+      "image_target_id": null
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_bunny_p1_1",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_01",
+      "speaker_key": "narrator",
+      "text": "One quiet night, Bunny looked up at the sky.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "calm",
+      "speed": 0.95,
+      "start_ms": 0,
+      "end_ms": 3200,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_bunny_p1_2",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_01",
+      "speaker_key": "bunny",
+      "text": "Oh! What is that big, round light?",
+      "voice_id": "bunny_childlike_en_v1",
+      "emotion": "curious",
+      "speed": 1.0,
+      "start_ms": 3400,
+      "end_ms": 6000,
+      "sort_order": 2
+    },
+    {
+      "id": "seg_bunny_p2_1",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_02",
+      "speaker_key": "narrator",
+      "text": "Bunny hopped softly into the whispering forest.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "calm",
+      "speed": 0.95,
+      "start_ms": 0,
+      "end_ms": 3400,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_bunny_p2_2",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_02",
+      "speaker_key": "bunny",
+      "text": "Hello? Is anyone there?",
+      "voice_id": "bunny_childlike_en_v1",
+      "emotion": "gentle",
+      "speed": 1.0,
+      "start_ms": 3600,
+      "end_ms": 5600,
+      "sort_order": 2
+    },
+    {
+      "id": "seg_bunny_p3_1",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_03",
+      "speaker_key": "narrator",
+      "text": "High in a tree, a wise old Owl blinked her big eyes.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "calm",
+      "speed": 0.95,
+      "start_ms": 0,
+      "end_ms": 3600,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_bunny_p3_owl",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_03",
+      "speaker_key": "owl",
+      "text": "Look up, Bunny. The moon is always there.",
+      "voice_id": "owl_wise_en_v1",
+      "emotion": "gentle",
+      "speed": 0.9,
+      "start_ms": 3800,
+      "end_ms": 7200,
+      "sort_order": 2
+    },
+    {
+      "id": "seg_bunny_p3_2",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_03",
+      "speaker_key": "bunny",
+      "text": "Thank you, Owl!",
+      "voice_id": "bunny_childlike_en_v1",
+      "emotion": "happy",
+      "speed": 1.0,
+      "start_ms": 7400,
+      "end_ms": 8800,
+      "sort_order": 3
+    },
+    {
+      "id": "seg_bunny_p4_1",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_04",
+      "speaker_key": "narrator",
+      "text": "Bunny felt warm and safe under the gentle moon.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "warm",
+      "speed": 0.9,
+      "start_ms": 0,
+      "end_ms": 3600,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_bunny_p5_1",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_05",
+      "speaker_key": "narrator",
+      "text": "Bunny hopped home and curled up cozy and sleepy.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "sleepy",
+      "speed": 0.88,
+      "start_ms": 0,
+      "end_ms": 3800,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_bunny_p5_2",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_05",
+      "speaker_key": "bunny",
+      "text": "Goodnight, moon. Goodnight, Owl.",
+      "voice_id": "bunny_childlike_en_v1",
+      "emotion": "sleepy",
+      "speed": 0.9,
+      "start_ms": 4000,
+      "end_ms": 6400,
+      "sort_order": 2
+    }
+  ],
+  "ar_scenes": [
+    {
+      "id": "ar_bunny_page_03",
+      "story_id": "story_bunny_forest",
+      "page_id": "page_bunny_03",
+      "status": "published",
+      "scene_json": {
+        "scene_id": "scene_bunny_page_03",
+        "anchor_type": "image_target",
+        "assets": [
+          {
+            "asset_id": "owl_2d_rig_v1",
+            "type": "2d_character",
+            "position": { "x": 0.0, "y": 0.2, "z": 0.0 },
+            "scale": 1.1,
+            "default_animation": "idle_blink",
+            "image_asset": "assets/images/characters/owl.png"
+          }
+        ],
+        "interactions": [
+          {
+            "trigger": "tap",
+            "target_asset_id": "owl_2d_rig_v1",
+            "action": "play_audio_segment",
+            "audio_segment_id": "seg_bunny_p3_owl"
+          }
+        ]
+      }
+    }
+  ],
+  "questions": [
+    {
+      "id": "q_bunny_01",
+      "page_id": "page_bunny_01",
+      "type": "multiple_choice_image",
+      "prompt": "What did Bunny see in the sky?",
+      "choices": [
+        { "id": "a_moon", "label": "Moon", "emoji": "🌙", "is_correct": true },
+        { "id": "a_sun", "label": "Sun", "emoji": "☀️", "is_correct": false },
+        { "id": "a_ball", "label": "Ball", "emoji": "⚽", "is_correct": false }
+      ]
+    },
+    {
+      "id": "q_bunny_02",
+      "page_id": "page_bunny_03",
+      "type": "multiple_choice_image",
+      "prompt": "Who helped Bunny?",
+      "choices": [
+        { "id": "a_owl", "label": "Owl", "emoji": "🦉", "is_correct": true },
+        { "id": "a_fish", "label": "Fish", "emoji": "🐟", "is_correct": false },
+        { "id": "a_car", "label": "Car", "emoji": "🚗", "is_correct": false }
+      ]
+    },
+    {
+      "id": "q_bunny_03",
+      "page_id": "page_bunny_05",
+      "type": "choose_the_emotion",
+      "prompt": "How did Bunny feel at the end?",
+      "choices": [
+        { "id": "a_happy", "label": "Happy", "emoji": "😊", "is_correct": true },
+        { "id": "a_scared", "label": "Scared", "emoji": "😨", "is_correct": false },
+        { "id": "a_angry", "label": "Angry", "emoji": "😠", "is_correct": false }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          # Dart camelCase fields <-> snake_case JSON, matching the spec's §11 API
+          # responses and §10 SQL column names.
+          field_rename: snake
+          explicit_to_json: true
+          create_to_json: true

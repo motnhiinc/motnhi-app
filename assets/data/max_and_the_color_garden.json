@@ -1,0 +1,139 @@
+{
+  "story": {
+    "id": "story_max_garden",
+    "title": "Max and the Color Garden",
+    "slug": "max_and_the_color_garden",
+    "description": "Max the mouse paints his garden and learns the names of bright colors.",
+    "age_min": 4,
+    "age_max": 6,
+    "language_code": "en",
+    "duration_seconds": 200,
+    "cover_asset_id": "assets/images/covers/max_and_the_color_garden.png",
+    "content_status": "published",
+    "rights_owner_id": "studio_original",
+    "themes": ["language_learning", "emotions"],
+    "is_downloaded": false,
+    "is_unlocked": true
+  },
+  "pages": [
+    {
+      "id": "page_max_01",
+      "story_id": "story_max_garden",
+      "page_number": 1,
+      "page_text": "Max the mouse opened his box of bright paints.",
+      "page_image_asset_id": "assets/images/pages/max_01.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_max_02",
+      "story_id": "story_max_garden",
+      "page_number": 2,
+      "page_text": "He painted a red flower and a blue little pond.",
+      "page_image_asset_id": "assets/images/pages/max_02.png",
+      "image_target_id": "target_max_page_02"
+    },
+    {
+      "id": "page_max_03",
+      "story_id": "story_max_garden",
+      "page_number": 3,
+      "page_text": "Soon the whole garden glowed with happy colors.",
+      "page_image_asset_id": "assets/images/pages/max_03.png",
+      "image_target_id": null
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_max_p1_1",
+      "story_id": "story_max_garden",
+      "page_id": "page_max_01",
+      "speaker_key": "narrator",
+      "text": "Max the mouse opened his box of bright paints.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "happy",
+      "speed": 1.0,
+      "start_ms": 0,
+      "end_ms": 3200,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_max_p2_1",
+      "story_id": "story_max_garden",
+      "page_id": "page_max_02",
+      "speaker_key": "max",
+      "text": "This flower is red, and this pond is blue!",
+      "voice_id": "max_bright_en_v1",
+      "emotion": "excited",
+      "speed": 1.0,
+      "start_ms": 0,
+      "end_ms": 3200,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_max_p3_1",
+      "story_id": "story_max_garden",
+      "page_id": "page_max_03",
+      "speaker_key": "narrator",
+      "text": "Soon the whole garden glowed with happy colors.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "warm",
+      "speed": 0.98,
+      "start_ms": 0,
+      "end_ms": 3400,
+      "sort_order": 1
+    }
+  ],
+  "ar_scenes": [
+    {
+      "id": "ar_max_page_02",
+      "story_id": "story_max_garden",
+      "page_id": "page_max_02",
+      "status": "published",
+      "scene_json": {
+        "scene_id": "scene_max_page_02",
+        "anchor_type": "image_target",
+        "assets": [
+          {
+            "asset_id": "max_mouse_2d_rig_v1",
+            "type": "2d_character",
+            "position": { "x": -0.1, "y": 0.1, "z": 0.0 },
+            "scale": 1.0,
+            "default_animation": "idle_paint",
+            "image_asset": "assets/images/characters/max.png"
+          }
+        ],
+        "interactions": [
+          {
+            "trigger": "tap",
+            "target_asset_id": "max_mouse_2d_rig_v1",
+            "action": "play_audio_segment",
+            "audio_segment_id": "seg_max_p2_1"
+          }
+        ]
+      }
+    }
+  ],
+  "questions": [
+    {
+      "id": "q_max_01",
+      "page_id": "page_max_02",
+      "type": "multiple_choice_image",
+      "prompt": "What color is the flower?",
+      "choices": [
+        { "id": "a_red", "label": "Red", "emoji": "🔴", "is_correct": true },
+        { "id": "a_green", "label": "Green", "emoji": "🟢", "is_correct": false },
+        { "id": "a_blue", "label": "Blue", "emoji": "🔵", "is_correct": false }
+      ]
+    },
+    {
+      "id": "q_max_02",
+      "page_id": "page_max_02",
+      "type": "multiple_choice_image",
+      "prompt": "What color is the pond?",
+      "choices": [
+        { "id": "a_blue2", "label": "Blue", "emoji": "🔵", "is_correct": true },
+        { "id": "a_yellow", "label": "Yellow", "emoji": "🟡", "is_correct": false },
+        { "id": "a_red2", "label": "Red", "emoji": "🔴", "is_correct": false }
+      ]
+    }
+  ]
+}

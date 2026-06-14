@@ -1,0 +1,98 @@
+{
+  "story": {
+    "id": "story_sleepy_star",
+    "title": "Sleepy Little Star",
+    "slug": "sleepy_little_star",
+    "description": "A tiny star learns it is finally time to rest.",
+    "age_min": 3,
+    "age_max": 4,
+    "language_code": "en",
+    "duration_seconds": 180,
+    "cover_asset_id": "assets/images/covers/sleepy_little_star.png",
+    "content_status": "published",
+    "rights_owner_id": "studio_original",
+    "themes": ["bedtime", "emotions"],
+    "is_downloaded": false,
+    "is_unlocked": true
+  },
+  "pages": [
+    {
+      "id": "page_star_01",
+      "story_id": "story_sleepy_star",
+      "page_number": 1,
+      "page_text": "A little star twinkled high above the sleeping town.",
+      "page_image_asset_id": "assets/images/pages/star_01.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_star_02",
+      "story_id": "story_sleepy_star",
+      "page_number": 2,
+      "page_text": "The moon whispered, \"It is time to rest, little star.\"",
+      "page_image_asset_id": "assets/images/pages/star_02.png",
+      "image_target_id": null
+    },
+    {
+      "id": "page_star_03",
+      "story_id": "story_sleepy_star",
+      "page_number": 3,
+      "page_text": "The little star closed its eyes and gently fell asleep.",
+      "page_image_asset_id": "assets/images/pages/star_03.png",
+      "image_target_id": null
+    }
+  ],
+  "segments": [
+    {
+      "id": "seg_star_p1_1",
+      "story_id": "story_sleepy_star",
+      "page_id": "page_star_01",
+      "speaker_key": "narrator",
+      "text": "A little star twinkled high above the sleeping town.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "calm",
+      "speed": 0.9,
+      "start_ms": 0,
+      "end_ms": 3600,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_star_p2_1",
+      "story_id": "story_sleepy_star",
+      "page_id": "page_star_02",
+      "speaker_key": "moon",
+      "text": "It is time to rest, little star.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "gentle",
+      "speed": 0.88,
+      "start_ms": 0,
+      "end_ms": 3000,
+      "sort_order": 1
+    },
+    {
+      "id": "seg_star_p3_1",
+      "story_id": "story_sleepy_star",
+      "page_id": "page_star_03",
+      "speaker_key": "narrator",
+      "text": "The little star closed its eyes and gently fell asleep.",
+      "voice_id": "narrator_warm_en_v1",
+      "emotion": "sleepy",
+      "speed": 0.85,
+      "start_ms": 0,
+      "end_ms": 3800,
+      "sort_order": 1
+    }
+  ],
+  "ar_scenes": [],
+  "questions": [
+    {
+      "id": "q_star_01",
+      "page_id": "page_star_03",
+      "type": "choose_the_emotion",
+      "prompt": "How does the little star feel now?",
+      "choices": [
+        { "id": "a_sleepy", "label": "Sleepy", "emoji": "😴", "is_correct": true },
+        { "id": "a_excited", "label": "Excited", "emoji": "🤩", "is_correct": false }
+      ]
+    }
+  ]
+}
