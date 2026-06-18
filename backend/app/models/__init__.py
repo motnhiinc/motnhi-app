@@ -22,6 +22,7 @@ class Device(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     device_id: Mapped[str] = mapped_column(Text, unique=True, index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    secret_hash: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
