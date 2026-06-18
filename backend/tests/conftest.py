@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -37,3 +39,11 @@ def client(db):
     with TestClient(fastapi_app) as c:
         yield c
     fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def seeded(db):
+    from seed import seed_all
+    data_dir = Path(__file__).resolve().parent.parent.parent / "assets" / "data"
+    seed_all(db, data_dir)
+    return db
