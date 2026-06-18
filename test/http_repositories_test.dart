@@ -121,6 +121,95 @@ void main() {
   // HttpStoryRepository (Task 14)
   // ---------------------------------------------------------------------------
 
+  test(
+      'HttpStoryRepository.getLibrary recovers from 401: re-mints token and returns data',
+      () async {
+    // Pre-seed: device already registered with expired token + stored secret.
+    SharedPreferences.setMockInitialValues({
+      'device_id': 'existing-device',
+      'auth_token': 'expired-token',
+      'device_secret': 'my-secret',
+    });
+    final store = await KeyValueStore.create();
+
+    // authDio: re-mint succeeds with new token.
+    final (authDio, _) = _mockDio((a) {
+      a.onPost(
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 'new-token', 'user_id': 'u1'}),
+      );
+    });
+
+    // apiDio: first call 401, second call 200 with stories payload.
+    var apiCallCount = 0;
+    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    apiDio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (opts) {
+        apiCallCount++;
+        if (apiCallCount == 1) {
+          return ResponseBody.fromString(
+            jsonEncode({'detail': 'token expired'}),
+            401,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+            },
+          );
+        }
+        return ResponseBody.fromString(
+          jsonEncode({
+            'stories': [
+              {
+                'id': 'story_bunny_forest',
+                'title': 'Bunny and the Moon',
+                'slug': 'bunny_and_the_moon',
+                'age_min': 3,
+                'age_max': 5,
+                'language_code': 'en',
+                'duration_seconds': 300,
+                'content_status': 'published',
+                'themes': ['animals', 'bedtime'],
+                'is_downloaded': false,
+                'is_unlocked': true
+              }
+            ]
+          }),
+          200,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      },
+    );
+
+    final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
+    final repo = HttpStoryRepository(api);
+
+    final library = await repo.getLibrary();
+
+    expect(library.length, 1);
+    expect(library.single.id, 'story_bunny_forest');
+    expect(store.getString('auth_token'), 'new-token');
+    expect(apiCallCount, 2); // 401 then retry 200
+  });
+
+  test('HttpStoryRepository.getStory returns null on 404', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+
+    final (dio, _) = _mockDio((a) {
+      a.onPost('/v1/auth/device',
+          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
+      a.onGet('/v1/stories/nonexistent',
+          (s) => s.reply(404, {'detail': 'not found'}));
+    });
+
+    final api = ApiClient(dio: dio, store: store, authDio: dio);
+    final repo = HttpStoryRepository(api);
+
+    final result = await repo.getStory('nonexistent');
+    expect(result, isNull);
+  });
+
   test('HttpStoryRepository parses library and detail', () async {
     SharedPreferences.setMockInitialValues({});
     final store = await KeyValueStore.create();

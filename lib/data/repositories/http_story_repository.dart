@@ -13,10 +13,10 @@ class HttpStoryRepository implements StoryRepository {
 
   @override
   Future<List<Story>> getLibrary({AgeBand? ageBand, String? language}) async {
-    final resp = await _api.dio.get('/v1/stories', queryParameters: {
+    final resp = await _api.send(() => _api.dio.get('/v1/stories', queryParameters: {
       if (ageBand != null) 'age_band': ageBand.label,
       if (language != null) 'language': language,
-    });
+    }));
     final list = (resp.data['stories'] as List).cast<Map<String, dynamic>>();
     return list.map(Story.fromJson).toList();
   }
@@ -24,7 +24,7 @@ class HttpStoryRepository implements StoryRepository {
   @override
   Future<StoryDetail?> getStory(String storyId) async {
     try {
-      final resp = await _api.dio.get('/v1/stories/$storyId');
+      final resp = await _api.send(() => _api.dio.get('/v1/stories/$storyId'));
       return StoryDetail.fromJson(resp.data as Map<String, dynamic>);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return null;

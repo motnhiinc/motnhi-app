@@ -15,7 +15,7 @@ class HttpProfileRepository implements ProfileRepository {
 
   @override
   Future<ChildProfile?> getProfile() async {
-    final resp = await _api.dio.get('/v1/child-profiles');
+    final resp = await _api.send(() => _api.dio.get('/v1/child-profiles'));
     final list = (resp.data as List).cast<Map<String, dynamic>>();
     if (list.isEmpty) return null;
     return ChildProfile.fromJson(list.first);
@@ -24,7 +24,7 @@ class HttpProfileRepository implements ProfileRepository {
   @override
   Future<void> saveProfile(ChildProfile profile) async {
     final body = profile.toJson()..remove('user_id'); // server sets user_id from JWT
-    await _api.dio.post('/v1/child-profiles', data: body);
+    await _api.send(() => _api.dio.post('/v1/child-profiles', data: body));
   }
 
   @override
