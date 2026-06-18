@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://storybook:storybook@localhost:5432/storybook"
     test_database_url: str = "postgresql+psycopg://storybook:storybook@localhost:5432/storybook_test"
-    jwt_secret: str = "dev-secret-change-me"
+    jwt_secret: str = "dev-only-not-for-prod-0123456789abcdef0123456789abcdef"
     jwt_algorithm: str = "HS256"
 
 
