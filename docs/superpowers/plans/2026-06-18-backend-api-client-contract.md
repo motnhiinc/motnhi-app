@@ -561,6 +561,91 @@ git commit -m "feat(backend): seed script ingesting bundled story JSON"
 
 ## PHASE B — Backend auth
 
+> ### 🔒 SECURITY AMENDMENT (device_secret) — supersedes the auth code below
+>
+> A security review flagged that minting a token from a client-asserted `device_id`
+> alone has no proof-of-possession (anyone who learns a `device_id` can take over
+> that device's user). Decision: add a server-generated `device_secret`. This
+> amendment **supersedes** the relevant snippets in Tasks 6/7 (and Task 13). Net
+> changes:
+>
+> 1. **`models` — `Device` gains a non-null `secret_hash`:**
+>    `secret_hash: Mapped[str] = mapped_column(Text)`  → requires a new Alembic
+>    migration `0002_device_secret` (`uv run alembic revision --autogenerate -m "device secret"` then `upgrade head`). The test harness uses `create_all`, so tests pick it up automatically.
+>
+> 2. **`app/auth.py` — add secret helpers; shorten JWT to 30 days:**
+>    ```python
+>    import hashlib, hmac, secrets
+>
+>    def generate_secret() -> str:
+>        return secrets.token_urlsafe(32)
+>
+>    def hash_secret(secret: str) -> str:
+>        return hashlib.sha256(secret.encode()).hexdigest()
+>
+>    def verify_secret(secret: str, secret_hash: str) -> bool:
+>        return hmac.compare_digest(hash_secret(secret), secret_hash)
+>    ```
+>    In `create_token`, change `timedelta(days=365)` → `timedelta(days=30)`.
+>    (SHA-256 without a slow KDF is appropriate here: the secret is a 256-bit
+>    random token, not a low-entropy password.)
+>
+> 3. **`schemas` — request carries optional secret; response returns it once:**
+>    ```python
+>    class DeviceAuthRequest(BaseModel):
+>        device_id: str
+>        device_secret: str | None = None
+>
+>    class DeviceAuthResponse(BaseModel):
+>        token: str
+>        user_id: str
+>        device_secret: str | None = None  # set ONLY on first registration
+>    ```
+>
+> 4. **`routers/auth.py` — register-or-verify:**
+>    ```python
+>    @router.post("/device", response_model=DeviceAuthResponse)
+>    def device_auth(body: DeviceAuthRequest, db: Session = Depends(get_db)) -> DeviceAuthResponse:
+>        device = db.scalar(select(Device).where(Device.device_id == body.device_id))
+>        if device is None:
+>            now = datetime.now(timezone.utc)
+>            secret = generate_secret()
+>            user = User(id=str(uuid.uuid4()), auth_provider="device", created_at=now, updated_at=now)
+>            db.add(user)
+>            db.flush()
+>            device = Device(id=str(uuid.uuid4()), device_id=body.device_id, user_id=user.id,
+>                            secret_hash=hash_secret(secret), created_at=now)
+>            db.add(device)
+>            db.commit()
+>            return DeviceAuthResponse(token=create_token(user.id), user_id=user.id, device_secret=secret)
+>        if not body.device_secret or not verify_secret(body.device_secret, device.secret_hash):
+>            raise HTTPException(status_code=401, detail="invalid device credentials")
+>        return DeviceAuthResponse(token=create_token(device.user_id), user_id=device.user_id)
+>    ```
+>    (add `HTTPException` to the FastAPI import and `generate_secret, hash_secret, verify_secret` to the auth import.)
+>
+> 5. **`tests/test_auth.py` — replace the idempotency test:**
+>    ```python
+>    def test_device_auth_registers_then_requires_secret(client):
+>        first = client.post("/v1/auth/device", json={"device_id": "device-abc"})
+>        assert first.status_code == 200
+>        body = first.json()
+>        assert body["token"] and body["user_id"] and body["device_secret"]
+>
+>        again = client.post("/v1/auth/device",
+>                            json={"device_id": "device-abc", "device_secret": body["device_secret"]})
+>        assert again.status_code == 200
+>        assert again.json()["user_id"] == body["user_id"]
+>        assert again.json()["device_secret"] is None
+>
+>        assert client.post("/v1/auth/device", json={"device_id": "device-abc"}).status_code == 401
+>        assert client.post("/v1/auth/device",
+>                           json={"device_id": "device-abc", "device_secret": "wrong"}).status_code == 401
+>    ```
+>    Other tests/routers that bootstrap auth (stories/profiles/sessions test helpers) call
+>    `/v1/auth/device` once per device id and use the returned token — they keep working,
+>    since first-registration still returns a token. Only re-auth of an existing device needs the secret.
+
 ### Task 6: Device JWT issue/verify + current-user dependency
 
 **Files:**
@@ -1578,6 +1663,17 @@ git commit -m "build: add dio + http_mock_adapter for HTTP repositories"
 ---
 
 ### Task 13: API client + device-auth interceptor
+
+> ### 🔒 SECURITY AMENDMENT (device_secret) — applies to this task
+> The `ApiClient` must persist the `device_secret` returned on first registration and
+> send it on every subsequent `/v1/auth/device` call. Changes to the `ApiClient` below:
+> - Add `static const _secretKey = 'device_secret';`
+> - In `_ensureToken`, post `{'device_id': _deviceId(), if (secret != null) 'device_secret': secret}`
+>   where `secret = _store.getString(_secretKey)`; if the response JSON contains a non-null
+>   `device_secret`, persist it: `await _store.setString(_secretKey, resp.data['device_secret'])`.
+> - The 401-retry path stays the same: it clears only the token (NOT the secret) and
+>   re-mints via device_id + stored secret. Add a test: a 401 then a successful re-mint
+>   that sends the stored `device_secret`.
 
 **Files:**
 - Create: `lib/data/sources/api_client.dart`
