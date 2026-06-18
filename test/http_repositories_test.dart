@@ -4,6 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:storybook_ar/data/models/models.dart';
+import 'package:storybook_ar/data/repositories/http_profile_repository.dart';
+import 'package:storybook_ar/data/repositories/http_session_repository.dart';
+import 'package:storybook_ar/data/repositories/http_story_repository.dart';
 import 'package:storybook_ar/data/sources/api_client.dart';
 import 'package:storybook_ar/data/sources/key_value_store.dart';
 
@@ -17,6 +21,10 @@ import 'package:storybook_ar/data/sources/key_value_store.dart';
 }
 
 void main() {
+  // ---------------------------------------------------------------------------
+  // ApiClient (Task 13)
+  // ---------------------------------------------------------------------------
+
   test('bootstraps a device token and attaches it as Bearer', () async {
     SharedPreferences.setMockInitialValues({});
     final store = await KeyValueStore.create();
@@ -108,7 +116,115 @@ void main() {
     expect(store.getString('device_secret'), 'my-secret');
     expect(apiCallCount, 2); // called twice: first 401, then retry 200
   });
+
+  // ---------------------------------------------------------------------------
+  // HttpStoryRepository (Task 14)
+  // ---------------------------------------------------------------------------
+
+  test('HttpStoryRepository parses library and detail', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+
+    final (dio, _) = _mockDio((a) {
+      a.onPost('/v1/auth/device',
+          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
+      a.onGet('/v1/stories', (s) => s.reply(200, {
+            'stories': [
+              {
+                'id': 'story_bunny_forest',
+                'title': 'Bunny and the Moon',
+                'slug': 'bunny_and_the_moon',
+                'age_min': 3,
+                'age_max': 5,
+                'language_code': 'en',
+                'duration_seconds': 300,
+                'content_status': 'published',
+                'themes': ['animals', 'bedtime'],
+                'is_downloaded': false,
+                'is_unlocked': true
+              }
+            ]
+          }));
+    });
+
+    final api = ApiClient(dio: dio, store: store, authDio: dio);
+    final repo = HttpStoryRepository(api);
+    final lib = await repo.getLibrary();
+    expect(lib.single.id, 'story_bunny_forest');
+    expect(lib.single.title, 'Bunny and the Moon');
+  });
+
+  // ---------------------------------------------------------------------------
+  // HttpProfileRepository (Task 15)
+  // ---------------------------------------------------------------------------
+
+  test('HttpProfileRepository saves and reads back a profile', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+
+    const pjson = {
+      'id': 'p1',
+      'user_id': 'u',
+      'nickname': 'Bun',
+      'age_band': '3-4',
+      'language_code': 'en',
+      'bedtime_mode_default': false,
+      'microphone_enabled': false,
+      'ar_enabled': true
+    };
+
+    final (dio, _) = _mockDio((a) {
+      a.onPost('/v1/auth/device',
+          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
+      a.onPost('/v1/child-profiles', (s) => s.reply(200, pjson));
+      a.onGet('/v1/child-profiles', (s) => s.reply(200, [pjson]));
+    });
+
+    final api = ApiClient(dio: dio, store: store, authDio: dio);
+    final repo = HttpProfileRepository(api, store);
+    await repo.saveProfile(
+        const ChildProfile(id: 'p1', nickname: 'Bun', ageBand: AgeBand.threeToFour));
+    final got = await repo.getProfile();
+    expect(got!.nickname, 'Bun');
+    expect(got.ageBand, AgeBand.threeToFour);
+  });
+
+  // ---------------------------------------------------------------------------
+  // HttpSessionRepository (Task 16)
+  // ---------------------------------------------------------------------------
+
+  test('HttpSessionRepository starts a session and parses it', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+
+    final (dio, _) = _mockDio((a) {
+      a.onPost('/v1/auth/device',
+          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
+      a.onPost('/v1/story-sessions', (s) => s.reply(200, {
+            'id': 'sess1',
+            'child_profile_id': 'p1',
+            'story_id': 'story_bunny_forest',
+            'started_at': '2026-06-18T10:00:00Z',
+            'completed_at': null,
+            'last_page_number': 0,
+            'mode': 'bedtime'
+          }));
+    });
+
+    final api = ApiClient(dio: dio, store: store, authDio: dio);
+    final repo = HttpSessionRepository(api);
+    final session = await repo.startSession(
+        childProfileId: 'p1',
+        storyId: 'story_bunny_forest',
+        mode: SessionMode.bedtime);
+    expect(session.id, 'sess1');
+    expect(session.mode, SessionMode.bedtime);
+  });
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 /// A [HttpClientAdapter] that delegates each fetch to [onFetch].
 class _CallCountAdapter implements HttpClientAdapter {
