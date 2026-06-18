@@ -58,3 +58,25 @@ def test_list_sessions_by_child(client, seeded):
                 json={"child_profile_id": pid, "story_id": "story_bunny_forest"}, headers=h)
     listed = client.get(f"/v1/story-sessions?child_profile_id={pid}", headers=h).json()
     assert len(listed) == 1
+
+
+def test_start_session_unknown_story_returns_404(client, seeded):
+    h = _auth(client)
+    pid = _make_profile(client, h)
+    resp = client.post("/v1/story-sessions",
+                       json={"child_profile_id": pid, "story_id": "story_does_not_exist"},
+                       headers=h)
+    assert resp.status_code == 404
+
+
+def test_session_not_accessible_cross_device(client, seeded):
+    h_a = _auth(client, "dev-A")
+    h_b = _auth(client, "dev-B")
+    pid_a = _make_profile(client, h_a)
+    sid = client.post("/v1/story-sessions",
+                      json={"child_profile_id": pid_a, "story_id": "story_bunny_forest"},
+                      headers=h_a).json()["id"]
+    assert client.patch(f"/v1/story-sessions/{sid}", json={"last_page_number": 2}, headers=h_b).status_code == 404
+    assert client.get(f"/v1/story-sessions/{sid}/events", headers=h_b).status_code == 404
+    assert client.post(f"/v1/story-sessions/{sid}/events",
+                       json={"event_type": "page_turned"}, headers=h_b).status_code == 404

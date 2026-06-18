@@ -11,7 +11,7 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _owns_profile(db: Session, user_id: str, child_profile_id: str) -> bool:
+def owns_profile(db: Session, user_id: str, child_profile_id: str) -> bool:
     p = db.get(ChildProfile, child_profile_id)
     return p is not None and p.user_id == user_id
 
@@ -37,7 +37,7 @@ def start(db: Session, story_id: str, child_profile_id: str, mode: str) -> Story
 
 def get_owned(db: Session, user_id: str, session_id: str) -> StorySession | None:
     s = db.get(StorySession, session_id)
-    if s is None or not _owns_profile(db, user_id, s.child_profile_id):
+    if s is None or not owns_profile(db, user_id, s.child_profile_id):
         return None
     return s
 
@@ -55,7 +55,7 @@ def patch(db: Session, s: StorySession, last_page_number: int | None, completed:
 
 
 def list_for_child(db: Session, user_id: str, child_profile_id: str) -> list[StorySession]:
-    if not _owns_profile(db, user_id, child_profile_id):
+    if not owns_profile(db, user_id, child_profile_id):
         return []
     return list(db.scalars(select(StorySession).where(StorySession.child_profile_id == child_profile_id)))
 

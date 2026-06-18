@@ -127,7 +127,9 @@ class Question(Base):
     prompt: Mapped[str] = mapped_column(Text)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
-    choices: Mapped[list["QuestionChoice"]] = relationship(cascade="all, delete-orphan")
+    choices: Mapped[list["QuestionChoice"]] = relationship(
+        cascade="all, delete-orphan", order_by="QuestionChoice.sort_order"
+    )
 
 
 class QuestionChoice(Base):

@@ -5,7 +5,7 @@ from app.auth import get_current_user
 from app.db import get_db
 from app.models import User
 from app.repositories import profiles as repo
-from app.schemas import ChildProfileIn, ChildProfileOut
+from app.schemas import ChildProfileIn, ChildProfileOut, ChildProfilePatch
 
 router = APIRouter(prefix="/v1/child-profiles", tags=["child-profiles"])
 
@@ -22,18 +22,18 @@ def create_profile(body: ChildProfileIn, db: Session = Depends(get_db),
 
 
 @router.patch("/{profile_id}", response_model=ChildProfileOut)
-def patch_profile(profile_id: str, body: dict, db: Session = Depends(get_db),
+def patch_profile(profile_id: str, body: ChildProfilePatch, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     existing = repo.get_owned(db, user.id, profile_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="profile not found")
     merged = {
         "id": profile_id,
-        "nickname": body.get("nickname", existing.nickname),
-        "age_band": body.get("age_band", existing.age_band),
-        "language_code": body.get("language_code", existing.language_code),
-        "bedtime_mode_default": body.get("bedtime_mode_default", existing.bedtime_mode_default),
-        "microphone_enabled": body.get("microphone_enabled", existing.microphone_enabled),
-        "ar_enabled": body.get("ar_enabled", existing.ar_enabled),
+        "nickname": body.nickname if body.nickname is not None else existing.nickname,
+        "age_band": body.age_band if body.age_band is not None else existing.age_band,
+        "language_code": body.language_code if body.language_code is not None else existing.language_code,
+        "bedtime_mode_default": body.bedtime_mode_default if body.bedtime_mode_default is not None else existing.bedtime_mode_default,
+        "microphone_enabled": body.microphone_enabled if body.microphone_enabled is not None else existing.microphone_enabled,
+        "ar_enabled": body.ar_enabled if body.ar_enabled is not None else existing.ar_enabled,
     }
     return repo.upsert(db, user.id, merged)

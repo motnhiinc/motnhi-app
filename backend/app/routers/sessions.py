@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.db import get_db
-from app.models import User
+from app.models import Story, User
 from app.repositories import sessions as repo
 from app.schemas import (
     EventOut,
@@ -19,8 +19,10 @@ router = APIRouter(prefix="/v1/story-sessions", tags=["story-sessions"])
 @router.post("", response_model=SessionOut)
 def start_session(body: StartSessionRequest, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
-    if not repo._owns_profile(db, user.id, body.child_profile_id):
+    if not repo.owns_profile(db, user.id, body.child_profile_id):
         raise HTTPException(status_code=404, detail="profile not found")
+    if db.get(Story, body.story_id) is None:
+        raise HTTPException(status_code=404, detail="story not found")
     return repo.start(db, body.story_id, body.child_profile_id, body.mode)
 
 

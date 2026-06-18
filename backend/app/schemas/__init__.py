@@ -105,6 +105,15 @@ class ChildProfileIn(BaseModel):
     ar_enabled: bool = True
 
 
+class ChildProfilePatch(BaseModel):
+    nickname: str | None = None
+    age_band: str | None = None
+    language_code: str | None = None
+    bedtime_mode_default: bool | None = None
+    microphone_enabled: bool | None = None
+    ar_enabled: bool | None = None
+
+
 class ChildProfileOut(_ORM):
     id: str
     user_id: str

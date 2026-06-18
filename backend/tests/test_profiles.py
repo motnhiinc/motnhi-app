@@ -37,3 +37,12 @@ def test_profiles_isolated_per_device(client):
     client.post("/v1/child-profiles", json=body, headers=_auth(client, "dev-A"))
     other = client.get("/v1/child-profiles", headers=_auth(client, "dev-B")).json()
     assert other == []
+
+
+def test_patch_invalid_bool_returns_422(client):
+    h = _auth(client)
+    body = _profile_body()
+    client.post("/v1/child-profiles", json=body, headers=h)
+    resp = client.patch(f"/v1/child-profiles/{body['id']}",
+                        json={"ar_enabled": "banana"}, headers=h)
+    assert resp.status_code == 422
