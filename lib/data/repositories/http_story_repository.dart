@@ -14,8 +14,8 @@ class HttpStoryRepository implements StoryRepository {
   @override
   Future<List<Story>> getLibrary({AgeBand? ageBand, String? language}) async {
     final resp = await _api.send(() => _api.dio.get('/v1/stories', queryParameters: {
-      if (ageBand != null) 'age_band': ageBand.label,
-      if (language != null) 'language': language,
+      'age_band': ?ageBand?.label,
+      'language': ?language,
     }));
     final list = (resp.data['stories'] as List).cast<Map<String, dynamic>>();
     return list.map(Story.fromJson).toList();

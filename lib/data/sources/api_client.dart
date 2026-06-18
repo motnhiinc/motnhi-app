@@ -54,11 +54,11 @@ class ApiClient {
 
   String? get userId => _store.getString(_userKey);
 
-  String _deviceId() {
+  Future<String> _deviceId() async {
     final existing = _store.getString(_deviceKey);
     if (existing != null) return existing;
     final id = _uuid.v4();
-    _store.setString(_deviceKey, id);
+    await _store.setString(_deviceKey, id);
     return id;
   }
 
@@ -67,7 +67,7 @@ class ApiClient {
     if (cached != null) return cached;
 
     final secret = _store.getString(_secretKey);
-    final body = <String, dynamic>{'device_id': _deviceId()};
+    final body = <String, dynamic>{'device_id': await _deviceId()};
     if (secret != null) body['device_secret'] = secret;
 
     final resp = await _authDio.post('/v1/auth/device', data: body);

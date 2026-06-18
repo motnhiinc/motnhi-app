@@ -36,7 +36,10 @@ final dashboardSummaryProvider =
 
   final sessions =
       await sessionRepo.getSessions(childProfileId: profile?.id);
-  final events = await sessionRepo.getEvents();
+  final eventLists = await Future.wait(
+    sessions.map((s) => sessionRepo.getEvents(sessionId: s.id)),
+  );
+  final events = eventLists.expand((list) => list).toList();
   final library = await storyRepo.getLibrary();
   final byId = {for (final s in library) s.id: s};
 

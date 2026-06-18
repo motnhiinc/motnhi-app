@@ -53,7 +53,7 @@ class HttpSessionRepository implements SessionRepository {
   Future<List<StorySession>> getSessions({String? childProfileId}) async {
     final resp = await _api.send(() => _api.dio.get('/v1/story-sessions',
         queryParameters: {
-          if (childProfileId != null) 'child_profile_id': childProfileId
+          'child_profile_id': ?childProfileId,
         }));
     return (resp.data as List)
         .cast<Map<String, dynamic>>()
