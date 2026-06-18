@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
 from app.db import Base, get_db
-from app.main import app
+from app.main import app as fastapi_app
 import app.models  # noqa: F401
 
 engine = create_engine(settings.test_database_url, future=True)
@@ -33,7 +33,7 @@ def db():
 
 @pytest.fixture
 def client(db):
-    app.dependency_overrides[get_db] = lambda: db
-    with TestClient(app) as c:
+    fastapi_app.dependency_overrides[get_db] = lambda: db
+    with TestClient(fastapi_app) as c:
         yield c
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
