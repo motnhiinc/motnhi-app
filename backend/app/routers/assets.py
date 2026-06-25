@@ -41,7 +41,8 @@ def stream(
     asset = db.get(Asset, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="asset not found")
-    path = Path(settings.storage_dir) / asset.storage_key
-    if not path.is_file():
+    storage_root = Path(settings.storage_dir).resolve()
+    path = (storage_root / asset.storage_key).resolve()
+    if not path.is_relative_to(storage_root) or not path.is_file():
         raise HTTPException(status_code=404, detail="file missing")
     return FileResponse(path, media_type=asset.content_type)

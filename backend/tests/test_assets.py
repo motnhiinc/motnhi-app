@@ -43,6 +43,7 @@ def test_stream_serves_file(client, asset_file):
     r = client.get(sign_asset_url("aud_demo"))
     assert r.status_code == 200
     assert r.content == b"ABCDEFGH"
+    assert r.headers["content-type"].startswith("audio/mp4")
 
 
 def test_stream_supports_range(client, asset_file):
