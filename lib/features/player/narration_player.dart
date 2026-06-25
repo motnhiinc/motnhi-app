@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../data/models/models.dart';
+import '../../data/sources/asset_url_resolver.dart';
 
 /// Drives narration for the pages of a story (§9.4.3). Plays segments in
 /// `sort_order` and exposes [currentSegment] so the player can highlight the
@@ -17,12 +18,25 @@ import '../../data/models/models.dart';
 ///    stand-in until the content/TTS pipeline produces reviewed clips; the
 ///    spec forbids real-time TTS in child production sessions (§13.1, §18.2).
 class NarrationPlayer {
-  NarrationPlayer({AudioPlayer? filePlayer, FlutterTts? tts})
+  NarrationPlayer({AudioPlayer? filePlayer, FlutterTts? tts, AssetUrlResolver? resolver})
       : _file = filePlayer ?? AudioPlayer(),
-        _tts = tts ?? FlutterTts();
+        _tts = tts ?? FlutterTts(),
+        _resolver = resolver;
 
   final AudioPlayer _file;
   final FlutterTts _tts;
+  final AssetUrlResolver? _resolver;
+
+  /// Resolved signed URLs for the current page, keyed by `audio_asset_id`.
+  Map<String, String> _urlByAssetId = {};
+
+  /// True when at least one segment cannot be played from a real clip and must
+  /// use the DEV-ONLY TTS fallback. Pure so it is unit-testable without audio.
+  static bool computeTtsFallback(
+    List<NarrationSegment> segments,
+    Map<String, String> urls,
+  ) =>
+      segments.any((s) => !s.hasAudioAsset || !urls.containsKey(s.audioAssetId));
 
   /// Index into [_segments] currently being spoken; -1 when idle.
   final ValueNotifier<int> currentSegmentIndex = ValueNotifier(-1);
@@ -61,8 +75,15 @@ class NarrationPlayer {
     _cursor = 0;
     currentSegmentIndex.value = -1;
     isComplete.value = false;
-    usingTtsFallback.value =
-        segments.any((s) => !s.hasAudioAsset);
+
+    final ids = segments
+        .where((s) => s.hasAudioAsset)
+        .map((s) => s.audioAssetId!)
+        .toList();
+    _urlByAssetId = (_resolver != null && ids.isNotEmpty)
+        ? await _resolver!.resolve(ids)
+        : <String, String>{};
+    usingTtsFallback.value = computeTtsFallback(segments, _urlByAssetId);
   }
 
   void setSpeedMultiplier(double value) => _speedMultiplier = value;
@@ -106,16 +127,17 @@ class NarrationPlayer {
     final interrupt = _segmentInterrupt!.future;
     final speed = (seg.speed * _speedMultiplier).clamp(0.5, 2.0);
 
-    if (seg.hasAudioAsset) {
+    final url = seg.hasAudioAsset ? _urlByAssetId[seg.audioAssetId] : null;
+    if (url != null) {
       try {
-        await _file.setAsset(seg.audioAssetId!);
+        await _file.setUrl(url);
         await _file.setSpeed(speed);
         final done = _file.processingStateStream
             .firstWhere((s) => s == ProcessingState.completed);
         unawaited(_file.play());
         await Future.any([done, interrupt]);
       } catch (_) {
-        // A missing/!corrupt clip shouldn't break the story — fall through.
+        // A missing/corrupt clip shouldn't break the story — fall through.
       }
     } else {
       await _ensureTts();

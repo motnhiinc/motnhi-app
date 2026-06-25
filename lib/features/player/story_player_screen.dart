@@ -49,7 +49,7 @@ class _PlayerBody extends ConsumerStatefulWidget {
 }
 
 class _PlayerBodyState extends ConsumerState<_PlayerBody> {
-  final NarrationPlayer _player = NarrationPlayer();
+  late final NarrationPlayer _player;
   final PageController _pageController = PageController();
   int _pageIndex = 0;
   String? _sessionId;
@@ -61,6 +61,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   @override
   void initState() {
     super.initState();
+    _player = NarrationPlayer(resolver: ref.read(assetUrlResolverProvider));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startSession();
       _loadPage(0, autoplay: false);
