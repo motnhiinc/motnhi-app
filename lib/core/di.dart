@@ -9,6 +9,7 @@ import '../data/repositories/session_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/repositories/story_repository.dart';
 import '../data/sources/api_client.dart';
+import '../data/sources/asset_url_resolver.dart';
 import '../data/sources/key_value_store.dart';
 
 /// Backend base URL. Override at build/run time:
@@ -31,6 +32,10 @@ final apiClientProvider = Provider<ApiClient>(
     dio: Dio(BaseOptions(baseUrl: _apiBaseUrl)),
     store: ref.watch(keyValueStoreProvider),
   ),
+);
+
+final assetUrlResolverProvider = Provider<AssetUrlResolver>(
+  (ref) => HttpAssetUrlResolver(ref.watch(apiClientProvider)),
 );
 
 final storyRepositoryProvider = Provider<StoryRepository>(
