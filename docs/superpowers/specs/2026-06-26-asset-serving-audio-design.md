@@ -129,7 +129,8 @@ All paths `/v1/*`. Enum/field shapes follow the client's serialized models.
 - `sig = HMAC_SHA256(ASSET_URL_SECRET, f"{asset_id}:{exp}")` rendered hex.
 - `exp = <now + ASSET_URL_TTL_SECONDS>` as a unix timestamp.
 - Verification uses `hmac.compare_digest` (constant-time) and rejects
-  `exp < now`.
+  `exp <= now` (a URL is invalid at or after its expiry second, matching the
+  RFC 7519 / signed-URL convention that validity requires `now < exp`).
 - New config (in `app/config.py` + `.env.example`):
   - `ASSET_URL_SECRET` — signing key, dev placeholder ≥32 bytes.
   - `ASSET_URL_TTL_SECONDS` — default `3600` (long enough for a story session,

@@ -240,7 +240,7 @@ def sign_asset_url(asset_id: str, now: int | None = None) -> str:
 
 def verify_signature(asset_id: str, exp: int, sig: str, now: int | None = None) -> bool:
     current = now if now is not None else int(time.time())
-    if exp < current:
+    if exp <= current:
         return False
     return hmac.compare_digest(sig, _sig(asset_id, exp))
 ```
