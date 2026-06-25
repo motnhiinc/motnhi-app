@@ -121,7 +121,7 @@ All paths `/v1/*`. Enum/field shapes follow the client's serialized models.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| `POST` | `/v1/assets/sign` | Bearer | body `{ "asset_ids": [".."] }` → `{ "<asset_id>": "/v1/assets/<id>?exp=<unix>&sig=<hex>" }`. Only ids with a registered `assets` row + existing file are included; unregistered ids are omitted from the response map. |
+| `POST` | `/v1/assets/sign` | Bearer | body `{ "asset_ids": [".."] }` → `{ "<asset_id>": "/v1/assets/<id>?exp=<unix>&sig=<hex>" }`. Only ids with a registered `assets` row are included; unregistered ids are omitted from the response map. (A row exists only because `register_assets.py` saw the file, so a row implies a file under normal operation; the stream endpoint independently `404`s if a file is later removed out-of-band, and the client falls back to TTS. The file-existence check lives on the stream endpoint, not duplicated per-id in `sign`.) |
 | `GET` | `/v1/assets/{asset_id}?exp=&sig=` | signature only | Validates HMAC + expiry, streams the file via Range-aware `FileResponse`. `403` on bad/expired/missing signature; `404` if the asset row or file is missing. |
 
 ### 7.1 Signing scheme
