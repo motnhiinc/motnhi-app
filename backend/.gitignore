@@ -1,0 +1,3 @@
+# Dropped media recordings — registered by register_assets.py, not committed.
+storage/audio/*
+!storage/audio/.gitkeep
