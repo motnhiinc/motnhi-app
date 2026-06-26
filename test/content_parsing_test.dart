@@ -32,6 +32,8 @@ void main() {
       for (final seg in detail.segments) {
         expect(pageIds.contains(seg.pageId), isTrue,
             reason: 'segment ${seg.id} points at unknown page ${seg.pageId}');
+        expect(seg.audioAssetId, 'aud_${seg.id}',
+            reason: 'segment ${seg.id} must carry its pre-populated audio_asset_id');
       }
 
       // Every AR tap interaction references a real segment.

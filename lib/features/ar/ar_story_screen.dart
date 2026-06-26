@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/di.dart';
 import '../../data/models/models.dart';
 import '../../shared/widgets/async_views.dart';
 import '../player/narration_player.dart';
@@ -72,7 +73,7 @@ class _ArView extends ConsumerStatefulWidget {
 }
 
 class _ArViewState extends ConsumerState<_ArView> {
-  final NarrationPlayer _audio = NarrationPlayer();
+  late final NarrationPlayer _audio;
   CameraController? _camera;
   bool _cameraReady = false;
   late final ArTrackingMode _mode;
@@ -80,6 +81,7 @@ class _ArViewState extends ConsumerState<_ArView> {
   @override
   void initState() {
     super.initState();
+    _audio = NarrationPlayer(resolver: ref.read(assetUrlResolverProvider));
     _mode = ArCapabilities.resolveMode(widget.page);
     _initCamera();
   }

@@ -159,3 +159,7 @@ class EventOut(_ORM):
     page_id: str | None = None
     payload: dict[str, Any]
     created_at: datetime
+
+
+class AssetSignRequest(BaseModel):
+    asset_ids: list[str]

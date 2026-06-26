@@ -26,6 +26,9 @@ def test_detail_reproduces_bundled_json(client, seeded, slug):
     assert _strip_runtime(got["story"]) == _strip_runtime(bundled["story"])
     assert {p["id"] for p in got["pages"]} == {p["id"] for p in bundled["pages"]}
     assert {s["id"] for s in got["segments"]} == {s["id"] for s in bundled["segments"]}
+    by_id = {s["id"]: s for s in got["segments"]}
+    for s in bundled["segments"]:
+        assert by_id[s["id"]]["audio_asset_id"] == f"aud_{s['id']}"
     assert len(got["questions"]) == len(bundled["questions"])
     for q_got, q_exp in zip(got["questions"], bundled["questions"]):
         assert q_got["prompt"] == q_exp["prompt"]

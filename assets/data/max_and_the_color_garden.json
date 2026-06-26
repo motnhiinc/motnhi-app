@@ -11,7 +11,10 @@
     "cover_asset_id": "assets/images/covers/max_and_the_color_garden.png",
     "content_status": "published",
     "rights_owner_id": "studio_original",
-    "themes": ["language_learning", "emotions"],
+    "themes": [
+      "language_learning",
+      "emotions"
+    ],
     "is_downloaded": false,
     "is_unlocked": true
   },
@@ -53,7 +56,8 @@
       "speed": 1.0,
       "start_ms": 0,
       "end_ms": 3200,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_max_p1_1"
     },
     {
       "id": "seg_max_p2_1",
@@ -66,7 +70,8 @@
       "speed": 1.0,
       "start_ms": 0,
       "end_ms": 3200,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_max_p2_1"
     },
     {
       "id": "seg_max_p3_1",
@@ -79,7 +84,8 @@
       "speed": 0.98,
       "start_ms": 0,
       "end_ms": 3400,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_max_p3_1"
     }
   ],
   "ar_scenes": [
@@ -95,7 +101,11 @@
           {
             "asset_id": "max_mouse_2d_rig_v1",
             "type": "2d_character",
-            "position": { "x": -0.1, "y": 0.1, "z": 0.0 },
+            "position": {
+              "x": -0.1,
+              "y": 0.1,
+              "z": 0.0
+            },
             "scale": 1.0,
             "default_animation": "idle_paint",
             "image_asset": "assets/images/characters/max.png"
@@ -119,9 +129,24 @@
       "type": "multiple_choice_image",
       "prompt": "What color is the flower?",
       "choices": [
-        { "id": "a_red", "label": "Red", "emoji": "🔴", "is_correct": true },
-        { "id": "a_green", "label": "Green", "emoji": "🟢", "is_correct": false },
-        { "id": "a_blue", "label": "Blue", "emoji": "🔵", "is_correct": false }
+        {
+          "id": "a_red",
+          "label": "Red",
+          "emoji": "🔴",
+          "is_correct": true
+        },
+        {
+          "id": "a_green",
+          "label": "Green",
+          "emoji": "🟢",
+          "is_correct": false
+        },
+        {
+          "id": "a_blue",
+          "label": "Blue",
+          "emoji": "🔵",
+          "is_correct": false
+        }
       ]
     },
     {
@@ -130,9 +155,24 @@
       "type": "multiple_choice_image",
       "prompt": "What color is the pond?",
       "choices": [
-        { "id": "a_blue2", "label": "Blue", "emoji": "🔵", "is_correct": true },
-        { "id": "a_yellow", "label": "Yellow", "emoji": "🟡", "is_correct": false },
-        { "id": "a_red2", "label": "Red", "emoji": "🔴", "is_correct": false }
+        {
+          "id": "a_blue2",
+          "label": "Blue",
+          "emoji": "🔵",
+          "is_correct": true
+        },
+        {
+          "id": "a_yellow",
+          "label": "Yellow",
+          "emoji": "🟡",
+          "is_correct": false
+        },
+        {
+          "id": "a_red2",
+          "label": "Red",
+          "emoji": "🔴",
+          "is_correct": false
+        }
       ]
     }
   ]

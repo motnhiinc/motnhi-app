@@ -11,7 +11,10 @@
     "cover_asset_id": "assets/images/covers/bunny_and_the_moon.png",
     "content_status": "published",
     "rights_owner_id": "studio_original",
-    "themes": ["animals", "bedtime"],
+    "themes": [
+      "animals",
+      "bedtime"
+    ],
     "is_downloaded": true,
     "is_unlocked": true
   },
@@ -69,7 +72,8 @@
       "speed": 0.95,
       "start_ms": 0,
       "end_ms": 3200,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_bunny_p1_1"
     },
     {
       "id": "seg_bunny_p1_2",
@@ -82,7 +86,8 @@
       "speed": 1.0,
       "start_ms": 3400,
       "end_ms": 6000,
-      "sort_order": 2
+      "sort_order": 2,
+      "audio_asset_id": "aud_seg_bunny_p1_2"
     },
     {
       "id": "seg_bunny_p2_1",
@@ -95,7 +100,8 @@
       "speed": 0.95,
       "start_ms": 0,
       "end_ms": 3400,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_bunny_p2_1"
     },
     {
       "id": "seg_bunny_p2_2",
@@ -108,7 +114,8 @@
       "speed": 1.0,
       "start_ms": 3600,
       "end_ms": 5600,
-      "sort_order": 2
+      "sort_order": 2,
+      "audio_asset_id": "aud_seg_bunny_p2_2"
     },
     {
       "id": "seg_bunny_p3_1",
@@ -121,7 +128,8 @@
       "speed": 0.95,
       "start_ms": 0,
       "end_ms": 3600,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_bunny_p3_1"
     },
     {
       "id": "seg_bunny_p3_owl",
@@ -134,7 +142,8 @@
       "speed": 0.9,
       "start_ms": 3800,
       "end_ms": 7200,
-      "sort_order": 2
+      "sort_order": 2,
+      "audio_asset_id": "aud_seg_bunny_p3_owl"
     },
     {
       "id": "seg_bunny_p3_2",
@@ -147,7 +156,8 @@
       "speed": 1.0,
       "start_ms": 7400,
       "end_ms": 8800,
-      "sort_order": 3
+      "sort_order": 3,
+      "audio_asset_id": "aud_seg_bunny_p3_2"
     },
     {
       "id": "seg_bunny_p4_1",
@@ -160,7 +170,8 @@
       "speed": 0.9,
       "start_ms": 0,
       "end_ms": 3600,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_bunny_p4_1"
     },
     {
       "id": "seg_bunny_p5_1",
@@ -173,7 +184,8 @@
       "speed": 0.88,
       "start_ms": 0,
       "end_ms": 3800,
-      "sort_order": 1
+      "sort_order": 1,
+      "audio_asset_id": "aud_seg_bunny_p5_1"
     },
     {
       "id": "seg_bunny_p5_2",
@@ -186,7 +198,8 @@
       "speed": 0.9,
       "start_ms": 4000,
       "end_ms": 6400,
-      "sort_order": 2
+      "sort_order": 2,
+      "audio_asset_id": "aud_seg_bunny_p5_2"
     }
   ],
   "ar_scenes": [
@@ -202,7 +215,11 @@
           {
             "asset_id": "owl_2d_rig_v1",
             "type": "2d_character",
-            "position": { "x": 0.0, "y": 0.2, "z": 0.0 },
+            "position": {
+              "x": 0.0,
+              "y": 0.2,
+              "z": 0.0
+            },
             "scale": 1.1,
             "default_animation": "idle_blink",
             "image_asset": "assets/images/characters/owl.png"
@@ -226,9 +243,24 @@
       "type": "multiple_choice_image",
       "prompt": "What did Bunny see in the sky?",
       "choices": [
-        { "id": "a_moon", "label": "Moon", "emoji": "🌙", "is_correct": true },
-        { "id": "a_sun", "label": "Sun", "emoji": "☀️", "is_correct": false },
-        { "id": "a_ball", "label": "Ball", "emoji": "⚽", "is_correct": false }
+        {
+          "id": "a_moon",
+          "label": "Moon",
+          "emoji": "🌙",
+          "is_correct": true
+        },
+        {
+          "id": "a_sun",
+          "label": "Sun",
+          "emoji": "☀️",
+          "is_correct": false
+        },
+        {
+          "id": "a_ball",
+          "label": "Ball",
+          "emoji": "⚽",
+          "is_correct": false
+        }
       ]
     },
     {
@@ -237,9 +269,24 @@
       "type": "multiple_choice_image",
       "prompt": "Who helped Bunny?",
       "choices": [
-        { "id": "a_owl", "label": "Owl", "emoji": "🦉", "is_correct": true },
-        { "id": "a_fish", "label": "Fish", "emoji": "🐟", "is_correct": false },
-        { "id": "a_car", "label": "Car", "emoji": "🚗", "is_correct": false }
+        {
+          "id": "a_owl",
+          "label": "Owl",
+          "emoji": "🦉",
+          "is_correct": true
+        },
+        {
+          "id": "a_fish",
+          "label": "Fish",
+          "emoji": "🐟",
+          "is_correct": false
+        },
+        {
+          "id": "a_car",
+          "label": "Car",
+          "emoji": "🚗",
+          "is_correct": false
+        }
       ]
     },
     {
@@ -248,9 +295,24 @@
       "type": "choose_the_emotion",
       "prompt": "How did Bunny feel at the end?",
       "choices": [
-        { "id": "a_happy", "label": "Happy", "emoji": "😊", "is_correct": true },
-        { "id": "a_scared", "label": "Scared", "emoji": "😨", "is_correct": false },
-        { "id": "a_angry", "label": "Angry", "emoji": "😠", "is_correct": false }
+        {
+          "id": "a_happy",
+          "label": "Happy",
+          "emoji": "😊",
+          "is_correct": true
+        },
+        {
+          "id": "a_scared",
+          "label": "Scared",
+          "emoji": "😨",
+          "is_correct": false
+        },
+        {
+          "id": "a_angry",
+          "label": "Angry",
+          "emoji": "😠",
+          "is_correct": false
+        }
       ]
     }
   ]
