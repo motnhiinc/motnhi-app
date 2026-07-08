@@ -163,3 +163,17 @@ class EventOut(_ORM):
 
 class AssetSignRequest(BaseModel):
     asset_ids: list[str]
+
+
+class ImageTargetEntry(BaseModel):
+    page_id: str
+    page_number: int
+    image_target_id: str
+    reference_image_url: str | None = None
+    physical_width_mm: int
+
+
+class ImageTargetManifest(BaseModel):
+    story_id: str
+    version: int
+    targets: list[ImageTargetEntry]

@@ -25,7 +25,7 @@
       "page_number": 1,
       "page_text": "One quiet night, Bunny looked up at the sky.",
       "page_image_asset_id": "assets/images/pages/bunny_01.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_bunny_01"
     },
     {
       "id": "page_bunny_02",
@@ -33,7 +33,7 @@
       "page_number": 2,
       "page_text": "Bunny hopped softly into the whispering forest.",
       "page_image_asset_id": "assets/images/pages/bunny_02.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_bunny_02"
     },
     {
       "id": "page_bunny_03",
@@ -41,7 +41,7 @@
       "page_number": 3,
       "page_text": "High in a tree, a wise old Owl blinked her big eyes.",
       "page_image_asset_id": "assets/images/pages/bunny_03.png",
-      "image_target_id": "target_bunny_page_03"
+      "image_target_id": "imgt_page_bunny_03"
     },
     {
       "id": "page_bunny_04",
@@ -49,7 +49,7 @@
       "page_number": 4,
       "page_text": "Bunny felt warm and safe under the gentle moon.",
       "page_image_asset_id": "assets/images/pages/bunny_04.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_bunny_04"
     },
     {
       "id": "page_bunny_05",
@@ -57,7 +57,7 @@
       "page_number": 5,
       "page_text": "Bunny hopped home and curled up cozy and sleepy.",
       "page_image_asset_id": "assets/images/pages/bunny_05.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_bunny_05"
     }
   ],
   "segments": [

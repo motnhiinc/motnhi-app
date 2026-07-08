@@ -25,7 +25,7 @@
       "page_number": 1,
       "page_text": "A little star twinkled high above the sleeping town.",
       "page_image_asset_id": "assets/images/pages/star_01.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_star_01"
     },
     {
       "id": "page_star_02",
@@ -33,7 +33,7 @@
       "page_number": 2,
       "page_text": "The moon whispered, \"It is time to rest, little star.\"",
       "page_image_asset_id": "assets/images/pages/star_02.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_star_02"
     },
     {
       "id": "page_star_03",
@@ -41,7 +41,7 @@
       "page_number": 3,
       "page_text": "The little star closed its eyes and gently fell asleep.",
       "page_image_asset_id": "assets/images/pages/star_03.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_star_03"
     }
   ],
   "segments": [

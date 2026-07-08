@@ -25,7 +25,7 @@
       "page_number": 1,
       "page_text": "Max the mouse opened his box of bright paints.",
       "page_image_asset_id": "assets/images/pages/max_01.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_max_01"
     },
     {
       "id": "page_max_02",
@@ -33,7 +33,7 @@
       "page_number": 2,
       "page_text": "He painted a red flower and a blue little pond.",
       "page_image_asset_id": "assets/images/pages/max_02.png",
-      "image_target_id": "target_max_page_02"
+      "image_target_id": "imgt_page_max_02"
     },
     {
       "id": "page_max_03",
@@ -41,7 +41,7 @@
       "page_number": 3,
       "page_text": "Soon the whole garden glowed with happy colors.",
       "page_image_asset_id": "assets/images/pages/max_03.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_max_03"
     }
   ],
   "segments": [

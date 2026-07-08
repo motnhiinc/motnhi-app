@@ -25,7 +25,7 @@
       "page_number": 1,
       "page_text": "Little Fox wanted to cross the bubbling stream.",
       "page_image_asset_id": "assets/images/pages/fox_01.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_fox_01"
     },
     {
       "id": "page_fox_02",
@@ -33,7 +33,7 @@
       "page_number": 2,
       "page_text": "A friendly Frog hopped over and offered to help.",
       "page_image_asset_id": "assets/images/pages/fox_02.png",
-      "image_target_id": "target_fox_page_02"
+      "image_target_id": "imgt_page_fox_02"
     },
     {
       "id": "page_fox_03",
@@ -41,7 +41,7 @@
       "page_number": 3,
       "page_text": "Together they crossed, and Fox felt brave and happy.",
       "page_image_asset_id": "assets/images/pages/fox_03.png",
-      "image_target_id": null
+      "image_target_id": "imgt_page_fox_03"
     }
   ],
   "segments": [
