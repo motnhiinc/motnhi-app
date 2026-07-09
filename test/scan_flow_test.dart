@@ -4,7 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storybook_ar/data/models/image_target_manifest.dart';
+import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/repositories/http_session_repository.dart';
+import 'package:storybook_ar/data/repositories/session_repository.dart';
 import 'package:storybook_ar/data/sources/api_client.dart';
 import 'package:storybook_ar/data/sources/image_target_resolver.dart';
 import 'package:storybook_ar/data/sources/key_value_store.dart';
@@ -101,6 +103,41 @@ void main() {
     expect(sessionStarts.length, 1);
     expect(played, ['page_bunny_03', 'page_bunny_03']);
   });
+
+  test('failed session start is retried on the next detection', () async {
+    final repo = _FlakySessionRepository();
+    final played = <String>[];
+    final controller = ScanFlowController(
+      resolver: _FakeResolver(_manifest),
+      sessionRepository: repo,
+      detectorFactory: (m) => SimulatedPageDetector(m.targets),
+      childProfileId: 'p1',
+      storyId: 'story_bunny_forest',
+      onPlayPage: (pageId) async => played.add(pageId),
+    );
+
+    await controller.start();
+
+    await expectLater(
+      controller.handleDetected('page_bunny_03'),
+      throwsA(isA<StateError>()),
+    );
+    expect(repo.sessionStarts, 1);
+    expect(played, isEmpty);
+    expect(repo.events, isEmpty);
+
+    await controller.handleDetected('page_bunny_03');
+
+    expect(repo.sessionStarts, 2);
+    expect(played, ['page_bunny_03']);
+    expect(repo.events, [
+      {
+        'session_id': 'sess2',
+        'event_type': 'scan_success',
+        'page_id': 'page_bunny_03'
+      },
+    ]);
+  });
 }
 
 class _FakeResolver implements ImageTargetResolver {
@@ -110,6 +147,59 @@ class _FakeResolver implements ImageTargetResolver {
 
   @override
   Future<ImageTargetManifest> fetch(String storyId) async => _manifest;
+}
+
+class _FlakySessionRepository implements SessionRepository {
+  int sessionStarts = 0;
+  final List<Map<String, String?>> events = [];
+
+  @override
+  Future<StorySession> startSession({
+    required String childProfileId,
+    required String storyId,
+    required SessionMode mode,
+  }) async {
+    sessionStarts++;
+    if (sessionStarts == 1) {
+      throw StateError('temporary session failure');
+    }
+    return StorySession(
+      id: 'sess$sessionStarts',
+      childProfileId: childProfileId,
+      storyId: storyId,
+      startedAt: DateTime.utc(2026, 7, 9),
+      mode: mode,
+    );
+  }
+
+  @override
+  Future<void> recordEvent({
+    required String sessionId,
+    required String eventType,
+    String? pageId,
+    Map<String, dynamic> payload = const {},
+  }) async {
+    events.add({
+      'session_id': sessionId,
+      'event_type': eventType,
+      'page_id': pageId,
+    });
+  }
+
+  @override
+  Future<void> completeSession(String sessionId) => throw UnimplementedError();
+
+  @override
+  Future<List<InteractionEvent>> getEvents({String? sessionId}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<StorySession>> getSessions({String? childProfileId}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> updateLastPage(String sessionId, int pageNumber) =>
+      throw UnimplementedError();
 }
 
 /// A [HttpClientAdapter] that records every [RequestOptions] and returns canned

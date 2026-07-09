@@ -125,7 +125,7 @@ class _StoryCard extends StatelessWidget {
     final theme = Theme.of(context);
     final locked = !story.isUnlocked;
     return GestureDetector(
-      onTap: locked ? null : () => context.go(AppRoutes.story(story.id)),
+      onTap: locked ? null : () => _showStoryActions(context),
       child: Card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -170,6 +170,36 @@ class _StoryCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showStoryActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.menu_book_rounded),
+              title: const Text('Read'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(AppRoutes.story(story.id));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.document_scanner_rounded),
+              title: const Text('Scan the book'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.push(AppRoutes.scan(story.id));
+              },
             ),
           ],
         ),

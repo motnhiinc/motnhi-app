@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/dashboard/parent_dashboard_screen.dart';
+import '../../features/ar/scan_story_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
@@ -22,6 +23,7 @@ abstract final class AppRoutes {
   static const settings = '/parent/settings';
 
   static String story(String id) => '/story/$id';
+  static String scan(String storyId) => '/story/$storyId/scan';
   static String ar(String storyId, String pageId) =>
       '/story/$storyId/ar/$pageId';
 }
@@ -72,6 +74,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           storyId: state.pathParameters['storyId']!,
           pageId: state.pathParameters['pageId']!,
         ),
+      ),
+      GoRoute(
+        path: '/story/:storyId/scan',
+        builder: (_, state) =>
+            ScanStoryScreen(storyId: state.pathParameters['storyId']!),
       ),
       GoRoute(
         path: AppRoutes.gate,

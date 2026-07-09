@@ -78,10 +78,19 @@ class ScanFlowController {
     );
   }
 
-  Future<StorySession> _ensureSession() => _sessionFuture ??=
-      _sessionRepository.startSession(
-        childProfileId: _childProfileId,
-        storyId: _storyId,
-        mode: SessionMode.scan,
-      );
+  Future<StorySession> _ensureSession() {
+    final existing = _sessionFuture;
+    if (existing != null) return existing;
+
+    final future = _sessionRepository.startSession(
+      childProfileId: _childProfileId,
+      storyId: _storyId,
+      mode: SessionMode.scan,
+    );
+    _sessionFuture = future;
+    future.then<void>((_) {}, onError: (Object error, StackTrace stackTrace) {
+      if (identical(_sessionFuture, future)) _sessionFuture = null;
+    });
+    return future;
+  }
 }
