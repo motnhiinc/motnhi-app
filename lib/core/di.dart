@@ -16,13 +16,7 @@ import '../data/sources/key_value_store.dart';
 import '../features/ar/ar_scene_controller.dart';
 import '../features/ar/page_detector.dart';
 import '../features/ar/simulated_page_detector.dart';
-
-/// Backend base URL. Override at build/run time:
-/// `--dart-define=API_BASE_URL=http://10.0.2.2:8000` (Android emulator) etc.
-const _apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://localhost:8000',
-);
+import 'api_config.dart';
 
 /// Provides the [KeyValueStore]. Overridden in `main()` with the instance built
 /// from an initialized [SharedPreferences] so the rest of the graph stays sync.
@@ -34,7 +28,7 @@ final keyValueStoreProvider = Provider<KeyValueStore>(
 
 final apiClientProvider = Provider<ApiClient>(
   (ref) => ApiClient(
-    dio: Dio(BaseOptions(baseUrl: _apiBaseUrl)),
+    dio: Dio(BaseOptions(baseUrl: resolveApiBaseUrl())),
     store: ref.watch(keyValueStoreProvider),
   ),
 );

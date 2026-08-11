@@ -2,6 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Minimal ATS exception so a device can reach the local backend over plain
+	     HTTP on the LAN (http://192.168.x.x:8000). NSAllowsLocalNetworking covers
+	     ONLY loopback, private (RFC 1918) ranges, .local and unqualified hosts —
+	     never public hosts. Inert in release, where resolveApiBaseUrl() requires
+	     an HTTPS, non-loopback URL. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>The camera is used only to show storybook characters in AR over the page. Camera images are processed on-device and never stored or uploaded.</string>
 	<key>NSMicrophoneUsageDescription</key>

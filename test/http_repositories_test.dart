@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -61,6 +62,96 @@ void main() {
     await api.dio.get('/v1/stories');
 
     expect(store.getString('device_secret'), 'secret123');
+  });
+
+  test('concurrent first requests share one device authentication', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+    final authStarted = Completer<void>();
+    final releaseAuth = Completer<void>();
+    var authCallCount = 0;
+
+    final authDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    authDio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (options) async {
+        authCallCount++;
+        if (!authStarted.isCompleted) authStarted.complete();
+        await releaseAuth.future;
+        return ResponseBody.fromString(
+          jsonEncode({'token': 'shared-token', 'user_id': 'u1'}),
+          200,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      },
+    );
+
+    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    apiDio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (options) => ResponseBody.fromString('{}', 200),
+    );
+    final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
+
+    final requests = [
+      api.dio.get('/v1/stories'),
+      api.dio.get('/v1/child-profiles'),
+    ];
+    await authStarted.future;
+    await pumpEventQueue();
+
+    expect(authCallCount, 1);
+
+    releaseAuth.complete();
+    await Future.wait(requests);
+    expect(authCallCount, 1);
+  });
+
+  test('retries device authentication after bootstrap failure', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+    var authCallCount = 0;
+
+    final authDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    authDio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (options) {
+        authCallCount++;
+        if (authCallCount == 1) {
+          return ResponseBody.fromString(
+            jsonEncode({'detail': 'temporary failure'}),
+            500,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+            },
+          );
+        }
+        return ResponseBody.fromString(
+          jsonEncode({'token': 'retry-token', 'user_id': 'u1'}),
+          200,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      },
+    );
+
+    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    apiDio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (options) => ResponseBody.fromString('{}', 200),
+    );
+    final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
+
+    try {
+      await api.dio.get('/v1/stories');
+      fail('Expected device authentication to fail');
+    } on DioException {
+      // Expected: a later request must start a new bootstrap.
+    }
+    final response = await api.dio.get('/v1/stories');
+
+    expect(response.statusCode, 200);
+    expect(store.getString('auth_token'), 'retry-token');
+    expect(authCallCount, 2);
   });
 
   test(
@@ -217,23 +308,25 @@ void main() {
     final (dio, _) = _mockDio((a) {
       a.onPost('/v1/auth/device',
           (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
-      a.onGet('/v1/stories', (s) => s.reply(200, {
-            'stories': [
-              {
-                'id': 'story_bunny_forest',
-                'title': 'Bunny and the Moon',
-                'slug': 'bunny_and_the_moon',
-                'age_min': 3,
-                'age_max': 5,
-                'language_code': 'en',
-                'duration_seconds': 300,
-                'content_status': 'published',
-                'themes': ['animals', 'bedtime'],
-                'is_downloaded': false,
-                'is_unlocked': true
-              }
-            ]
-          }));
+      a.onGet(
+          '/v1/stories',
+          (s) => s.reply(200, {
+                'stories': [
+                  {
+                    'id': 'story_bunny_forest',
+                    'title': 'Bunny and the Moon',
+                    'slug': 'bunny_and_the_moon',
+                    'age_min': 3,
+                    'age_max': 5,
+                    'language_code': 'en',
+                    'duration_seconds': 300,
+                    'content_status': 'published',
+                    'themes': ['animals', 'bedtime'],
+                    'is_downloaded': false,
+                    'is_unlocked': true
+                  }
+                ]
+              }));
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
@@ -271,8 +364,8 @@ void main() {
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
     final repo = HttpProfileRepository(api, store);
-    await repo.saveProfile(
-        const ChildProfile(id: 'p1', nickname: 'Bun', ageBand: AgeBand.threeToFour));
+    await repo.saveProfile(const ChildProfile(
+        id: 'p1', nickname: 'Bun', ageBand: AgeBand.threeToFour));
     final got = await repo.getProfile();
     expect(got!.nickname, 'Bun');
     expect(got.ageBand, AgeBand.threeToFour);
@@ -289,15 +382,17 @@ void main() {
     final (dio, _) = _mockDio((a) {
       a.onPost('/v1/auth/device',
           (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
-      a.onPost('/v1/story-sessions', (s) => s.reply(200, {
-            'id': 'sess1',
-            'child_profile_id': 'p1',
-            'story_id': 'story_bunny_forest',
-            'started_at': '2026-06-18T10:00:00Z',
-            'completed_at': null,
-            'last_page_number': 0,
-            'mode': 'bedtime'
-          }));
+      a.onPost(
+          '/v1/story-sessions',
+          (s) => s.reply(200, {
+                'id': 'sess1',
+                'child_profile_id': 'p1',
+                'story_id': 'story_bunny_forest',
+                'started_at': '2026-06-18T10:00:00Z',
+                'completed_at': null,
+                'last_page_number': 0,
+                'mode': 'bedtime'
+              }));
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
@@ -319,7 +414,7 @@ void main() {
 class _CallCountAdapter implements HttpClientAdapter {
   _CallCountAdapter({required this.onFetch});
 
-  final ResponseBody Function(RequestOptions) onFetch;
+  final FutureOr<ResponseBody> Function(RequestOptions) onFetch;
 
   @override
   Future<ResponseBody> fetch(
@@ -327,7 +422,7 @@ class _CallCountAdapter implements HttpClientAdapter {
     Stream<dynamic>? requestStream,
     Future<dynamic>? cancelFuture,
   ) async =>
-      onFetch(options);
+      await onFetch(options);
 
   @override
   void close({bool force = false}) {}

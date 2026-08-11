@@ -20,6 +20,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _nickname = TextEditingController();
+  final _profileId = const Uuid().v4();
   AgeBand _ageBand = AgeBand.fiveToSix;
   String _language = 'en';
   bool _arEnabled = true;
@@ -34,21 +35,36 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _finish() async {
+    if (_saving) return;
     setState(() => _saving = true);
-    final profileRepo = ref.read(profileRepositoryProvider);
-    await profileRepo.setConsented(true);
-    await ref.read(childProfileProvider.notifier).save(
-          ChildProfile(
-            id: const Uuid().v4(),
-            nickname:
-                _nickname.text.trim().isEmpty ? null : _nickname.text.trim(),
-            ageBand: _ageBand,
-            languageCode: _language,
-            arEnabled: _arEnabled,
-            microphoneEnabled: _microphoneEnabled,
+    try {
+      final profileRepo = ref.read(profileRepositoryProvider);
+      await profileRepo.setConsented(true);
+      await ref.read(childProfileProvider.notifier).save(
+            ChildProfile(
+              id: _profileId,
+              nickname:
+                  _nickname.text.trim().isEmpty ? null : _nickname.text.trim(),
+              ageBand: _ageBand,
+              languageCode: _language,
+              arEnabled: _arEnabled,
+              microphoneEnabled: _microphoneEnabled,
+            ),
+          );
+      if (mounted) context.go(AppRoutes.home);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not finish setup. Check your connection and try again.',
+            ),
           ),
         );
-    if (mounted) context.go(AppRoutes.home);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
