@@ -1,0 +1,71 @@
+name: storybook-prod
+
+# Production stack for a single Ubuntu VPS:
+#   caddy (public :80/:443, auto-HTTPS)  ->  api (:8000, internal)  ->  db (internal)
+# Only Caddy is exposed to the internet; api + db stay on the compose network.
+# All secrets come from ./.env (see .env.production.example). Required vars use
+# ${VAR:?...} so compose refuses to start if any is missing.
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: storybook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: storybook
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storybook -d storybook"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    # No `ports:` — Postgres is reachable only inside the compose network.
+
+  api:
+    build:
+      context: ../..
+      dockerfile: backend/deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://storybook:${POSTGRES_PASSWORD:?}@db:5432/storybook
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ASSET_URL_SECRET: ${ASSET_URL_SECRET:?set ASSET_URL_SECRET in .env}
+      ASSET_URL_TTL_SECONDS: ${ASSET_URL_TTL_SECONDS:-3600}
+      STORAGE_DIR: storage
+    volumes:
+      # Audio binaries live on the host so `register_assets.py` picks up files
+      # you scp in later, and they survive image rebuilds. Maps to backend/storage.
+      - ../storage:/app/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # No `ports:` — only Caddy reaches the API.
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,12 @@
+# Caddy reverse proxy with automatic HTTPS (Let's Encrypt).
+# {$DOMAIN} and {$ACME_EMAIL} are read from the container environment,
+# which docker-compose.prod.yml populates from ./.env.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8000
+}
