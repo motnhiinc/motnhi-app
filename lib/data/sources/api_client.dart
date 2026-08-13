@@ -25,15 +25,18 @@ class ApiClient {
     Dio? authDio,
   })  : _store = store,
         _uuid = uuid ?? const Uuid(),
-        _authDio =
-            authDio ?? Dio(BaseOptions(baseUrl: dio.options.baseUrl)) {
+        _authDio = authDio ?? Dio(BaseOptions(baseUrl: dio.options.baseUrl)) {
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        if (!options.path.endsWith('/v1/auth/device')) {
-          final token = await _ensureToken();
-          options.headers['Authorization'] = 'Bearer $token';
+        try {
+          if (!options.path.endsWith('/v1/auth/device')) {
+            final token = await _ensureToken();
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          handler.next(options);
+        } on DioException catch (error) {
+          handler.reject(error);
         }
-        handler.next(options);
       },
     ));
   }
@@ -46,6 +49,7 @@ class ApiClient {
 
   final KeyValueStore _store;
   final Uuid _uuid;
+  Future<String>? _tokenBootstrap;
 
   static const _deviceKey = 'device_id';
   static const _tokenKey = 'auth_token';
@@ -66,6 +70,19 @@ class ApiClient {
     final cached = _store.getString(_tokenKey);
     if (cached != null) return cached;
 
+    final inFlight = _tokenBootstrap;
+    if (inFlight != null) return inFlight;
+
+    final bootstrap = _bootstrapToken();
+    _tokenBootstrap = bootstrap;
+    try {
+      return await bootstrap;
+    } finally {
+      _tokenBootstrap = null;
+    }
+  }
+
+  Future<String> _bootstrapToken() async {
     final secret = _store.getString(_secretKey);
     final body = <String, dynamic>{'device_id': await _deviceId()};
     if (secret != null) body['device_secret'] = secret;

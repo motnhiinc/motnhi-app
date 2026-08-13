@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     asset_url_secret: str = "dev-asset-secret-0123456789abcdef0123456789abcdef"
     asset_url_ttl_seconds: int = 3600
     storage_dir: str = "storage"
+    default_target_physical_width_mm: int = 210
 
 
 settings = Settings()

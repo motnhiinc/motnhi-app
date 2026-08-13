@@ -1,3 +1,7 @@
 # Dropped media recordings — registered by register_assets.py, not committed.
 storage/audio/*
 !storage/audio/.gitkeep
+
+# Local/live secrets — never commit. Only the templates (.env*.example) are tracked.
+.env
+deploy/.env

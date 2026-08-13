@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/models/image_target_manifest.dart';
 import '../data/repositories/http_profile_repository.dart';
 import '../data/repositories/http_session_repository.dart';
 import '../data/repositories/http_story_repository.dart';
@@ -10,14 +11,12 @@ import '../data/repositories/settings_repository.dart';
 import '../data/repositories/story_repository.dart';
 import '../data/sources/api_client.dart';
 import '../data/sources/asset_url_resolver.dart';
+import '../data/sources/image_target_resolver.dart';
 import '../data/sources/key_value_store.dart';
-
-/// Backend base URL. Override at build/run time:
-/// `--dart-define=API_BASE_URL=http://10.0.2.2:8000` (Android emulator) etc.
-const _apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://localhost:8000',
-);
+import '../features/ar/ar_scene_controller.dart';
+import '../features/ar/page_detector.dart';
+import '../features/ar/simulated_page_detector.dart';
+import 'api_config.dart';
 
 /// Provides the [KeyValueStore]. Overridden in `main()` with the instance built
 /// from an initialized [SharedPreferences] so the rest of the graph stays sync.
@@ -29,7 +28,7 @@ final keyValueStoreProvider = Provider<KeyValueStore>(
 
 final apiClientProvider = Provider<ApiClient>(
   (ref) => ApiClient(
-    dio: Dio(BaseOptions(baseUrl: _apiBaseUrl)),
+    dio: Dio(BaseOptions(baseUrl: resolveApiBaseUrl())),
     store: ref.watch(keyValueStoreProvider),
   ),
 );
@@ -37,6 +36,24 @@ final apiClientProvider = Provider<ApiClient>(
 final assetUrlResolverProvider = Provider<AssetUrlResolver>(
   (ref) => HttpAssetUrlResolver(ref.watch(apiClientProvider)),
 );
+
+/// Resolves a story's image-target manifest over HTTP (§5.1).
+final imageTargetResolverProvider = Provider<ImageTargetResolver>(
+  (ref) => HttpImageTargetResolver(ref.watch(apiClientProvider)),
+);
+
+/// Builds a [PageDetector] for a fetched manifest (§5.2 drop-in seam). While
+/// native image tracking is unwired, a manifest yields a [SimulatedPageDetector];
+/// a native `PageDetector` factory replaces this branch when
+/// [ArCapabilities.nativeImageTrackingWired] flips to true.
+final pageDetectorProvider =
+    Provider<PageDetector Function(ImageTargetManifest)>((ref) {
+  assert(
+    !ArCapabilities.nativeImageTrackingWired,
+    'Provide a native PageDetector factory once nativeImageTrackingWired is true.',
+  );
+  return (manifest) => SimulatedPageDetector(manifest.targets);
+});
 
 final storyRepositoryProvider = Provider<StoryRepository>(
   (ref) => HttpStoryRepository(ref.watch(apiClientProvider)),

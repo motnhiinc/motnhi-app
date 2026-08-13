@@ -1,0 +1,23 @@
+# Docker build context for the API image is the REPO ROOT (see
+# backend/deploy/docker-compose.prod.yml -> build.context: ../..).
+# Exclude everything, then re-include only what the image needs: the backend
+# source and the seed JSON (assets/data). This keeps the Flutter app, build
+# artifacts, and binary assets out of the build context.
+*
+!backend
+!assets
+
+# Drop local dev cruft inside backend/.
+backend/.venv
+backend/**/__pycache__
+backend/.pytest_cache
+backend/storage/audio/*
+
+# NEVER bake live secrets into the image. deploy.sh writes backend/deploy/.env
+# with real secrets; the `!backend` re-include above would otherwise COPY it in.
+# Matches any file literally named `.env` (not `.env.production.example`).
+**/.env
+
+# Within assets/, keep ONLY the seed JSON that seed.py reads.
+assets/*
+!assets/data
