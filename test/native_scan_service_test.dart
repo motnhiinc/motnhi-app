@@ -35,4 +35,43 @@ void main() {
       throwsA(isA<ScanCancelled>()),
     );
   });
+
+  test('maps null native result to no_text failure', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => null);
+
+    expect(
+      NativeScanService().scanAndRecognize,
+      throwsA(
+        isA<ScanFailure>().having((error) => error.code, 'code', 'no_text'),
+      ),
+    );
+  });
+
+  test('maps empty recognized text to no_text failure', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async => {'text': '  '});
+
+    expect(
+      NativeScanService().scanAndRecognize,
+      throwsA(
+        isA<ScanFailure>().having((error) => error.code, 'code', 'no_text'),
+      ),
+    );
+  });
+
+  test('maps other platform errors with their code', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async {
+      throw PlatformException(code: 'camera_unavailable');
+    });
+
+    expect(
+      NativeScanService().scanAndRecognize,
+      throwsA(
+        isA<ScanFailure>().having(
+          (error) => error.code,
+          'code',
+          'camera_unavailable',
+        ),
+      ),
+    );
+  });
 }
