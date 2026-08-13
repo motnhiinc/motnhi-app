@@ -14,6 +14,12 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A30000000000000000000001 /* ScanGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* ScanGeometryTests.swift */; };
+		A30000000000000000000002 /* TextObservationSorterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* TextObservationSorterTests.swift */; };
+		A30000000000000000000003 /* ScanGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* ScanGeometry.swift */; };
+		A30000000000000000000004 /* TextObservationSorter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* TextObservationSorter.swift */; };
+		A30000000000000000000005 /* PageScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PageScannerViewController.swift */; };
+		A30000000000000000000006 /* ScanAnyPageBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* ScanAnyPageBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +61,12 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A30000000000000000000011 /* ScanGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanGeometryTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000012 /* TextObservationSorterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextObservationSorterTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* ScanGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanGeometry.swift; sourceTree = "<group>"; };
+		A30000000000000000000014 /* TextObservationSorter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextObservationSorter.swift; sourceTree = "<group>"; };
+		A30000000000000000000015 /* PageScannerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageScannerViewController.swift; sourceTree = "<group>"; };
+		A30000000000000000000016 /* ScanAnyPageBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAnyPageBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +84,8 @@
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
+				A30000000000000000000011 /* ScanGeometryTests.swift */,
+				A30000000000000000000012 /* TextObservationSorterTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -109,6 +123,7 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				A30000000000000000000020 /* ScanAnyPage */,
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
@@ -119,6 +134,17 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 			);
 			path = Runner;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000020 /* ScanAnyPage */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000013 /* ScanGeometry.swift */,
+				A30000000000000000000014 /* TextObservationSorter.swift */,
+				A30000000000000000000015 /* PageScannerViewController.swift */,
+				A30000000000000000000016 /* ScanAnyPageBridge.swift */,
+			);
+			path = ScanAnyPage;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -261,6 +287,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+				A30000000000000000000001 /* ScanGeometryTests.swift in Sources */,
+				A30000000000000000000002 /* TextObservationSorterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +296,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000003 /* ScanGeometry.swift in Sources */,
+				A30000000000000000000004 /* TextObservationSorter.swift in Sources */,
+				A30000000000000000000005 /* PageScannerViewController.swift in Sources */,
+				A30000000000000000000006 /* ScanAnyPageBridge.swift in Sources */,
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 			);
