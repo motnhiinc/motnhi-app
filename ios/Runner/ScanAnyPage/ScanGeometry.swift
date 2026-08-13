@@ -60,6 +60,27 @@ struct OneShotGate {
   }
 }
 
+struct ScannerLifecycleState<Terminal> {
+  private(set) var isCapturing = false
+  private(set) var terminal: Terminal?
+
+  var isTerminal: Bool {
+    terminal != nil
+  }
+
+  mutating func beginCapture() -> Bool {
+    guard !isCapturing, !isTerminal else { return false }
+    isCapturing = true
+    return true
+  }
+
+  mutating func finish(_ terminal: Terminal) -> Bool {
+    guard !isTerminal else { return false }
+    self.terminal = terminal
+    return true
+  }
+}
+
 struct RectangleStabilityTracker {
   let requiredStableFrames: Int
   let tolerance: CGFloat

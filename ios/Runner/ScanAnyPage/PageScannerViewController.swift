@@ -34,8 +34,7 @@ final class PageScannerViewController: UIViewController {
     minimumArea: 0.35
   )
   private var lastProcessedTime = CMTime.invalid
-  private var isCapturing = false
-  private var didComplete = false
+  private var lifecycle = ScannerLifecycleState<Result<String, PageScannerFailure>>()
   private var currentCaptureOrientation: AVCaptureVideoOrientation?
 
   override func viewDidLoad() {
@@ -159,7 +158,7 @@ final class PageScannerViewController: UIViewController {
 
   private func configureCaptureSession() {
     scannerQueue.async { [weak self] in
-      guard let self, !self.didComplete else { return }
+      guard let self, !self.lifecycle.isTerminal else { return }
 
       guard let camera = AVCaptureDevice.default(
         .builtInWideAngleCamera,
@@ -212,7 +211,7 @@ final class PageScannerViewController: UIViewController {
 
   private func updateConnections(for orientation: AVCaptureVideoOrientation) {
     scannerQueue.async { [weak self] in
-      guard let self, !self.didComplete else { return }
+      guard let self, !self.lifecycle.isTerminal else { return }
       let orientationChanged = orientation != self.currentCaptureOrientation
       self.currentCaptureOrientation = orientation
       self.applyCurrentOrientation()
@@ -294,8 +293,7 @@ final class PageScannerViewController: UIViewController {
   }
 
   private func captureStablePage() {
-    guard !isCapturing, !didComplete else { return }
-    isCapturing = true
+    guard lifecycle.beginCapture() else { return }
     videoOutput.setSampleBufferDelegate(nil, queue: nil)
 
     DispatchQueue.main.async { [weak self] in
@@ -425,8 +423,7 @@ final class PageScannerViewController: UIViewController {
 
   private func complete(_ result: Result<String, PageScannerFailure>) {
     scannerQueue.async { [weak self] in
-      guard let self, !self.didComplete else { return }
-      self.didComplete = true
+      guard let self, self.lifecycle.finish(result) else { return }
       self.videoOutput.setSampleBufferDelegate(nil, queue: nil)
       if self.captureSession.isRunning {
         self.captureSession.stopRunning()
@@ -462,7 +459,7 @@ extension PageScannerViewController: AVCaptureVideoDataOutputSampleBufferDelegat
     didOutput sampleBuffer: CMSampleBuffer,
     from connection: AVCaptureConnection
   ) {
-    guard !isCapturing, !didComplete else { return }
+    guard !lifecycle.isCapturing, !lifecycle.isTerminal else { return }
     let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
     if lastProcessedTime.isValid,
        CMTimeGetSeconds(presentationTime - lastProcessedTime) < 0.2 {
@@ -485,7 +482,7 @@ extension PageScannerViewController: AVCapturePhotoCaptureDelegate {
       return
     }
     scannerQueue.async { [weak self] in
-      guard let self, !self.didComplete else { return }
+      guard let self, !self.lifecycle.isTerminal else { return }
       self.processCapturedPhoto(photo)
     }
   }
