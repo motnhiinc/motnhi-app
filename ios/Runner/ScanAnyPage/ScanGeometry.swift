@@ -20,6 +20,22 @@ struct NormalizedQuad: Equatable {
     }.max() ?? 0
   }
 
+  func imagePoints(in extent: CGRect) -> NormalizedQuad {
+    func convert(_ point: CGPoint) -> CGPoint {
+      CGPoint(
+        x: extent.minX + point.x * extent.width,
+        y: extent.minY + point.y * extent.height
+      )
+    }
+
+    return NormalizedQuad(
+      topLeft: convert(topLeft),
+      topRight: convert(topRight),
+      bottomLeft: convert(bottomLeft),
+      bottomRight: convert(bottomRight)
+    )
+  }
+
   static func unitInset(_ inset: CGFloat) -> NormalizedQuad {
     NormalizedQuad(
       topLeft: CGPoint(x: inset, y: 1 - inset),
@@ -31,6 +47,16 @@ struct NormalizedQuad: Equatable {
 
   private var corners: [CGPoint] {
     [topLeft, topRight, bottomLeft, bottomRight]
+  }
+}
+
+struct OneShotGate {
+  private var isClaimed = false
+
+  mutating func claim() -> Bool {
+    guard !isClaimed else { return false }
+    isClaimed = true
+    return true
   }
 }
 

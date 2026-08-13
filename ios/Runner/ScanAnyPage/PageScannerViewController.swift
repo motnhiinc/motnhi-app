@@ -1,6 +1,5 @@
 import AVFoundation
 import CoreImage
-import ImageIO
 import UIKit
 import Vision
 
@@ -20,8 +19,7 @@ final class PageScannerViewController: UIViewController {
   private let captureSession = AVCaptureSession()
   private let videoOutput = AVCaptureVideoDataOutput()
   private let photoOutput = AVCapturePhotoOutput()
-  private let sessionQueue = DispatchQueue(label: "storybook_ar.scan.session")
-  private let processingQueue = DispatchQueue(label: "storybook_ar.scan.frames")
+  private let scannerQueue = DispatchQueue(label: "storybook_ar.scan.session")
   private let ciContext = CIContext()
   private let rectangleLayer = CAShapeLayer()
   private let guidanceLabel = UILabel()
@@ -36,7 +34,6 @@ final class PageScannerViewController: UIViewController {
     minimumArea: 0.35
   )
   private var lastProcessedTime = CMTime.invalid
-  private var captureQuad: NormalizedQuad?
   private var isCapturing = false
   private var didComplete = false
   private var currentCaptureOrientation: AVCaptureVideoOrientation?
@@ -44,6 +41,18 @@ final class PageScannerViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     configureView()
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(captureSessionRuntimeError),
+      name: .AVCaptureSessionRuntimeError,
+      object: captureSession
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(captureSessionWasInterrupted),
+      name: .AVCaptureSessionWasInterrupted,
+      object: captureSession
+    )
     requestCameraAccess()
   }
 
@@ -51,12 +60,20 @@ final class PageScannerViewController: UIViewController {
     super.viewDidLayoutSubviews()
     previewLayer.frame = view.bounds
     rectangleLayer.frame = view.bounds
-    updateConnectionsForCurrentOrientation()
+    let orientation = captureVideoOrientation
+    if let connection = previewLayer.connection, connection.isVideoOrientationSupported {
+      connection.videoOrientation = orientation
+    }
+    updateConnections(for: orientation)
   }
 
-  override func viewWillDisappear(_ animated: Bool) {
-    super.viewWillDisappear(animated)
-    stopCaptureSession()
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    complete(.failure(.cancelled))
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
   }
 
   private func configureView() {
@@ -141,7 +158,7 @@ final class PageScannerViewController: UIViewController {
   }
 
   private func configureCaptureSession() {
-    sessionQueue.async { [weak self] in
+    scannerQueue.async { [weak self] in
       guard let self, !self.didComplete else { return }
 
       guard let camera = AVCaptureDevice.default(
@@ -168,7 +185,7 @@ final class PageScannerViewController: UIViewController {
         self.videoOutput.videoSettings = [
           kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
         ]
-        self.videoOutput.setSampleBufferDelegate(self, queue: self.processingQueue)
+        self.videoOutput.setSampleBufferDelegate(self, queue: self.scannerQueue)
         guard self.captureSession.canAddOutput(self.videoOutput) else {
           self.captureSession.commitConfiguration()
           self.complete(.failure(.cameraUnavailable))
@@ -185,9 +202,7 @@ final class PageScannerViewController: UIViewController {
         self.cameraDevice = camera
         self.captureSession.commitConfiguration()
 
-        DispatchQueue.main.sync {
-          self.updateConnectionsForCurrentOrientation()
-        }
+        self.applyCurrentOrientation()
         self.captureSession.startRunning()
       } catch {
         self.complete(.failure(.cameraUnavailable))
@@ -195,20 +210,26 @@ final class PageScannerViewController: UIViewController {
     }
   }
 
-  private func updateConnectionsForCurrentOrientation() {
-    let orientation = captureVideoOrientation
-    let orientationChanged = orientation != currentCaptureOrientation
-    currentCaptureOrientation = orientation
+  private func updateConnections(for orientation: AVCaptureVideoOrientation) {
+    scannerQueue.async { [weak self] in
+      guard let self, !self.didComplete else { return }
+      let orientationChanged = orientation != self.currentCaptureOrientation
+      self.currentCaptureOrientation = orientation
+      self.applyCurrentOrientation()
+      if orientationChanged {
+        self.stabilityTracker.reset()
+        self.lastProcessedTime = .invalid
+      }
+    }
+  }
+
+  private func applyCurrentOrientation() {
+    guard let orientation = currentCaptureOrientation else { return }
     if let connection = videoOutput.connection(with: .video), connection.isVideoOrientationSupported {
       connection.videoOrientation = orientation
     }
     if let connection = photoOutput.connection(with: .video), connection.isVideoOrientationSupported {
       connection.videoOrientation = orientation
-    }
-    if orientationChanged {
-      processingQueue.async { [weak self] in
-        self?.stabilityTracker.reset()
-      }
     }
   }
 
@@ -225,10 +246,7 @@ final class PageScannerViewController: UIViewController {
     }
   }
 
-  private func detectRectangle(
-    in pixelBuffer: CVPixelBuffer,
-    videoOrientation: AVCaptureVideoOrientation
-  ) {
+  private func detectRectangle(in pixelBuffer: CVPixelBuffer) {
     let request = VNDetectRectanglesRequest { [weak self] request, error in
       guard let self else { return }
       guard error == nil else {
@@ -257,7 +275,7 @@ final class PageScannerViewController: UIViewController {
       guard self.stabilityTracker.observe(quad, qualityAcceptable: qualityAcceptable) else {
         return
       }
-      self.captureStablePage(quad)
+      self.captureStablePage()
     }
     request.maximumObservations = 1
     request.minimumConfidence = 0.8
@@ -267,7 +285,7 @@ final class PageScannerViewController: UIViewController {
     do {
       try VNImageRequestHandler(
         cvPixelBuffer: pixelBuffer,
-        orientation: imageOrientation(for: videoOrientation)
+        orientation: .up
       ).perform([request])
     } catch {
       stabilityTracker.reset()
@@ -275,15 +293,13 @@ final class PageScannerViewController: UIViewController {
     }
   }
 
-  private func captureStablePage(_ quad: NormalizedQuad) {
+  private func captureStablePage() {
     guard !isCapturing, !didComplete else { return }
     isCapturing = true
-    captureQuad = quad
     videoOutput.setSampleBufferDelegate(nil, queue: nil)
 
     DispatchQueue.main.async { [weak self] in
       self?.statusLabel.text = "Page found · Hold still for automatic capture"
-      self?.cancelButton.isEnabled = false
     }
 
     let settings = AVCapturePhotoSettings()
@@ -292,7 +308,7 @@ final class PageScannerViewController: UIViewController {
   }
 
   private func processCapturedPhoto(_ photo: AVCapturePhoto) {
-    guard let data = photo.fileDataRepresentation(), let quad = captureQuad else {
+    guard let data = photo.fileDataRepresentation() else {
       complete(.failure(.captureFailed))
       return
     }
@@ -303,23 +319,44 @@ final class PageScannerViewController: UIViewController {
         return
       }
 
-      let extent = sourceImage.extent
-      func imagePoint(_ point: CGPoint) -> CGPoint {
-        CGPoint(
-          x: extent.minX + point.x * extent.width,
-          y: extent.minY + point.y * extent.height
-        )
+      guard let normalizedCGImage = ciContext.createCGImage(sourceImage, from: sourceImage.extent) else {
+        complete(.failure(.captureFailed))
+        return
       }
+      let normalizedImage = CIImage(cgImage: normalizedCGImage)
+
+      let rectangleRequest = VNDetectRectanglesRequest()
+      rectangleRequest.maximumObservations = 1
+      rectangleRequest.minimumConfidence = 0.8
+      rectangleRequest.minimumAspectRatio = 0.3
+      rectangleRequest.minimumSize = 0.35
+      do {
+        try VNImageRequestHandler(cgImage: normalizedCGImage, orientation: .up)
+          .perform([rectangleRequest])
+      } catch {
+        complete(.failure(.correctionFailed))
+        return
+      }
+      guard let observation = rectangleRequest.results?.first as? VNRectangleObservation else {
+        complete(.failure(.correctionFailed))
+        return
+      }
+      let points = NormalizedQuad(
+        topLeft: observation.topLeft,
+        topRight: observation.topRight,
+        bottomLeft: observation.bottomLeft,
+        bottomRight: observation.bottomRight
+      ).imagePoints(in: normalizedImage.extent)
 
       guard let filter = CIFilter(name: "CIPerspectiveCorrection") else {
         complete(.failure(.correctionFailed))
         return
       }
-      filter.setValue(sourceImage, forKey: kCIInputImageKey)
-      filter.setValue(CIVector(cgPoint: imagePoint(quad.topLeft)), forKey: "inputTopLeft")
-      filter.setValue(CIVector(cgPoint: imagePoint(quad.topRight)), forKey: "inputTopRight")
-      filter.setValue(CIVector(cgPoint: imagePoint(quad.bottomLeft)), forKey: "inputBottomLeft")
-      filter.setValue(CIVector(cgPoint: imagePoint(quad.bottomRight)), forKey: "inputBottomRight")
+      filter.setValue(normalizedImage, forKey: kCIInputImageKey)
+      filter.setValue(CIVector(cgPoint: points.topLeft), forKey: "inputTopLeft")
+      filter.setValue(CIVector(cgPoint: points.topRight), forKey: "inputTopRight")
+      filter.setValue(CIVector(cgPoint: points.bottomLeft), forKey: "inputBottomLeft")
+      filter.setValue(CIVector(cgPoint: points.bottomRight), forKey: "inputBottomRight")
 
       guard
         let correctedImage = filter.outputImage,
@@ -361,21 +398,6 @@ final class PageScannerViewController: UIViewController {
     }
   }
 
-  private func imageOrientation(for videoOrientation: AVCaptureVideoOrientation) -> CGImagePropertyOrientation {
-    switch videoOrientation {
-    case .portrait:
-      return .right
-    case .portraitUpsideDown:
-      return .left
-    case .landscapeLeft:
-      return .up
-    case .landscapeRight:
-      return .down
-    @unknown default:
-      return .right
-    }
-  }
-
   private func showRectangle(_ quad: NormalizedQuad?) {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
@@ -402,33 +424,35 @@ final class PageScannerViewController: UIViewController {
   }
 
   private func complete(_ result: Result<String, PageScannerFailure>) {
-    processingQueue.async { [weak self] in
+    scannerQueue.async { [weak self] in
       guard let self, !self.didComplete else { return }
       self.didComplete = true
-      self.captureQuad = nil
       self.videoOutput.setSampleBufferDelegate(nil, queue: nil)
-      self.sessionQueue.async {
-        if self.captureSession.isRunning {
-          self.captureSession.stopRunning()
-        }
-        DispatchQueue.main.async {
-          self.rectangleLayer.path = nil
-          self.onComplete?(result)
-          self.onComplete = nil
-        }
+      if self.captureSession.isRunning {
+        self.captureSession.stopRunning()
+      }
+      DispatchQueue.main.async {
+        self.rectangleLayer.path = nil
+        self.onComplete?(result)
+        self.onComplete = nil
       }
     }
   }
 
-  private func stopCaptureSession() {
-    sessionQueue.async { [weak self] in
-      guard let self, self.captureSession.isRunning else { return }
-      self.captureSession.stopRunning()
-    }
+  func failPresentation() {
+    complete(.failure(.cameraUnavailable))
   }
 
   @objc private func cancel() {
     complete(.failure(.cancelled))
+  }
+
+  @objc private func captureSessionRuntimeError(_ notification: Notification) {
+    complete(.failure(.cameraUnavailable))
+  }
+
+  @objc private func captureSessionWasInterrupted(_ notification: Notification) {
+    complete(.failure(.cameraUnavailable))
   }
 }
 
@@ -446,7 +470,7 @@ extension PageScannerViewController: AVCaptureVideoDataOutputSampleBufferDelegat
     }
     lastProcessedTime = presentationTime
     guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-    detectRectangle(in: pixelBuffer, videoOrientation: connection.videoOrientation)
+    detectRectangle(in: pixelBuffer)
   }
 }
 
@@ -460,8 +484,9 @@ extension PageScannerViewController: AVCapturePhotoCaptureDelegate {
       complete(.failure(.captureFailed))
       return
     }
-    processingQueue.async { [weak self] in
-      self?.processCapturedPhoto(photo)
+    scannerQueue.async { [weak self] in
+      guard let self, !self.didComplete else { return }
+      self.processCapturedPhoto(photo)
     }
   }
 }
