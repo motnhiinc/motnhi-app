@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.main import app
+from app.routers import tts as tts_router
 from app.routers.tts import get_tts_service
 from app.services.tts import TtsUpstreamError
 
@@ -67,3 +68,16 @@ def test_tts_maps_upstream_failure_without_leaking_details(client):
         assert "secret upstream detail" not in response.text
     finally:
         app.dependency_overrides.pop(get_tts_service, None)
+
+
+def test_tts_maps_service_construction_failure_without_leaking_details(client, monkeypatch):
+    def fail_to_construct():
+        raise TtsUpstreamError("secret configuration detail")
+
+    monkeypatch.setattr(tts_router, "get_openai_tts_service", fail_to_construct)
+
+    response = client.post("/v1/tts", json={"text": "Hello"}, headers=_auth(client))
+
+    assert response.status_code == 502
+    assert response.json() == {"detail": "narration generation failed"}
+    assert "secret configuration detail" not in response.text

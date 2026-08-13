@@ -19,7 +19,10 @@ class TtsRequest(BaseModel):
 
 
 def get_tts_service() -> OpenAiTtsService:
-    return get_openai_tts_service()
+    try:
+        return get_openai_tts_service()
+    except TtsUpstreamError as error:
+        raise HTTPException(status_code=502, detail="narration generation failed") from error
 
 
 @router.post("")
