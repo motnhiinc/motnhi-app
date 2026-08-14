@@ -16,6 +16,10 @@ import '../data/sources/key_value_store.dart';
 import '../features/ar/ar_scene_controller.dart';
 import '../features/ar/page_detector.dart';
 import '../features/ar/simulated_page_detector.dart';
+import '../features/scan_any_page/native_character_reader.dart';
+import '../features/scan_any_page/native_scan_service.dart';
+import '../features/scan_any_page/scan_any_page_controller.dart';
+import '../features/scan_any_page/tts_client.dart';
 import 'api_config.dart';
 
 /// Provides the [KeyValueStore]. Overridden in `main()` with the instance built
@@ -73,4 +77,28 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
 // Settings stay local — voice speed / volumes are app-local prefs, not in §10.
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => LocalSettingsRepository(ref.watch(keyValueStoreProvider)),
+);
+
+final scanServiceProvider = Provider<ScanService>((ref) => NativeScanService());
+
+final characterReaderProvider =
+    Provider<CharacterReader>((ref) => NativeCharacterReader());
+
+final ttsClientProvider = Provider.autoDispose.family<TtsClient, Object>(
+  (ref, flowId) => HttpTtsClient(ref.watch(apiClientProvider)),
+);
+
+typedef ScanAnyPageDependencies = ({
+  ScanService scanService,
+  CharacterReader characterReader,
+  TtsClient ttsClient,
+});
+
+final scanAnyPageControllerProvider = NotifierProvider.autoDispose
+    .family<ScanAnyPageController, ScanAnyPageState, ScanAnyPageDependencies>(
+  (dependencies) => ScanAnyPageController(
+    scanService: dependencies.scanService,
+    ttsClient: dependencies.ttsClient,
+    characterReader: dependencies.characterReader,
+  ),
 );
