@@ -21,6 +21,8 @@
 		A30000000000000000000005 /* PageScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PageScannerViewController.swift */; };
 		A30000000000000000000006 /* ScanAnyPageBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* ScanAnyPageBridge.swift */; };
 		A30000000000000000000007 /* toy_drummer.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* toy_drummer.usdz */; };
+		A30000000000000000000008 /* CharacterReaderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000019 /* CharacterReaderViewController.swift */; };
+		A30000000000000000000009 /* CharacterReaderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001A /* CharacterReaderBridge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +72,8 @@
 		A30000000000000000000016 /* ScanAnyPageBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAnyPageBridge.swift; sourceTree = "<group>"; };
 		A30000000000000000000017 /* toy_drummer.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = toy_drummer.usdz; sourceTree = "<group>"; };
 		A30000000000000000000018 /* ASSET_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ASSET_LICENSE.md; sourceTree = "<group>"; };
+		A30000000000000000000019 /* CharacterReaderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderViewController.swift; sourceTree = "<group>"; };
+		A3000000000000000000001A /* CharacterReaderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -154,6 +158,8 @@
 		A30000000000000000000021 /* CharacterReader */ = {
 			isa = PBXGroup;
 			children = (
+				A30000000000000000000019 /* CharacterReaderViewController.swift */,
+				A3000000000000000000001A /* CharacterReaderBridge.swift */,
 				A30000000000000000000017 /* toy_drummer.usdz */,
 				A30000000000000000000018 /* ASSET_LICENSE.md */,
 			);
@@ -310,6 +316,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000008 /* CharacterReaderViewController.swift in Sources */,
+				A30000000000000000000009 /* CharacterReaderBridge.swift in Sources */,
 				A30000000000000000000003 /* ScanGeometry.swift in Sources */,
 				A30000000000000000000004 /* TextObservationSorter.swift in Sources */,
 				A30000000000000000000005 /* PageScannerViewController.swift in Sources */,
