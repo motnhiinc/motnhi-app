@@ -133,6 +133,7 @@ class ScanAnyPageController extends Notifier<ScanAnyPageState> {
   Future<void> retryTts() => _generateAudio(state.confirmedText);
 
   Future<void> _generateAudio(String input) async {
+    final generation = ++_generation;
     final text = input.trim();
     if (text.isEmpty || text.runes.length > _maximumTextLength) {
       state = state.copyWith(
@@ -142,7 +143,6 @@ class ScanAnyPageController extends Notifier<ScanAnyPageState> {
       return;
     }
 
-    final generation = ++_generation;
     state = state.copyWith(
       phase: ScanAnyPagePhase.generatingAudio,
       confirmedText: text,
@@ -173,6 +173,7 @@ class ScanAnyPageController extends Notifier<ScanAnyPageState> {
   }
 
   Future<void> openCharacterReader() async {
+    final generation = ++_generation;
     final file = state.audioFile;
     if (file == null) {
       state = state.copyWith(
@@ -182,7 +183,6 @@ class ScanAnyPageController extends Notifier<ScanAnyPageState> {
       return;
     }
 
-    final generation = ++_generation;
     state = state.copyWith(
       phase: ScanAnyPagePhase.openingAr,
       failureCode: null,

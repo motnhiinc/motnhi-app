@@ -96,6 +96,37 @@ void main() {
     expect(ttsClient.generatedTexts, isEmpty);
   });
 
+  test('invalid confirm prevents an outstanding scan from overwriting failure',
+      () async {
+    final scan = Completer<String>();
+    scanService.results.add(scan.future);
+    final scanOperation = controller().startScan();
+
+    await controller().confirmText('  ');
+    scan.complete('stale OCR');
+    await scanOperation;
+
+    expect(state().phase, ScanAnyPagePhase.failure);
+    expect(state().failureCode, 'tts:invalid_text');
+    expect(state().recognizedText, isEmpty);
+  });
+
+  test('invalid confirm prevents an outstanding TTS from becoming ready',
+      () async {
+    final generation = Completer<File>();
+    ttsClient.results.add(generation.future);
+    final ttsOperation = controller().confirmText('Valid text');
+
+    await controller().confirmText('  ');
+    generation.complete(File('/tmp/stale.mp3'));
+    await ttsOperation;
+
+    expect(state().phase, ScanAnyPagePhase.failure);
+    expect(state().failureCode, 'tts:invalid_text');
+    expect(state().confirmedText, 'Valid text');
+    expect(state().audioFile, isNull);
+  });
+
   test('confirmText validates the limit by Unicode code points', () async {
     final character = String.fromCharCode(0x1F642);
     final file = File('/tmp/scan-any-page.mp3');
@@ -232,6 +263,21 @@ void main() {
 
     expect(state().failureCode, 'ar:missing_audio');
     expect(characterReader.openedPaths, isEmpty);
+  });
+
+  test('missing-audio open prevents an outstanding scan from overwriting it',
+      () async {
+    final scan = Completer<String>();
+    scanService.results.add(scan.future);
+    final scanOperation = controller().startScan();
+
+    await controller().openCharacterReader();
+    scan.complete('stale OCR');
+    await scanOperation;
+
+    expect(state().phase, ScanAnyPagePhase.failure);
+    expect(state().failureCode, 'ar:missing_audio');
+    expect(state().recognizedText, isEmpty);
   });
 
   test('reset disposes temporary audio and clears all state', () async {
