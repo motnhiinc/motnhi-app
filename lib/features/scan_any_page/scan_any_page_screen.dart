@@ -366,6 +366,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
             'are on the same Wi-Fi, then try again.';
       case 'auth':
       case 'auth_failed':
+      case 'authentication':
       case 'authentication_failed':
       case 'unauthorized':
         icon = Icons.lock_outline_rounded;
@@ -467,14 +468,24 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     late final String message;
     var primaryLabel = 'Try AR again';
     VoidCallback onPrimary = controller.openCharacterReader;
+    var secondaryLabel = 'Scan another page';
+    VoidCallback onSecondary = controller.reset;
 
     switch (code) {
       case 'ar_unsupported':
-      case 'ar_unavailable':
         icon = Icons.tablet_mac_rounded;
         title = 'AR is not available';
         message = 'The character reader requires a physical iPad that supports '
             'AR world tracking.';
+        primaryLabel = 'Scan another page';
+        onPrimary = controller.reset;
+        secondaryLabel = 'Close';
+        onSecondary = () => Navigator.of(context).maybePop();
+      case 'ar_unavailable':
+        icon = Icons.tablet_mac_rounded;
+        title = "We couldn't start AR";
+        message = 'The character reader could not start this time. Your '
+            'generated voice is still available.';
       case 'surface_not_found':
       case 'plane_not_found':
         icon = Icons.table_restaurant_outlined;
@@ -487,11 +498,19 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         title = 'The character is missing';
         message = 'The bundled character file is not available. Your generated '
             'voice is still saved for this flow.';
+        primaryLabel = 'Scan another page';
+        onPrimary = controller.reset;
+        secondaryLabel = 'Close';
+        onSecondary = () => Navigator.of(context).maybePop();
       case 'model_load_failed':
         icon = Icons.smart_toy_outlined;
         title = "The character couldn't load";
         message = 'The bundled character could not be opened. Your generated '
             'voice is still saved for this flow.';
+        primaryLabel = 'Scan another page';
+        onPrimary = controller.reset;
+        secondaryLabel = 'Close';
+        onSecondary = () => Navigator.of(context).maybePop();
       case 'audio_missing':
       case 'missing_audio':
         icon = Icons.audio_file_outlined;
@@ -503,9 +522,12 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       case 'audio_failed':
         icon = Icons.volume_off_outlined;
         title = "The character couldn't play the voice";
-        message =
-            'The generated voice is still available. Reopen the character '
-            'reader to retry playback without creating it again.';
+        message = 'Playback must be retried inside the character reader to '
+            'preserve placement. From here, scan another page or close.';
+        primaryLabel = 'Scan another page';
+        onPrimary = controller.reset;
+        secondaryLabel = 'Close';
+        onSecondary = () => Navigator.of(context).maybePop();
       default:
         icon = Icons.view_in_ar_outlined;
         title = "We couldn't open the character reader";
@@ -520,8 +542,8 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       message: message,
       primaryLabel: primaryLabel,
       onPrimary: onPrimary,
-      secondaryLabel: 'Scan another page',
-      onSecondary: controller.reset,
+      secondaryLabel: secondaryLabel,
+      onSecondary: onSecondary,
     );
   }
 

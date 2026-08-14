@@ -248,6 +248,104 @@ void main() {
     expect(store.getString('auth_token'), 'new-token');
   });
 
+  test('maps a repeated 401 after authentication refresh', () async {
+    SharedPreferences.setMockInitialValues({
+      'device_id': 'existing-device',
+      'auth_token': 'expired-token',
+      'device_secret': 'secret',
+    });
+    final store = await KeyValueStore.create();
+    final authDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final authAdapter = DioAdapter(
+      dio: authDio,
+      matcher: const UrlRequestMatcher(),
+    );
+    authAdapter.onPost(
+      '/v1/auth/device',
+      (server) => server.reply(200, {'token': 'new-token', 'user_id': 'user'}),
+    );
+    var requestCount = 0;
+    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    apiDio.httpClientAdapter = _StubAdapter((options) {
+      requestCount++;
+      return ResponseBody.fromString('unauthorized', 401);
+    });
+    final client = HttpTtsClient(
+      ApiClient(dio: apiDio, store: store, authDio: authDio),
+      temporaryDirectory: () => temporaryDirectory,
+    );
+
+    await expectLater(
+      client.generate('Read me'),
+      throwsA(_failureWithCode('authentication')),
+    );
+
+    expect(requestCount, 2);
+    expect(store.getString('auth_token'), 'new-token');
+  });
+
+  for (final (type, code) in [
+    (DioExceptionType.connectionError, 'backend_unreachable'),
+    (DioExceptionType.connectionTimeout, 'timeout'),
+    (DioExceptionType.sendTimeout, 'timeout'),
+    (DioExceptionType.receiveTimeout, 'timeout'),
+  ]) {
+    test('maps $type to $code', () async {
+      final client = await _clientWithAdapter(
+        temporaryDirectory,
+        _StubAdapter(
+          (options) => throw DioException(
+            requestOptions: options,
+            type: type,
+          ),
+        ),
+      );
+
+      await expectLater(
+        client.generate('Read me'),
+        throwsA(_failureWithCode(code)),
+      );
+    });
+  }
+
+  test('maps a socket connection failure to backend_unreachable', () async {
+    final client = await _clientWithAdapter(
+      temporaryDirectory,
+      _StubAdapter(
+        (options) => throw DioException(
+          requestOptions: options,
+          type: DioExceptionType.unknown,
+          error: const SocketException('connection failed'),
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.generate('Read me'),
+      throwsA(_failureWithCode('backend_unreachable')),
+    );
+  });
+
+  for (final (statusCode, code) in [
+    (403, 'authentication'),
+    (429, 'rate_limited'),
+    (500, 'upstream_failed'),
+  ]) {
+    test('maps HTTP $statusCode to $code', () async {
+      final client = await _clientWithAdapter(
+        temporaryDirectory,
+        _StubAdapter(
+          (_) => ResponseBody.fromString('failure', statusCode),
+        ),
+      );
+
+      await expectLater(
+        client.generate('Read me'),
+        throwsA(_failureWithCode(code)),
+      );
+    });
+  }
+
   test('rejects a non-200 response as invalid audio', () async {
     final client = await _client(
       temporaryDirectory,

@@ -56,16 +56,21 @@ final class HttpTtsClient implements TtsClient {
   }
 
   Future<File> _generate(String text, int operationId) async {
-    final response = await _apiClient.send<List<int>>(
-      () => _apiClient.dio.post<List<int>>(
-        '/v1/tts',
-        data: {'text': text},
-        options: Options(
-          responseType: ResponseType.bytes,
-          headers: {'Accept': 'audio/mpeg'},
+    late final Response<List<int>> response;
+    try {
+      response = await _apiClient.send<List<int>>(
+        () => _apiClient.dio.post<List<int>>(
+          '/v1/tts',
+          data: {'text': text},
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: {'Accept': 'audio/mpeg'},
+          ),
         ),
-      ),
-    );
+      );
+    } on DioException catch (error) {
+      throw TtsGenerationFailure(_failureCode(error));
+    }
     final bytes = response.data;
     if (response.statusCode != 200 ||
         !_hasValidContentType(response.headers) ||
@@ -116,6 +121,33 @@ final class HttpTtsClient implements TtsClient {
 
   void _enqueue(Future<void> Function() operation) {
     _operations = _operations.then((_) => operation());
+  }
+}
+
+String _failureCode(DioException error) {
+  switch (error.response?.statusCode) {
+    case 401:
+    case 403:
+      return 'authentication';
+    case 429:
+      return 'rate_limited';
+  }
+
+  switch (error.type) {
+    case DioExceptionType.connectionTimeout:
+    case DioExceptionType.sendTimeout:
+    case DioExceptionType.receiveTimeout:
+      return 'timeout';
+    case DioExceptionType.connectionError:
+      return 'backend_unreachable';
+    case DioExceptionType.badCertificate:
+    case DioExceptionType.badResponse:
+    case DioExceptionType.cancel:
+      return 'upstream_failed';
+    case DioExceptionType.unknown:
+      return error.error is SocketException
+          ? 'backend_unreachable'
+          : 'upstream_failed';
   }
 }
 
