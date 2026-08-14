@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -90,6 +92,72 @@ void main() {
     expect(await second.readAsBytes(), [4, 5]);
   });
 
+  test('serializes generations so the later call owns the final audio',
+      () async {
+    final firstStarted = Completer<void>();
+    final releaseFirst = Completer<void>();
+    var requestCount = 0;
+    final client = await _clientWithAdapter(
+      temporaryDirectory,
+      _StubAdapter((options) async {
+        requestCount++;
+        if (requestCount == 1) {
+          firstStarted.complete();
+          await releaseFirst.future;
+        }
+        return _audioResponse(requestCount == 1 ? [1] : [2]);
+      }),
+    );
+
+    final first = client.generate('First');
+    await firstStarted.future;
+    final second = client.generate('Second');
+    await pumpEventQueue();
+
+    expect(requestCount, 1);
+    releaseFirst.complete();
+    await Future.wait([first, second]);
+
+    expect(requestCount, 2);
+    expect(
+      await File('${temporaryDirectory.path}/scan_any_page_narration.mp3')
+          .readAsBytes(),
+      [2],
+    );
+  });
+
+  test(
+      'dispose waits for in-flight generation and leaves no audio or temp file',
+      () async {
+    final requestStarted = Completer<void>();
+    final releaseRequest = Completer<void>();
+    final client = await _clientWithAdapter(
+      temporaryDirectory,
+      _StubAdapter((options) async {
+        requestStarted.complete();
+        await releaseRequest.future;
+        return _audioResponse([1]);
+      }),
+    );
+
+    final generation = client.generate('Read me');
+    await requestStarted.future;
+    final disposal = client.dispose();
+    releaseRequest.complete();
+    await generation;
+    await disposal;
+
+    expect(
+      await File('${temporaryDirectory.path}/scan_any_page_narration.mp3')
+          .exists(),
+      isFalse,
+    );
+    expect(
+      temporaryDirectory.listSync().whereType<File>(),
+      isEmpty,
+    );
+  });
+
   for (final invalidText in ['', '   ', 'a' * 4001]) {
     test('rejects invalid text before HTTP', () async {
       final requestMatcher = _CapturingRequestMatcher();
@@ -108,6 +176,77 @@ void main() {
       expect(requestMatcher.matchCount, 0);
     });
   }
+
+  test('validates the 4000-character limit by Unicode code points', () async {
+    final requestMatcher = _CapturingRequestMatcher();
+    final client = await _client(
+      temporaryDirectory,
+      (adapter) => adapter.onPost(
+        '/v1/tts',
+        (server) => server.reply(
+          200,
+          Uint8List.fromList([1]),
+          headers: {
+            Headers.contentTypeHeader: ['audio/mpeg'],
+          },
+        ),
+      ),
+      requestMatcher: requestMatcher,
+    );
+    final supplementaryCharacter = String.fromCharCode(0x1F642);
+
+    await client.generate(supplementaryCharacter * 4000);
+    await expectLater(
+      client.generate(supplementaryCharacter * 4001),
+      throwsA(_failureWithCode('invalid_text')),
+    );
+
+    expect(requestMatcher.matchCount, 1);
+  });
+
+  test('refreshes authentication and retries TTS after a 401', () async {
+    SharedPreferences.setMockInitialValues({
+      'device_id': 'existing-device',
+      'auth_token': 'expired-token',
+      'device_secret': 'secret',
+    });
+    final store = await KeyValueStore.create();
+    final authDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final authAdapter = DioAdapter(
+      dio: authDio,
+      matcher: const UrlRequestMatcher(),
+    );
+    authAdapter.onPost(
+      '/v1/auth/device',
+      (server) => server.reply(200, {'token': 'new-token', 'user_id': 'user'}),
+    );
+    var requestCount = 0;
+    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+    apiDio.httpClientAdapter = _StubAdapter((options) {
+      requestCount++;
+      if (requestCount == 1) {
+        return ResponseBody.fromString(
+          jsonEncode({'detail': 'expired'}),
+          401,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+      }
+      expect(options.headers['Authorization'], 'Bearer new-token');
+      return _audioResponse([7]);
+    });
+    final client = HttpTtsClient(
+      ApiClient(dio: apiDio, store: store, authDio: authDio),
+      temporaryDirectory: () => temporaryDirectory,
+    );
+
+    final file = await client.generate('Read me');
+
+    expect(await file.readAsBytes(), [7]);
+    expect(requestCount, 2);
+    expect(store.getString('auth_token'), 'new-token');
+  });
 
   test('rejects a non-200 response as invalid audio', () async {
     final client = await _client(
@@ -151,6 +290,69 @@ void main() {
     );
   });
 
+  test('accepts case-insensitive MPEG content type with standard parameters',
+      () async {
+    final client = await _client(
+      temporaryDirectory,
+      (adapter) => adapter.onPost(
+        '/v1/tts',
+        (server) => server.reply(
+          200,
+          Uint8List.fromList([1]),
+          headers: {
+            Headers.contentTypeHeader: ['Audio/MPEG; charset=binary'],
+          },
+        ),
+      ),
+    );
+
+    expect(await (await client.generate('Read me')).readAsBytes(), [1]);
+  });
+
+  test('accepts a quoted content type parameter containing a comma', () async {
+    final client = await _client(
+      temporaryDirectory,
+      (adapter) => adapter.onPost(
+        '/v1/tts',
+        (server) => server.reply(
+          200,
+          Uint8List.fromList([1]),
+          headers: {
+            Headers.contentTypeHeader: ['audio/mpeg; note="one,two"'],
+          },
+        ),
+      ),
+    );
+
+    expect(await (await client.generate('Read me')).readAsBytes(), [1]);
+  });
+
+  for (final contentTypes in [
+    ['audio/mpeg', 'audio/mpeg'],
+    ['audio/mpeg, application/json'],
+    ['audio/mpeg; charset'],
+    ['audio/mpeg; =binary'],
+  ]) {
+    test('rejects duplicate or malformed content type $contentTypes', () async {
+      final client = await _client(
+        temporaryDirectory,
+        (adapter) => adapter.onPost(
+          '/v1/tts',
+          (server) => server.reply(
+            200,
+            Uint8List.fromList([1]),
+            headers: {Headers.contentTypeHeader: contentTypes},
+          ),
+        ),
+      );
+
+      await expectLater(
+        client.generate('Read me'),
+        throwsA(_failureWithCode('invalid_audio')),
+      );
+    });
+  }
+
   test('rejects an empty response as invalid audio', () async {
     final client = await _client(
       temporaryDirectory,
@@ -192,6 +394,43 @@ void main() {
 
     expect(await file.exists(), isFalse);
   });
+
+  test('failed atomic replacement preserves valid audio and cleans temp files',
+      () async {
+    final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final adapter = DioAdapter(dio: dio, matcher: const UrlRequestMatcher());
+    adapter.onPost('/v1/tts', (server) {
+      server.reply(
+        200,
+        Uint8List.fromList([1]),
+        headers: {
+          Headers.contentTypeHeader: ['audio/mpeg'],
+        },
+      );
+    });
+    final store = await KeyValueStore.create();
+    final client = HttpTtsClient(
+      ApiClient(dio: dio, store: store, authDio: dio),
+      temporaryDirectory: () => temporaryDirectory,
+    );
+    final validFile = await client.generate('First');
+    final blockedTemporaryPath =
+        '${temporaryDirectory.path}/.scan_any_page_narration.mp3.2.tmp';
+    await Directory(blockedTemporaryPath).create();
+
+    await expectLater(
+        client.generate('Second'), throwsA(isA<FileSystemException>()));
+
+    expect(await validFile.readAsBytes(), [1]);
+    expect(
+      temporaryDirectory
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.tmp')),
+      isEmpty,
+    );
+    await Directory(blockedTemporaryPath).delete();
+  });
 }
 
 Future<HttpTtsClient> _client(
@@ -210,6 +449,27 @@ Future<HttpTtsClient> _client(
   );
 }
 
+Future<HttpTtsClient> _clientWithAdapter(
+  Directory temporaryDirectory,
+  HttpClientAdapter adapter,
+) async {
+  final dio = Dio(BaseOptions(baseUrl: 'http://test'))
+    ..httpClientAdapter = adapter;
+  final store = await KeyValueStore.create();
+  return HttpTtsClient(
+    ApiClient(dio: dio, store: store, authDio: dio),
+    temporaryDirectory: () => temporaryDirectory,
+  );
+}
+
+ResponseBody _audioResponse(List<int> bytes) => ResponseBody.fromBytes(
+      bytes,
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['audio/mpeg'],
+      },
+    );
+
 Matcher _failureWithCode(String code) =>
     isA<TtsGenerationFailure>().having((failure) => failure.code, 'code', code);
 
@@ -223,4 +483,21 @@ final class _CapturingRequestMatcher extends HttpRequestMatcher {
     lastRequest = ongoingRequest;
     return const UrlRequestMatcher().matches(ongoingRequest, matcher);
   }
+}
+
+final class _StubAdapter implements HttpClientAdapter {
+  _StubAdapter(this.onFetch);
+
+  final FutureOr<ResponseBody> Function(RequestOptions) onFetch;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<dynamic>? cancelFuture,
+  ) async =>
+      await onFetch(options);
+
+  @override
+  void close({bool force = false}) {}
 }

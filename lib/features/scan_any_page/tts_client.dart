@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -23,18 +24,38 @@ final class HttpTtsClient implements TtsClient {
   }) : _temporaryDirectory = temporaryDirectory ?? _systemTemporaryDirectory;
 
   static const _fileName = 'scan_any_page_narration.mp3';
+  static final _mpegContentType = RegExp(
+    r'''^audio/mpeg\s*(?:;\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+\s*=\s*(?:[!#$%&'*+.^_`|~0-9A-Za-z-]+|"(?:[^"\\]|\\.)*")\s*)*$''',
+    caseSensitive: false,
+  );
 
   final ApiClient _apiClient;
   final Directory Function() _temporaryDirectory;
+  Future<void> _operations = Future.value();
+  var _nextOperationId = 0;
+  int? _generatedFileOwner;
   File? _generatedFile;
 
   @override
-  Future<File> generate(String confirmedText) async {
+  Future<File> generate(String confirmedText) {
     final text = confirmedText.trim();
-    if (text.isEmpty || text.length > 4000) {
-      throw const TtsGenerationFailure('invalid_text');
+    if (text.isEmpty || text.runes.length > 4000) {
+      return Future.error(const TtsGenerationFailure('invalid_text'));
     }
 
+    final operationId = ++_nextOperationId;
+    final completion = Completer<File>();
+    _enqueue(() async {
+      try {
+        completion.complete(await _generate(text, operationId));
+      } catch (error, stackTrace) {
+        completion.completeError(error, stackTrace);
+      }
+    });
+    return completion.future;
+  }
+
+  Future<File> _generate(String text, int operationId) async {
     final response = await _apiClient.send<List<int>>(
       () => _apiClient.dio.post<List<int>>(
         '/v1/tts',
@@ -42,38 +63,67 @@ final class HttpTtsClient implements TtsClient {
         options: Options(
           responseType: ResponseType.bytes,
           headers: {'Accept': 'audio/mpeg'},
-          validateStatus: (_) => true,
         ),
       ),
     );
     final bytes = response.data;
-    final mediaType = response.headers
-        .value(Headers.contentTypeHeader)
-        ?.split(';')
-        .first
-        .trim()
-        .toLowerCase();
     if (response.statusCode != 200 ||
-        mediaType != 'audio/mpeg' ||
+        !_hasValidContentType(response.headers) ||
         bytes == null ||
         bytes.isEmpty) {
       throw const TtsGenerationFailure('invalid_audio');
     }
 
-    final file = File('${_temporaryDirectory().path}/$_fileName');
-    await file.writeAsBytes(bytes, flush: true);
-    _generatedFile = file;
-    return file;
+    final directory = _temporaryDirectory();
+    final file = File('${directory.path}/$_fileName');
+    final temporaryFile =
+        File('${directory.path}/.$_fileName.$operationId.tmp');
+    try {
+      await temporaryFile.writeAsBytes(bytes, flush: true);
+      await temporaryFile.rename(file.path);
+      _generatedFile = file;
+      _generatedFileOwner = operationId;
+      return file;
+    } finally {
+      if (await temporaryFile.exists()) {
+        await temporaryFile.delete();
+      }
+    }
   }
 
   @override
-  Future<void> dispose() async {
-    final file = _generatedFile;
-    if (file != null && await file.exists()) {
-      await file.delete();
-    }
-    _generatedFile = null;
+  Future<void> dispose() {
+    final operationId = ++_nextOperationId;
+    final completion = Completer<void>();
+    _enqueue(() async {
+      try {
+        final file = _generatedFile;
+        if (file != null &&
+            _generatedFileOwner != null &&
+            _generatedFileOwner! < operationId &&
+            await file.exists()) {
+          await file.delete();
+        }
+        _generatedFile = null;
+        _generatedFileOwner = null;
+        completion.complete();
+      } catch (error, stackTrace) {
+        completion.completeError(error, stackTrace);
+      }
+    });
+    return completion.future;
   }
+
+  void _enqueue(Future<void> Function() operation) {
+    _operations = _operations.then((_) => operation());
+  }
+}
+
+bool _hasValidContentType(Headers headers) {
+  final values = headers[Headers.contentTypeHeader];
+  if (values == null || values.length != 1) return false;
+  final value = values.single.trim();
+  return HttpTtsClient._mpegContentType.hasMatch(value);
 }
 
 Directory _systemTemporaryDirectory() => Directory.systemTemp;
