@@ -23,6 +23,7 @@
 		A30000000000000000000007 /* toy_drummer.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* toy_drummer.usdz */; };
 		A30000000000000000000008 /* CharacterReaderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000019 /* CharacterReaderViewController.swift */; };
 		A30000000000000000000009 /* CharacterReaderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001A /* CharacterReaderBridge.swift */; };
+		A3000000000000000000000A /* CharacterReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001B /* CharacterReaderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -74,6 +75,7 @@
 		A30000000000000000000018 /* ASSET_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ASSET_LICENSE.md; sourceTree = "<group>"; };
 		A30000000000000000000019 /* CharacterReaderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderViewController.swift; sourceTree = "<group>"; };
 		A3000000000000000000001A /* CharacterReaderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderBridge.swift; sourceTree = "<group>"; };
+		A3000000000000000000001B /* CharacterReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +95,7 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 				A30000000000000000000011 /* ScanGeometryTests.swift */,
 				A30000000000000000000012 /* TextObservationSorterTests.swift */,
+				A3000000000000000000001B /* CharacterReaderTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -309,6 +312,7 @@
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
 				A30000000000000000000001 /* ScanGeometryTests.swift in Sources */,
 				A30000000000000000000002 /* TextObservationSorterTests.swift in Sources */,
+				A3000000000000000000000A /* CharacterReaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

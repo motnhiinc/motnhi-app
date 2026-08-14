@@ -65,10 +65,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.home,
         builder: (_, _) => const LibraryScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.scanAnyPage,
-        builder: (_, _) => const ScanAnyPageScreen(),
-      ),
+      if (kDebugMode)
+        GoRoute(
+          path: AppRoutes.scanAnyPage,
+          builder: (_, _) => const ScanAnyPageScreen(),
+        ),
       GoRoute(
         path: '/story/:storyId',
         builder: (_, state) =>

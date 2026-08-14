@@ -486,6 +486,11 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         title = "We couldn't start AR";
         message = 'The character reader could not start this time. Your '
             'generated voice is still available.';
+      case 'ar_failed':
+        icon = Icons.view_in_ar_outlined;
+        title = 'The AR session stopped';
+        message = 'Tracking stopped unexpectedly. Your generated voice is '
+            'still available, so you can try AR again.';
       case 'surface_not_found':
       case 'plane_not_found':
         icon = Icons.table_restaurant_outlined;

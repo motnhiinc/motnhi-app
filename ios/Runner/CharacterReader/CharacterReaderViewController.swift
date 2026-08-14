@@ -1,10 +1,12 @@
 import ARKit
 import AVFoundation
+import Combine
 import RealityKit
 import UIKit
 
 enum CharacterReaderFailure: String, Error {
   case arUnsupported = "ar_unsupported"
+  case arFailed = "ar_failed"
   case audioMissing = "audio_missing"
   case modelMissing = "model_missing"
   case modelLoadFailed = "model_load_failed"
@@ -18,6 +20,13 @@ enum CharacterReaderResult {
 }
 
 final class CharacterReaderViewController: UIViewController {
+  private enum PlaybackState {
+    case ready
+    case playing
+    case paused
+    case retry
+  }
+
   private let audioURL: URL
   private var onComplete: ((CharacterReaderResult) -> Void)?
 
@@ -30,17 +39,23 @@ final class CharacterReaderViewController: UIViewController {
 
   private var configuration: ARWorldTrackingConfiguration?
   private var modelTemplate: Entity?
+  private var modelLoadCancellable: AnyCancellable?
   private var audioPlayer: AVAudioPlayer?
   private var displayLink: CADisplayLink?
+  private var placementTap: UITapGestureRecognizer?
   private var reticleAnchor: AnchorEntity?
   private var reticleEntity: ModelEntity?
   private var currentRaycastResult: ARRaycastResult?
   private var placedModel: Entity?
   private var bobBaseY: Float = 0
   private var bobStartTime: CFTimeInterval?
+  private var playbackState = PlaybackState.ready
+  private var completionGate = OneShotGate()
   private var isPlaced = false
   private var hasPlaybackStarted = false
   private var isTerminal = false
+  private var isApplicationActive = true
+  private var ownsAudioSession = false
 
   init(audioURL: URL, onComplete: @escaping (CharacterReaderResult) -> Void) {
     self.audioURL = audioURL
@@ -55,6 +70,7 @@ final class CharacterReaderViewController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    isApplicationActive = UIApplication.shared.applicationState == .active
     configureView()
     observeApplicationLifecycle()
     startReader()
@@ -68,13 +84,16 @@ final class CharacterReaderViewController: UIViewController {
 
   deinit {
     NotificationCenter.default.removeObserver(self)
+    modelLoadCancellable?.cancel()
     displayLink?.invalidate()
     audioPlayer?.pause()
+    deactivateOwnedAudioSession()
+    arView.session.delegate = nil
     arView.session.pause()
   }
 
   func failPresentation() {
-    finish(.failure(.arUnsupported))
+    finish(.failure(.arFailed))
   }
 
   private func configureView() {
@@ -100,7 +119,7 @@ final class CharacterReaderViewController: UIViewController {
     guidanceLabel.backgroundColor = UIColor.black.withAlphaComponent(0.65)
     guidanceLabel.layer.cornerRadius = 12
     guidanceLabel.layer.masksToBounds = true
-    guidanceLabel.text = "Move the iPad slowly to find a table"
+    guidanceLabel.text = "Preparing character reader"
     view.addSubview(guidanceLabel)
 
     readButton.translatesAutoresizingMaskIntoConstraints = false
@@ -141,7 +160,9 @@ final class CharacterReaderViewController: UIViewController {
     ])
 
     let placementTap = UITapGestureRecognizer(target: self, action: #selector(placeCharacter))
+    placementTap.isEnabled = false
     arView.addGestureRecognizer(placementTap)
+    self.placementTap = placementTap
   }
 
   private func configureWaveBadge() {
@@ -169,14 +190,14 @@ final class CharacterReaderViewController: UIViewController {
   private func observeApplicationLifecycle() {
     NotificationCenter.default.addObserver(
       self,
-      selector: #selector(applicationDidEnterBackground),
-      name: UIApplication.didEnterBackgroundNotification,
+      selector: #selector(applicationWillResignActive),
+      name: UIApplication.willResignActiveNotification,
       object: nil
     )
     NotificationCenter.default.addObserver(
       self,
-      selector: #selector(applicationWillEnterForeground),
-      name: UIApplication.willEnterForegroundNotification,
+      selector: #selector(applicationDidBecomeActive),
+      name: UIApplication.didBecomeActiveNotification,
       object: nil
     )
   }
@@ -205,29 +226,55 @@ final class CharacterReaderViewController: UIViewController {
       finish(.failure(.modelMissing))
       return
     }
-    do {
-      modelTemplate = try Entity.load(contentsOf: modelURL)
-    } catch {
-      finish(.failure(.modelLoadFailed))
-      return
-    }
+    guidanceLabel.text = "Loading character"
+    modelLoadCancellable = Entity.loadAsync(contentsOf: modelURL)
+      .receive(on: DispatchQueue.main)
+      .sink(
+        receiveCompletion: { [weak self] completion in
+          guard let self, !self.isTerminal else { return }
+          self.modelLoadCancellable = nil
+          if case .failure = completion {
+            self.finish(.failure(.modelLoadFailed))
+          }
+        },
+        receiveValue: { [weak self] entity in
+          guard let self, !self.isTerminal else { return }
+          self.modelTemplate = entity
+          self.startARSession()
+        }
+      )
+  }
 
+  private func startARSession() {
     let configuration = ARWorldTrackingConfiguration()
     configuration.planeDetection = [.horizontal]
     configuration.environmentTexturing = .automatic
     self.configuration = configuration
-    arView.session.run(configuration)
+    arView.session.delegate = self
 
     let displayLink = CADisplayLink(target: self, selector: #selector(updateFrame))
     displayLink.add(to: .main, forMode: .common)
+    displayLink.isPaused = !isApplicationActive
     self.displayLink = displayLink
+    if isApplicationActive {
+      activateARSession(configuration)
+    } else {
+      guidanceLabel.text = "Character reader paused"
+    }
+  }
+
+  private func activateARSession(_ configuration: ARWorldTrackingConfiguration) {
+    arView.session.run(configuration)
+    placementTap?.isEnabled = !isPlaced
+    if !isPlaced {
+      guidanceLabel.text = "Move the iPad slowly to find a table"
+    }
   }
 
   @objc private func updateFrame(_ displayLink: CADisplayLink) {
     guard !isTerminal else { return }
     if isPlaced {
       updateBob(at: displayLink.timestamp)
-      syncPlaybackUI()
     } else {
       updateRaycast()
     }
@@ -280,6 +327,7 @@ final class CharacterReaderViewController: UIViewController {
     guidanceLabel.text = "Character ready"
     readButton.isHidden = false
     waveStack.isHidden = false
+    renderPlaybackState()
 
     if !playFirstAnimation(in: model) {
       bobBaseY = model.position.y
@@ -315,45 +363,52 @@ final class CharacterReaderViewController: UIViewController {
 
   @objc private func togglePlayback() {
     guard isPlaced, let audioPlayer else { return }
-    if audioPlayer.isPlaying {
+    if playbackState == .playing {
       audioPlayer.pause()
-      syncPlaybackUI()
+      playbackState = .paused
+      guidanceLabel.text = "Reading paused"
+      renderPlaybackState()
       return
     }
 
     do {
       let session = AVAudioSession.sharedInstance()
       try session.setCategory(.playback, mode: .spokenAudio)
+      ownsAudioSession = true
       try session.setActive(true)
       guard audioPlayer.play() else {
         showPlaybackRetry()
         return
       }
       hasPlaybackStarted = true
+      playbackState = .playing
       guidanceLabel.text = "Reading aloud"
-      syncPlaybackUI()
+      renderPlaybackState()
     } catch {
       showPlaybackRetry()
     }
   }
 
   private func showPlaybackRetry() {
+    audioPlayer?.pause()
+    playbackState = .retry
+    deactivateOwnedAudioSession()
     guidanceLabel.text = "Audio couldn't play - Tap Retry"
-    readButton.setTitle("Retry", for: .normal)
-    setWaveAnimating(false)
+    renderPlaybackState()
   }
 
-  private func syncPlaybackUI() {
-    guard let audioPlayer else { return }
-    let isPlaying = audioPlayer.isPlaying
-    if isPlaying {
-      readButton.setTitle("Pause", for: .normal)
-    } else if hasPlaybackStarted && audioPlayer.currentTime > 0 && audioPlayer.currentTime < audioPlayer.duration {
-      readButton.setTitle("Resume", for: .normal)
-    } else {
+  private func renderPlaybackState() {
+    switch playbackState {
+    case .ready:
       readButton.setTitle("Read", for: .normal)
+    case .playing:
+      readButton.setTitle("Pause", for: .normal)
+    case .paused:
+      readButton.setTitle("Resume", for: .normal)
+    case .retry:
+      readButton.setTitle("Retry", for: .normal)
     }
-    setWaveAnimating(isPlaying)
+    setWaveAnimating(playbackState == .playing && audioPlayer?.isPlaying == true)
   }
 
   private func setWaveAnimating(_ shouldAnimate: Bool) {
@@ -378,40 +433,90 @@ final class CharacterReaderViewController: UIViewController {
   }
 
   private func finish(_ result: CharacterReaderResult) {
-    guard !isTerminal else { return }
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.finish(result)
+      }
+      return
+    }
+    guard completionGate.claim() else { return }
     isTerminal = true
+    modelLoadCancellable?.cancel()
+    modelLoadCancellable = nil
     displayLink?.invalidate()
     displayLink = nil
     setWaveAnimating(false)
     audioPlayer?.pause()
+    deactivateOwnedAudioSession()
+    arView.session.delegate = nil
     arView.session.pause()
     onComplete?(result)
     onComplete = nil
   }
 
-  @objc private func applicationDidEnterBackground() {
-    audioPlayer?.pause()
-    arView.session.pause()
-    syncPlaybackUI()
+  private func deactivateOwnedAudioSession() {
+    guard ownsAudioSession else { return }
+    do {
+      try AVAudioSession.sharedInstance().setActive(
+        false,
+        options: .notifyOthersOnDeactivation
+      )
+      ownsAudioSession = false
+    } catch {
+      // A later terminal or lifecycle cleanup will retry deactivation.
+    }
   }
 
-  @objc private func applicationWillEnterForeground() {
+  @objc private func applicationWillResignActive() {
+    isApplicationActive = false
+    if playbackState == .playing {
+      playbackState = .paused
+    }
+    audioPlayer?.pause()
+    deactivateOwnedAudioSession()
+    placementTap?.isEnabled = false
+    displayLink?.isPaused = true
+    arView.session.pause()
+    renderPlaybackState()
+  }
+
+  @objc private func applicationDidBecomeActive() {
+    isApplicationActive = true
     guard !isTerminal, let configuration else { return }
-    arView.session.run(configuration)
+    activateARSession(configuration)
+    displayLink?.isPaused = false
   }
 }
 
 extension CharacterReaderViewController: AVAudioPlayerDelegate {
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-    if flag {
-      player.currentTime = 0
+    DispatchQueue.main.async { [weak self] in
+      guard let self, !self.isTerminal else { return }
+      if flag {
+        player.currentTime = 0
+        self.playbackState = .ready
+        self.guidanceLabel.text = "Reading complete"
+      } else {
+        self.playbackState = .retry
+        self.guidanceLabel.text = "Audio stopped - Tap Retry"
+      }
+      self.deactivateOwnedAudioSession()
+      self.renderPlaybackState()
     }
-    guidanceLabel.text = flag ? "Reading complete" : "Audio stopped - Tap Retry"
-    readButton.setTitle(flag ? "Read again" : "Retry", for: .normal)
-    setWaveAnimating(false)
   }
 
   func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-    showPlaybackRetry()
+    DispatchQueue.main.async { [weak self] in
+      guard let self, !self.isTerminal else { return }
+      self.showPlaybackRetry()
+    }
+  }
+}
+
+extension CharacterReaderViewController: ARSessionDelegate {
+  func session(_ session: ARSession, didFailWithError error: Error) {
+    DispatchQueue.main.async { [weak self] in
+      self?.finish(.failure(.arFailed))
+    }
   }
 }

@@ -1,9 +1,49 @@
 import Flutter
 import UIKit
 
+struct CharacterReaderAudioPathValidator {
+  private static let expectedFilename = "scan_any_page_narration.mp3"
+
+  let temporaryDirectory: URL
+
+  func validate(path: String) -> URL? {
+    guard !path.isEmpty, NSString(string: path).isAbsolutePath else { return nil }
+
+    let resolvedTemporaryDirectory = temporaryDirectory
+      .resolvingSymlinksInPath()
+      .standardizedFileURL
+    let requestedURL = URL(fileURLWithPath: path).standardizedFileURL
+    let resolvedURL = requestedURL
+      .resolvingSymlinksInPath()
+      .standardizedFileURL
+    let temporaryComponents = resolvedTemporaryDirectory.pathComponents
+    let candidateComponents = resolvedURL.pathComponents
+    guard
+      requestedURL.lastPathComponent == Self.expectedFilename,
+      resolvedURL.lastPathComponent == Self.expectedFilename,
+      candidateComponents.count > temporaryComponents.count,
+      candidateComponents.prefix(temporaryComponents.count).elementsEqual(temporaryComponents)
+    else {
+      return nil
+    }
+
+    guard
+      let attributes = try? FileManager.default.attributesOfItem(atPath: resolvedURL.path),
+      attributes[.type] as? FileAttributeType == .typeRegular,
+      FileManager.default.isReadableFile(atPath: resolvedURL.path)
+    else {
+      return nil
+    }
+    return resolvedURL
+  }
+}
+
 final class CharacterReaderBridge {
   private weak var flutterViewController: FlutterViewController?
   private let channel: FlutterMethodChannel
+  private let audioPathValidator = CharacterReaderAudioPathValidator(
+    temporaryDirectory: FileManager.default.temporaryDirectory
+  )
   private var isReaderInProgress = false
   private var activeReader: CharacterReaderViewController?
 
@@ -33,7 +73,11 @@ final class CharacterReaderBridge {
       result(FlutterError(code: "reader_in_progress", message: nil, details: nil))
       return
     }
-    guard let audioURL = validatedAudioURL(from: call.arguments) else {
+    guard
+      let arguments = call.arguments as? [String: Any],
+      let path = arguments["audioFilePath"] as? String,
+      let audioURL = audioPathValidator.validate(path: path)
+    else {
       result(FlutterError(code: CharacterReaderFailure.audioMissing.rawValue, message: nil, details: nil))
       return
     }
@@ -42,7 +86,7 @@ final class CharacterReaderBridge {
       flutterViewController.viewIfLoaded?.window != nil,
       flutterViewController.presentedViewController == nil
     else {
-      result(FlutterError(code: CharacterReaderFailure.arUnsupported.rawValue, message: nil, details: nil))
+      result(FlutterError(code: CharacterReaderFailure.arFailed.rawValue, message: nil, details: nil))
       return
     }
 
@@ -81,26 +125,4 @@ final class CharacterReaderBridge {
     }
   }
 
-  private func validatedAudioURL(from arguments: Any?) -> URL? {
-    guard
-      let arguments = arguments as? [String: Any],
-      let path = arguments["audioFilePath"] as? String,
-      !path.isEmpty,
-      NSString(string: path).isAbsolutePath,
-      URL(fileURLWithPath: path).pathExtension.lowercased() == "mp3"
-    else {
-      return nil
-    }
-
-    let url = URL(fileURLWithPath: path).standardizedFileURL
-    var isDirectory: ObjCBool = false
-    guard
-      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-      !isDirectory.boolValue,
-      FileManager.default.isReadableFile(atPath: url.path)
-    else {
-      return nil
-    }
-    return url
-  }
 }
