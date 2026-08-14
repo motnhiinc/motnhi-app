@@ -140,9 +140,8 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     final empty = _textController.text.trim().isEmpty;
     final colors = Theme.of(context).colorScheme;
 
-    return ListView(
+    return _PageContent(
       key: const ValueKey('review'),
-      padding: const EdgeInsets.all(24),
       children: [
         Align(
           alignment: Alignment.centerRight,
@@ -242,30 +241,99 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   ) {
     final code = state.failureCode ?? '';
     if (code.startsWith('ar:')) {
+      return _arFailure(code.substring(3), state, controller);
+    }
+    if (code.startsWith('tts:') && code != 'tts:invalid_text') {
+      return _ttsFailure(code.substring(4), state, controller);
+    }
+    if (code == 'tts:invalid_text') {
       return _FailureState(
-        key: const ValueKey('arFailure'),
-        title: "We couldn't open the character reader",
-        message: 'This demo needs a supported physical iPad and a clear, '
-            'well-lit flat surface.',
-        primaryLabel: 'Try AR again',
-        onPrimary: controller.openCharacterReader,
+        key: const ValueKey('textFailure'),
+        icon: Icons.text_fields_rounded,
+        title: 'Check the text length',
+        message:
+            'Enter between 1 and 4,000 characters before creating the voice.',
+        primaryLabel: 'Edit text',
+        onPrimary: () => setState(() => _manualEntry = true),
         secondaryLabel: 'Scan another page',
         onSecondary: controller.reset,
       );
     }
-    if (code.startsWith('tts:') && code != 'tts:invalid_text') {
-      return _ttsFailure(state, controller);
+
+    return _scanFailure(
+        code.startsWith('scan:') ? code.substring(5) : code, state, controller);
+  }
+
+  Widget _scanFailure(
+    String code,
+    ScanAnyPageState state,
+    ScanAnyPageController controller,
+  ) {
+    late final IconData icon;
+    late final String title;
+    late final String message;
+    late final String primaryLabel;
+
+    switch (code) {
+      case 'camera_denied':
+        icon = Icons.no_photography_rounded;
+        title = 'Camera access is off';
+        message = 'Camera access is required to scan a page. Allow camera '
+            'access in iPad Settings, then return and try again.';
+        primaryLabel = 'Try camera again';
+      case 'camera_unavailable':
+        icon = Icons.tablet_mac_rounded;
+        title = 'The scanner is not available';
+        message = 'This demo requires a supported physical iPad with an '
+            'available camera.';
+        primaryLabel = 'Try scanner again';
+      case 'page_not_found':
+      case 'rectangle_not_found':
+      case 'unstable_page':
+        icon = Icons.crop_free_rounded;
+        title = "We couldn't find one clear page";
+        message =
+            'Place one flat page in good light, avoid glare, and keep all '
+            'four corners visible.';
+        primaryLabel = 'Scan again';
+      case 'capture_failed':
+        icon = Icons.camera_alt_outlined;
+        title = "We couldn't capture the page";
+        message = 'Hold the iPad steady over one well-lit page and keep all '
+            'four corners in view.';
+        primaryLabel = 'Scan again';
+      case 'correction_failed':
+        icon = Icons.crop_rotate_rounded;
+        title = "We couldn't straighten the page";
+        message = 'Lay the page flat, reduce glare, and scan with all four '
+            'corners clearly visible.';
+        primaryLabel = 'Scan again';
+      case 'ocr_failed':
+        icon = Icons.text_snippet_outlined;
+        title = "We couldn't recognize the words";
+        message = 'Try a flat, well-lit page with large, clear English or '
+            'Vietnamese text.';
+        primaryLabel = 'Scan again';
+      case 'no_text':
+        icon = Icons.text_fields_rounded;
+        title = "We couldn't read enough text";
+        message = 'Try a page with large, clear English or Vietnamese text, or '
+            'enter the words yourself.';
+        primaryLabel = 'Scan again';
+      default:
+        icon = Icons.error_outline_rounded;
+        title = 'Scanning stopped';
+        message = 'The scanner could not finish this page. Try again or enter '
+            'the words yourself.';
+        primaryLabel = 'Try scanner again';
     }
+
     return _FailureState(
       key: const ValueKey('scanFailure'),
-      title: code == 'tts:invalid_text'
-          ? 'Check the text length'
-          : "We couldn't read enough text",
-      message: code == 'tts:invalid_text'
-          ? 'Enter between 1 and 4,000 characters.'
-          : 'Use one flat page with large, well-lit text. Avoid glare and keep '
-              'all four corners visible.',
-      primaryLabel: 'Scan again',
+      icon: icon,
+      title: title,
+      message: message,
+      primaryLabel: primaryLabel,
       onPrimary: () => _startScan(controller),
       secondaryLabel: 'Enter text manually',
       onSecondary: () {
@@ -276,6 +344,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   }
 
   Widget _ttsFailure(
+    String code,
     ScanAnyPageState state,
     ScanAnyPageController controller,
   ) {
@@ -283,25 +352,67 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     final overLimit = count > _maximumTextLength;
     final canRetry = _textController.text.trim().isNotEmpty && !overLimit;
     final colors = Theme.of(context).colorScheme;
-    return ListView(
+    late final IconData icon;
+    late final String title;
+    late final String message;
+
+    switch (code) {
+      case 'backend_unreachable':
+      case 'network':
+      case 'connection_error':
+        icon = Icons.wifi_off_rounded;
+        title = "We couldn't reach the narration service";
+        message = 'Make sure the Mac backend is running and the Mac and iPad '
+            'are on the same Wi-Fi, then try again.';
+      case 'auth':
+      case 'auth_failed':
+      case 'authentication_failed':
+      case 'unauthorized':
+        icon = Icons.lock_outline_rounded;
+        title = "We couldn't verify this iPad";
+        message = 'The app could not renew access to the narration service. '
+            'Your text is still here; try again.';
+      case 'rate_limit':
+      case 'rate_limited':
+        icon = Icons.hourglass_top_rounded;
+        title = 'The narration service is busy';
+        message = 'Wait a moment before trying again. Your text is still here '
+            'and can be edited.';
+      case 'timeout':
+      case 'timed_out':
+        icon = Icons.timer_outlined;
+        title = 'The voice took too long to create';
+        message = 'The narration request timed out. Your text is still here; '
+            'try again when the connection is stable.';
+      case 'invalid_audio':
+        icon = Icons.audio_file_outlined;
+        title = "We couldn't use the voice response";
+        message = 'The narration service did not return usable audio. No audio '
+            'was saved; your text is still here.';
+      default:
+        icon = Icons.record_voice_over_outlined;
+        title = "We couldn't create the voice";
+        message = 'The narration service could not finish this request. Your '
+            'text is still here and can be edited before trying again.';
+    }
+
+    return _PageContent(
       key: const ValueKey('ttsFailure'),
-      padding: const EdgeInsets.all(24),
       children: [
         Icon(
-          Icons.cloud_off_rounded,
+          icon,
           size: 88,
-          color: Theme.of(context).colorScheme.error,
+          color: colors.error,
         ),
         const SizedBox(height: 20),
         Text(
-          "We couldn't create the voice",
+          title,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Keep the Mac and iPad on the same Wi-Fi, then try again. Your text '
-          'is still here and can be edited.',
+        Text(
+          message,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 20),
@@ -346,6 +457,74 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     );
   }
 
+  Widget _arFailure(
+    String code,
+    ScanAnyPageState state,
+    ScanAnyPageController controller,
+  ) {
+    late final IconData icon;
+    late final String title;
+    late final String message;
+    var primaryLabel = 'Try AR again';
+    VoidCallback onPrimary = controller.openCharacterReader;
+
+    switch (code) {
+      case 'ar_unsupported':
+      case 'ar_unavailable':
+        icon = Icons.tablet_mac_rounded;
+        title = 'AR is not available';
+        message = 'The character reader requires a physical iPad that supports '
+            'AR world tracking.';
+      case 'surface_not_found':
+      case 'plane_not_found':
+        icon = Icons.table_restaurant_outlined;
+        title = "We couldn't find a flat surface";
+        message =
+            'Use a well-lit table or floor and move the iPad slowly while '
+            'the character reader looks for a surface.';
+      case 'model_missing':
+        icon = Icons.smart_toy_outlined;
+        title = 'The character is missing';
+        message = 'The bundled character file is not available. Your generated '
+            'voice is still saved for this flow.';
+      case 'model_load_failed':
+        icon = Icons.smart_toy_outlined;
+        title = "The character couldn't load";
+        message = 'The bundled character could not be opened. Your generated '
+            'voice is still saved for this flow.';
+      case 'audio_missing':
+      case 'missing_audio':
+        icon = Icons.audio_file_outlined;
+        title = 'The generated voice is missing';
+        message = 'The temporary narration file is no longer available. Create '
+            'the voice again before opening the character reader.';
+        primaryLabel = 'Create voice again';
+        onPrimary = () => controller.confirmText(state.confirmedText);
+      case 'audio_failed':
+        icon = Icons.volume_off_outlined;
+        title = "The character couldn't play the voice";
+        message =
+            'The generated voice is still available. Reopen the character '
+            'reader to retry playback without creating it again.';
+      default:
+        icon = Icons.view_in_ar_outlined;
+        title = "We couldn't open the character reader";
+        message = 'The character reader stopped before it could finish. Your '
+            'generated voice is still available.';
+    }
+
+    return _FailureState(
+      key: const ValueKey('arFailure'),
+      icon: icon,
+      title: title,
+      message: message,
+      primaryLabel: primaryLabel,
+      onPrimary: onPrimary,
+      secondaryLabel: 'Scan another page',
+      onSecondary: controller.reset,
+    );
+  }
+
   void _startScan(ScanAnyPageController controller) {
     setState(() => _manualEntry = false);
     controller.startScan();
@@ -359,12 +538,28 @@ class _PageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const padding = 24.0;
+        final availableHeight = constraints.maxHeight - padding * 2;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(padding),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 680,
+                minHeight: availableHeight > 0 ? availableHeight : 0,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -406,6 +601,7 @@ class _ProgressState extends StatelessWidget {
 class _FailureState extends StatelessWidget {
   const _FailureState({
     super.key,
+    required this.icon,
     required this.title,
     required this.message,
     required this.primaryLabel,
@@ -414,6 +610,7 @@ class _FailureState extends StatelessWidget {
     required this.onSecondary,
   });
 
+  final IconData icon;
   final String title;
   final String message;
   final String primaryLabel;
@@ -427,7 +624,7 @@ class _FailureState extends StatelessWidget {
       children: [
         const Spacer(),
         Icon(
-          Icons.error_outline_rounded,
+          icon,
           size: 88,
           color: Theme.of(context).colorScheme.error,
         ),
