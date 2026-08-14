@@ -72,4 +72,18 @@ final class CharacterReaderTests: XCTestCase {
 
     XCTAssertNil(result)
   }
+
+  func testPlayingPlaybackPausesForInterruption() {
+    var state = CharacterReaderPlaybackState.playing
+
+    XCTAssertTrue(state.pauseForInterruption())
+    XCTAssertEqual(state, .paused)
+  }
+
+  func testRetryPlaybackIsPreservedDuringInterruption() {
+    var state = CharacterReaderPlaybackState.retry
+
+    XCTAssertFalse(state.pauseForInterruption())
+    XCTAssertEqual(state, .retry)
+  }
 }

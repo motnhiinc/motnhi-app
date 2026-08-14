@@ -19,14 +19,20 @@ enum CharacterReaderResult {
   case failure(CharacterReaderFailure)
 }
 
-final class CharacterReaderViewController: UIViewController {
-  private enum PlaybackState {
-    case ready
-    case playing
-    case paused
-    case retry
-  }
+enum CharacterReaderPlaybackState: Equatable {
+  case ready
+  case playing
+  case paused
+  case retry
 
+  mutating func pauseForInterruption() -> Bool {
+    guard self == .playing else { return false }
+    self = .paused
+    return true
+  }
+}
+
+final class CharacterReaderViewController: UIViewController {
   private let audioURL: URL
   private var onComplete: ((CharacterReaderResult) -> Void)?
 
@@ -49,7 +55,7 @@ final class CharacterReaderViewController: UIViewController {
   private var placedModel: Entity?
   private var bobBaseY: Float = 0
   private var bobStartTime: CFTimeInterval?
-  private var playbackState = PlaybackState.ready
+  private var playbackState = CharacterReaderPlaybackState.ready
   private var completionGate = OneShotGate()
   private var isPlaced = false
   private var hasPlaybackStarted = false
@@ -199,6 +205,12 @@ final class CharacterReaderViewController: UIViewController {
       selector: #selector(applicationDidBecomeActive),
       name: UIApplication.didBecomeActiveNotification,
       object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(audioSessionInterrupted),
+      name: AVAudioSession.interruptionNotification,
+      object: AVAudioSession.sharedInstance()
     )
   }
 
@@ -441,6 +453,7 @@ final class CharacterReaderViewController: UIViewController {
     }
     guard completionGate.claim() else { return }
     isTerminal = true
+    NotificationCenter.default.removeObserver(self)
     modelLoadCancellable?.cancel()
     modelLoadCancellable = nil
     displayLink?.invalidate()
@@ -485,6 +498,31 @@ final class CharacterReaderViewController: UIViewController {
     guard !isTerminal, let configuration else { return }
     activateARSession(configuration)
     displayLink?.isPaused = false
+  }
+
+  @objc private func audioSessionInterrupted(_ notification: Notification) {
+    guard Thread.isMainThread else {
+      DispatchQueue.main.async { [weak self] in
+        self?.audioSessionInterrupted(notification)
+      }
+      return
+    }
+    guard
+      !isTerminal,
+      let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: rawType)
+    else {
+      return
+    }
+    guard type == .began else { return }
+
+    if playbackState.pauseForInterruption() {
+      audioPlayer?.pause()
+      guidanceLabel.text = "Reading paused"
+      renderPlaybackState()
+    }
+    deactivateOwnedAudioSession()
+    ownsAudioSession = false
   }
 }
 
