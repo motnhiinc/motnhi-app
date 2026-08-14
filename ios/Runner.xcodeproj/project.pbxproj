@@ -20,6 +20,7 @@
 		A30000000000000000000004 /* TextObservationSorter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* TextObservationSorter.swift */; };
 		A30000000000000000000005 /* PageScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* PageScannerViewController.swift */; };
 		A30000000000000000000006 /* ScanAnyPageBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* ScanAnyPageBridge.swift */; };
+		A30000000000000000000007 /* toy_drummer.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* toy_drummer.usdz */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -67,6 +68,8 @@
 		A30000000000000000000014 /* TextObservationSorter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextObservationSorter.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* PageScannerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageScannerViewController.swift; sourceTree = "<group>"; };
 		A30000000000000000000016 /* ScanAnyPageBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAnyPageBridge.swift; sourceTree = "<group>"; };
+		A30000000000000000000017 /* toy_drummer.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = toy_drummer.usdz; sourceTree = "<group>"; };
+		A30000000000000000000018 /* ASSET_LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ASSET_LICENSE.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +126,7 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				A30000000000000000000021 /* CharacterReader */,
 				A30000000000000000000020 /* ScanAnyPage */,
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
@@ -145,6 +149,15 @@
 				A30000000000000000000016 /* ScanAnyPageBridge.swift */,
 			);
 			path = ScanAnyPage;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000021 /* CharacterReader */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000017 /* toy_drummer.usdz */,
+				A30000000000000000000018 /* ASSET_LICENSE.md */,
+			);
+			path = CharacterReader;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -238,6 +251,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000007 /* toy_drummer.usdz in Resources */,
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
