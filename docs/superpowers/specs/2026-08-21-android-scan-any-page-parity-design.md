@@ -156,8 +156,9 @@ vocabulary and must never appear on it.
 ### 5.2.1 Request codes
 
 Both bridges dispatch on `startActivityForResult` request codes owned by `MainActivity`. Use
-distinctive values below `0xFFFF`, one each for the scanner, the reader, and the ARCore install
-flow. `super.onActivityResult(...)` is called **unconditionally**, for owned and unowned codes
+distinctive values below `0xFFFF`, one each for the scanner and the reader. The ARCore install
+flow does **not** get one — see §5.2.2. `super.onActivityResult(...)` is called
+**unconditionally**, for owned and unowned codes
 alike — plugins ignore codes they do not recognise, and an unconditional call cannot forget a
 case. No plugin currently in `pubspec.yaml` uses `onActivityResult`, so present collision risk
 is negligible, but the codes are still chosen to be distinctive.
@@ -171,7 +172,29 @@ is negligible, but the codes are still chosen to be distinctive.
 | Result arriving after configuration change | The pending `Result` is the single source of truth for whether a reply is still owed |
 | Back press inside the scanner or AR view | Mapped to `cancelled` |
 | Backgrounding during AR | Session paused; on return the anchor is re-acquired or `ar_failed` is reported |
-| ARCore install flow returning through its own result path | Distinct request code; success re-enters availability checking, decline maps to `cancelled` |
+| ARCore install flow completing | Resume-driven, not result-driven — see §5.2.2 |
+| Availability re-poll or install resume landing after the app leaves the foreground | Presentability is re-checked at launch time; `startActivityForResult` is silently dropped from the background on Android 10+, so the bridge replies `ar_failed` rather than wait for a result that will never arrive |
+
+### 5.2.2 The ARCore install flow is resume-driven
+
+`ArCoreApk.requestInstall()` does **not** report through `onActivityResult`. It starts the
+installer with a plain `startActivity` and reports the outcome by being **called again once the
+host activity resumes**. An earlier draft of this design assigned it a request code and waited
+for a result; that branch is unreachable, and taking it orphans the pending `Result` on every
+device that has to install the ARCore APK — exactly the failure §5.2 exists to prevent.
+
+The flow is therefore:
+
+- `MainActivity.onPostResume()` forwards to the reader bridge.
+- The bridge re-drives `requestInstall` only when a `Result` is pending **and** an install is
+  genuinely outstanding, so a resume after a normal reader completion does not re-request.
+- The first request prompts (`userRequestedInstall = true`); every later one must not.
+- `UnavailableUserDeclinedInstallationException` maps to `cancelled`, not `ar_failed`.
+- Attempts are **bounded** (`ArCoreInstallPolicy.MAX_ATTEMPTS`). The documented flow needs two —
+  prompt, then confirm on resume. Without a bound, an installer that keeps returning
+  `INSTALL_REQUESTED` reproduces the orphaned-`Result` defect. Past the bound the bridge replies
+  `ar_failed`. The cost is that a genuinely slow install can expire the budget if the user
+  bounces in and out of the app; bounded-and-occasionally-impatient beats unbounded-and-hangable.
 
 ## 6. Scanner Bridge
 
@@ -280,7 +303,7 @@ it.
   call; re-polling them without a cap would loop forever on an offline device and orphan the
   `Result`, which is precisely what §5.2 exists to prevent. Both failure modes are defects.
   `requestInstall()` drives the Play Services for AR installation flow; a user decline maps to
-  `cancelled`, not `ar_unsupported`.
+  `cancelled`, not `ar_unsupported`. That flow is resume-driven and bounded — see §5.2.2.
 - **Rendering.** ARCore with SceneView (`io.github.sceneview:arsceneview`): horizontal plane
   finding, tap-to-place anchor, `.glb` model with an idle animation.
 - **Audio.** `MediaPlayer` on the supplied mp3, guarded by an `AudioFocusRequest`. This is the

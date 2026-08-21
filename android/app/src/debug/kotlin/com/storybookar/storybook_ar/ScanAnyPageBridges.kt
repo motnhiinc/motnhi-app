@@ -15,10 +15,13 @@ class ScanAnyPageBridges private constructor(
         reader.onActivityResult(requestCode, resultCode, data)
     }
 
+    fun onHostResume() {
+        reader.onHostResume()
+    }
+
     companion object {
         const val SCANNER_REQUEST_CODE = 0x51A1
         const val READER_REQUEST_CODE = 0x51A2
-        const val ARCORE_INSTALL_REQUEST_CODE = 0x51A3
 
         fun register(activity: Activity, messenger: BinaryMessenger): ScanAnyPageBridges {
             return ScanAnyPageBridges(
@@ -27,11 +30,10 @@ class ScanAnyPageBridges private constructor(
                     messenger = messenger,
                     requestCode = SCANNER_REQUEST_CODE,
                 ),
-                reader = CharacterReaderBridge(
+                reader = CharacterReaderBridge.create(
                     activity = activity,
                     messenger = messenger,
                     readerRequestCode = READER_REQUEST_CODE,
-                    installRequestCode = ARCORE_INSTALL_REQUEST_CODE,
                 ),
             )
         }

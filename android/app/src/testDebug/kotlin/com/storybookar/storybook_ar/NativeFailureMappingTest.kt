@@ -4,6 +4,8 @@ import android.app.Activity
 import com.google.ar.core.ArCoreApk
 import com.storybookar.storybook_ar.characterreader.ArCoreAvailabilityDecision
 import com.storybookar.storybook_ar.characterreader.ArCoreAvailabilityMapper
+import com.storybookar.storybook_ar.characterreader.ArCoreInstallPolicy
+import com.storybookar.storybook_ar.characterreader.ArCoreInstallStep
 import com.storybookar.storybook_ar.characterreader.CharacterReaderResultMapper
 import com.storybookar.storybook_ar.scananypage.ScannerFailureMapper
 import org.junit.Assert.assertEquals
@@ -96,6 +98,29 @@ class NativeFailureMappingTest {
             ArCoreAvailabilityMapper.map(
                 ArCoreApk.Availability.UNSUPPORTED_DEVICE_NOT_CAPABLE,
             ),
+        )
+    }
+
+    @Test
+    fun promptsForArCoreInstallOnceThenConfirmsOnResumeWithinABound() {
+        // requestInstall() reports an install by being called again after the host resumes, so the
+        // first call is the only one allowed to prompt.
+        assertEquals(ArCoreInstallStep.Prompt, ArCoreInstallPolicy.nextStep(0))
+        assertEquals(ArCoreInstallStep.Confirm, ArCoreInstallPolicy.nextStep(1))
+        assertEquals(ArCoreInstallStep.Confirm, ArCoreInstallPolicy.nextStep(2))
+    }
+
+    @Test
+    fun givesUpOnArCoreInstallRatherThanLeavingTheResultPending() {
+        // Every step has to terminate: an unbounded resume/re-request cycle would orphan the
+        // pending Dart result, which is the defect this policy exists to prevent.
+        assertEquals(
+            ArCoreInstallStep.GiveUp,
+            ArCoreInstallPolicy.nextStep(ArCoreInstallPolicy.MAX_ATTEMPTS),
+        )
+        assertEquals(
+            ArCoreInstallStep.GiveUp,
+            ArCoreInstallPolicy.nextStep(ArCoreInstallPolicy.MAX_ATTEMPTS + 1),
         )
     }
 }

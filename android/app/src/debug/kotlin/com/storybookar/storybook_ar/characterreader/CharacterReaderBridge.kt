@@ -2,39 +2,42 @@ package com.storybookar.storybook_ar.characterreader
 
 import android.app.Activity
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
-import com.google.ar.core.ArCoreApk
-import com.google.ar.core.exceptions.UnavailableDeviceNotCompatibleException
 import com.storybookar.storybook_ar.OneAtATimeGate
 import com.storybookar.storybook_ar.OneShotGate
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
-class CharacterReaderBridge(
-    private val activity: Activity,
-    messenger: BinaryMessenger,
+/**
+ * Owns the `openCharacterReader` call: validates the audio path, gets ARCore into a usable state,
+ * launches the reader, and replies exactly once.
+ *
+ * Everything Android-shaped is behind [ArCoreGateway], [ReaderHost] and [Scheduler] so the flow
+ * itself is reachable from a JVM unit test. Build the production wiring with [create].
+ */
+class CharacterReaderBridge internal constructor(
+    private val arCore: ArCoreGateway,
+    private val host: ReaderHost,
+    private val scheduler: Scheduler,
+    private val audioPathValidator: AudioPathValidator,
     private val readerRequestCode: Int,
-    private val installRequestCode: Int,
 ) {
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val channel = MethodChannel(messenger, "storybook_ar/character_reader")
-    private val audioPathValidator = AudioPathValidator(activity.cacheDir)
     private val inProgressGate = OneAtATimeGate()
+    private var channel: MethodChannel? = null
     private var pendingResult: MethodChannel.Result? = null
     private var replyGate: OneShotGate? = null
     private var pendingAudioPath: String? = null
-    private var arInstallRequested = false
+    private var installAttempts = 0
+    private var awaitingInstallResume = false
 
-    init {
-        channel.setMethodCallHandler(::handle)
+    internal fun attachTo(messenger: BinaryMessenger) {
+        channel = MethodChannel(messenger, CHANNEL_NAME).apply {
+            setMethodCallHandler(::handle)
+        }
     }
 
-    private fun handle(call: MethodCall, result: MethodChannel.Result) {
-        runOnMain {
+    internal fun handle(call: MethodCall, result: MethodChannel.Result) {
+        scheduler.runOnMain {
             if (call.method != "openCharacterReader") {
                 result.notImplemented()
                 return@runOnMain
@@ -51,7 +54,7 @@ class CharacterReaderBridge(
                 result.error("audio_missing", null, null)
                 return@runOnMain
             }
-            if (!activity.isPresentable()) {
+            if (!host.isPresentable()) {
                 inProgressGate.finish()
                 result.error("ar_failed", null, null)
                 return@runOnMain
@@ -60,14 +63,14 @@ class CharacterReaderBridge(
             pendingResult = result
             replyGate = OneShotGate()
             pendingAudioPath = audioFile.path
-            arInstallRequested = false
+            installAttempts = 0
+            awaitingInstallResume = false
             checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
         }
     }
 
     private fun checkArAvailability(remainingTransientPolls: Int) {
-        val availability = ArCoreApk.getInstance().checkAvailability(activity)
-        when (ArCoreAvailabilityMapper.map(availability)) {
+        when (arCore.checkAvailability()) {
             ArCoreAvailabilityDecision.Supported -> launchReader()
             ArCoreAvailabilityDecision.NeedsInstall -> requestArCoreInstall()
             ArCoreAvailabilityDecision.Unsupported -> finishError("ar_unsupported")
@@ -76,27 +79,46 @@ class CharacterReaderBridge(
                 if (remainingTransientPolls <= 0) {
                     finishError("ar_failed")
                 } else {
-                    mainHandler.postDelayed(
-                        { checkArAvailability(remainingTransientPolls - 1) },
-                        TRANSIENT_POLL_INTERVAL_MS,
-                    )
+                    scheduler.postDelayed(TRANSIENT_POLL_INTERVAL_MS) {
+                        checkArAvailability(remainingTransientPolls - 1)
+                    }
                 }
             }
         }
     }
 
     private fun requestArCoreInstall() {
-        try {
-            when (ArCoreApk.getInstance().requestInstall(activity, !arInstallRequested)) {
-                ArCoreApk.InstallStatus.INSTALLED -> checkArAvailability(MAX_TRANSIENT_POLLS)
-                ArCoreApk.InstallStatus.INSTALL_REQUESTED -> {
-                    arInstallRequested = true
-                }
-            }
-        } catch (_: UnavailableDeviceNotCompatibleException) {
-            finishError("ar_unsupported")
-        } catch (_: Exception) {
+        val step = ArCoreInstallPolicy.nextStep(installAttempts)
+        if (step == ArCoreInstallStep.GiveUp) {
             finishError("ar_failed")
+            return
+        }
+        installAttempts++
+        when (arCore.requestInstall(step == ArCoreInstallStep.Prompt)) {
+            ArCoreInstallOutcome.Installed -> {
+                awaitingInstallResume = false
+                checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
+            }
+            // The installer is now in front of us and will not report back through
+            // onActivityResult. onHostResume() picks the flow up again.
+            ArCoreInstallOutcome.Requested -> awaitingInstallResume = true
+            ArCoreInstallOutcome.Declined -> finishError("cancelled")
+            ArCoreInstallOutcome.NotCompatible -> finishError("ar_unsupported")
+            ArCoreInstallOutcome.Failed -> finishError("ar_failed")
+        }
+    }
+
+    /**
+     * Drives the second half of the ARCore install flow. requestInstall() reports the outcome of
+     * an install by being called again after the host activity resumes, never through an activity
+     * result, so without this the pending result is orphaned on every device that has to install
+     * the ARCore APK.
+     */
+    fun onHostResume() {
+        scheduler.runOnMain {
+            if (pendingResult == null || !awaitingInstallResume) return@runOnMain
+            awaitingInstallResume = false
+            requestArCoreInstall()
         }
     }
 
@@ -105,25 +127,19 @@ class CharacterReaderBridge(
             finishError("audio_missing")
             return
         }
-        try {
-            val intent = Intent(activity, CharacterReaderActivity::class.java)
-                .putExtra(CharacterReaderActivity.EXTRA_AUDIO_FILE_PATH, audioPath)
-            activity.startActivityForResult(intent, readerRequestCode)
-        } catch (_: RuntimeException) {
+        // A transient-availability poll or an install resume can land after the app has left
+        // the foreground. startActivityForResult is silently dropped from the background on
+        // Android 10+ without throwing, so re-check here rather than leave the call pending.
+        if (!host.isPresentable()) {
+            finishError("ar_failed")
+            return
+        }
+        if (!host.launchReader(audioPath)) {
             finishError("ar_failed")
         }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode == installRequestCode) {
-            if (pendingResult == null) return true
-            if (resultCode == Activity.RESULT_CANCELED) {
-                finishError("cancelled")
-            } else {
-                checkArAvailability(MAX_TRANSIENT_POLLS)
-            }
-            return true
-        }
         if (requestCode != readerRequestCode) return false
         if (pendingResult == null) return true
 
@@ -141,7 +157,7 @@ class CharacterReaderBridge(
         val gate = replyGate ?: return
         if (!gate.claim()) return
         clearPending()
-        runOnMain { result.success(value) }
+        scheduler.runOnMain { result.success(value) }
     }
 
     private fun finishError(code: String) {
@@ -149,33 +165,34 @@ class CharacterReaderBridge(
         val gate = replyGate ?: return
         if (!gate.claim()) return
         clearPending()
-        runOnMain { result.error(code, null, null) }
+        scheduler.runOnMain { result.error(code, null, null) }
     }
 
     private fun clearPending() {
         pendingResult = null
         replyGate = null
         pendingAudioPath = null
-        arInstallRequested = false
+        installAttempts = 0
+        awaitingInstallResume = false
         inProgressGate.finish()
     }
 
-    private fun runOnMain(action: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            action()
-        } else {
-            mainHandler.post(action)
-        }
-    }
-
     companion object {
+        const val CHANNEL_NAME = "storybook_ar/character_reader"
         private const val TRANSIENT_POLL_INTERVAL_MS = 200L
         private const val MAX_TRANSIENT_POLLS = 10
-    }
-}
 
-private fun Activity.isPresentable(): Boolean {
-    if (isFinishing || isDestroyed) return false
-    val lifecycleOwner = this as? LifecycleOwner ?: return true
-    return lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        fun create(
+            activity: Activity,
+            messenger: BinaryMessenger,
+            readerRequestCode: Int,
+        ): CharacterReaderBridge =
+            CharacterReaderBridge(
+                arCore = ArCoreApkGateway(activity),
+                host = ActivityReaderHost(activity, readerRequestCode),
+                scheduler = MainLooperScheduler(),
+                audioPathValidator = AudioPathValidator(activity.cacheDir),
+                readerRequestCode = readerRequestCode,
+            ).apply { attachTo(messenger) }
+    }
 }

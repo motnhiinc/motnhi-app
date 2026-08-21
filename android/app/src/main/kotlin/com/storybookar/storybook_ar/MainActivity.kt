@@ -20,4 +20,11 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         scanAnyPageBridges?.onActivityResult(requestCode, resultCode, data)
     }
+
+    // ArCoreApk.requestInstall() hands its outcome back on resume, not through an activity
+    // result, so the reader bridge needs a resume signal to finish an install it started.
+    override fun onPostResume() {
+        super.onPostResume()
+        scanAnyPageBridges?.onHostResume()
+    }
 }
