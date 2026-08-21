@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -84,8 +86,14 @@ final scanServiceProvider = Provider<ScanService>((ref) => NativeScanService());
 final characterReaderProvider =
     Provider<CharacterReader>((ref) => NativeCharacterReader());
 
+final ttsTemporaryDirectoryProvider =
+    Provider<Directory Function()?>((ref) => null);
+
 final ttsClientProvider = Provider.autoDispose.family<TtsClient, Object>(
-  (ref, flowId) => HttpTtsClient(ref.watch(apiClientProvider)),
+  (ref, flowId) => HttpTtsClient(
+    ref.watch(apiClientProvider),
+    temporaryDirectory: ref.watch(ttsTemporaryDirectoryProvider),
+  ),
 );
 
 typedef ScanAnyPageDependencies = ({

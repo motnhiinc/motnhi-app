@@ -1,0 +1,39 @@
+package com.storybookar.storybook_ar
+
+import android.app.Activity
+import android.content.Intent
+import com.storybookar.storybook_ar.characterreader.CharacterReaderBridge
+import com.storybookar.storybook_ar.scananypage.ScanAnyPageBridge
+import io.flutter.plugin.common.BinaryMessenger
+
+class ScanAnyPageBridges private constructor(
+    private val scanner: ScanAnyPageBridge,
+    private val reader: CharacterReaderBridge,
+) {
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        scanner.onActivityResult(requestCode, resultCode, data)
+        reader.onActivityResult(requestCode, resultCode, data)
+    }
+
+    companion object {
+        const val SCANNER_REQUEST_CODE = 0x51A1
+        const val READER_REQUEST_CODE = 0x51A2
+        const val ARCORE_INSTALL_REQUEST_CODE = 0x51A3
+
+        fun register(activity: Activity, messenger: BinaryMessenger): ScanAnyPageBridges {
+            return ScanAnyPageBridges(
+                scanner = ScanAnyPageBridge(
+                    activity = activity,
+                    messenger = messenger,
+                    requestCode = SCANNER_REQUEST_CODE,
+                ),
+                reader = CharacterReaderBridge(
+                    activity = activity,
+                    messenger = messenger,
+                    readerRequestCode = READER_REQUEST_CODE,
+                    installRequestCode = ARCORE_INSTALL_REQUEST_CODE,
+                ),
+            )
+        }
+    }
+}

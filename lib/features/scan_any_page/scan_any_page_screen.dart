@@ -83,7 +83,8 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
           key: ValueKey('generatingAudio'),
           icon: Icons.graphic_eq_rounded,
           title: 'Giving your character a voice…',
-          message: 'Keep the Mac and iPad on the same Wi-Fi. The OpenAI key '
+          message:
+              'Keep your computer and this device on the same Wi-Fi. The OpenAI key '
               'stays on the backend and is never stored in this app.',
         );
       case ScanAnyPagePhase.readyForAr:
@@ -93,7 +94,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
           key: ValueKey('openingAr'),
           icon: Icons.view_in_ar_rounded,
           title: 'Opening character reader…',
-          message: 'Move the iPad slowly to find a flat surface.',
+          message: 'Move this device slowly to find a flat surface.',
         );
       case ScanAnyPagePhase.failure:
         return _failure(state, controller);
@@ -279,12 +280,12 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         icon = Icons.no_photography_rounded;
         title = 'Camera access is off';
         message = 'Camera access is required to scan a page. Allow camera '
-            'access in iPad Settings, then return and try again.';
+            'access in device settings, then return and try again.';
         primaryLabel = 'Try camera again';
       case 'camera_unavailable':
         icon = Icons.tablet_mac_rounded;
         title = 'The scanner is not available';
-        message = 'This demo requires a supported physical iPad with an '
+        message = 'This demo requires a supported physical device with an '
             'available camera.';
         primaryLabel = 'Try scanner again';
       case 'page_not_found':
@@ -299,7 +300,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       case 'capture_failed':
         icon = Icons.camera_alt_outlined;
         title = "We couldn't capture the page";
-        message = 'Hold the iPad steady over one well-lit page and keep all '
+        message = 'Hold this device steady over one well-lit page and keep all '
             'four corners in view.';
         primaryLabel = 'Scan again';
       case 'correction_failed':
@@ -362,15 +363,15 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       case 'connection_error':
         icon = Icons.wifi_off_rounded;
         title = "We couldn't reach the narration service";
-        message = 'Make sure the Mac backend is running and the Mac and iPad '
-            'are on the same Wi-Fi, then try again.';
+        message = 'Make sure the backend is running and your computer and this '
+            'device are on the same Wi-Fi, then try again.';
       case 'auth':
       case 'auth_failed':
       case 'authentication':
       case 'authentication_failed':
       case 'unauthorized':
         icon = Icons.lock_outline_rounded;
-        title = "We couldn't verify this iPad";
+        title = "We couldn't verify this device";
         message = 'The app could not renew access to the narration service. '
             'Your text is still here; try again.';
       case 'rate_limit':
@@ -475,7 +476,8 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       case 'ar_unsupported':
         icon = Icons.tablet_mac_rounded;
         title = 'AR is not available';
-        message = 'The character reader requires a physical iPad that supports '
+        message =
+            'The character reader requires a physical device that supports '
             'AR world tracking.';
         primaryLabel = 'Scan another page';
         onPrimary = controller.reset;
@@ -496,7 +498,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         icon = Icons.table_restaurant_outlined;
         title = "We couldn't find a flat surface";
         message =
-            'Use a well-lit table or floor and move the iPad slowly while '
+            'Use a well-lit table or floor and move this device slowly while '
             'the character reader looks for a surface.';
       case 'model_missing':
         icon = Icons.smart_toy_outlined;
