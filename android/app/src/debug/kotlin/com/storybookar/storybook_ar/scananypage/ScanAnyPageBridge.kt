@@ -3,7 +3,6 @@ package com.storybookar.storybook_ar.scananypage
 import android.app.Activity
 import android.content.Intent
 import android.content.IntentSender
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -114,15 +113,17 @@ class ScanAnyPageBridge(
     }
 
     private fun recognize(uri: Uri) {
-        val imageHeight = imageHeight(uri)
-        if (imageHeight <= 0) {
-            finishError("capture_failed")
-            return
-        }
-
         val image = try {
             InputImage.fromFilePath(activity, uri)
         } catch (_: Exception) {
+            finishError("capture_failed")
+            return
+        }
+        // Take the height from the InputImage, not from a second raw decode of the file. The
+        // bounding boxes are in this image's coordinate space, so the two agree by construction
+        // even when the JPEG carries an EXIF rotation that a raw bounds decode would ignore.
+        val imageHeight = image.height
+        if (imageHeight <= 0) {
             finishError("capture_failed")
             return
         }
@@ -144,18 +145,6 @@ class ScanAnyPageBridge(
                 recognizer.close()
                 finishError("ocr_failed")
             }
-    }
-
-    private fun imageHeight(uri: Uri): Int {
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        return try {
-            activity.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream, null, options)
-            }
-            options.outHeight
-        } catch (_: Exception) {
-            0
-        }
     }
 
     private fun finishSuccess(value: Any?) {

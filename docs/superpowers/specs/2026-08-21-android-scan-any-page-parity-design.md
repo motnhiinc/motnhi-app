@@ -483,6 +483,14 @@ Scanner codes are in §6.2. Character reader codes:
 | Session fails to start or loses tracking irrecoverably | Retain generated audio, offer retry | `ar_failed` |
 | `MediaPlayer` fails to prepare or play | Retain AR view, offer retry | `audio_failed` |
 | Dismissed after playback started at least once | Normal completion | `"completed"` |
+
+**Limit of the cancel/failure split.** The ordering the bridges control is exact: `resultCode` is
+checked before payload, so a cancel carrying no data is never misreported as a capture failure.
+What Android cannot recover is the other direction — a native activity that dies of an internal
+error exits `RESULT_CANCELED` with no extra, which is indistinguishable from a user backing out
+and is reported as `cancelled`. iOS distinguishes `camera_denied`; Android has no equivalent
+signal, because permissions are handled inside Google's scanner UI. Do not describe this as
+"cancel and failure are not conflated" without that qualifier.
 | Dismissed without playback ever starting | Benign return | `cancelled` |
 | A second call while one is in flight | Reject the newcomer | `reader_in_progress` |
 

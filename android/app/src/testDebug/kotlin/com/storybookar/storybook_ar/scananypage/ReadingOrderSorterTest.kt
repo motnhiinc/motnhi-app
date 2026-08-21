@@ -26,10 +26,14 @@ class ReadingOrderSorterTest {
 
     @Test
     fun comparesRowsAgainstFirstLineNotRunningCentroid() {
+        // C is within tolerance of B (0.009) and of the running centroid of A+B (0.019) but not
+        // of A (0.029), the row's first line. Both wrong rules therefore pull C into row one,
+        // where its smaller left sorts it ahead of A and yields "C\nA\nB". The margins are wide
+        // enough that float representation cannot flip a comparison at the 0.02 boundary.
         val lines = listOf(
             line("A", left = 100, top = 100, bottom = 100),
-            line("B", left = 200, top = 119, bottom = 119),
-            line("C", left = 300, top = 139, bottom = 139),
+            line("B", left = 200, top = 120, bottom = 120),
+            line("C", left = 50, top = 129, bottom = 129),
         )
 
         assertEquals("A\nB\nC", ReadingOrderSorter.join(lines, imageHeight = 1000))
