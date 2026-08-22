@@ -529,6 +529,66 @@ void main() {
     );
     await Directory(blockedTemporaryPath).delete();
   });
+
+  test('distinct file names do not clobber each other', () async {
+    final audio = Uint8List.fromList([1, 2, 3]);
+    final client = await _client(
+      temporaryDirectory,
+      (adapter) => adapter.onPost(
+        '/v1/tts',
+        (server) => server.reply(200, audio, headers: {
+          Headers.contentTypeHeader: ['audio/mpeg'],
+        }),
+      ),
+    );
+
+    final first = await client.generate('page one', fileName: 'narr_a.mp3');
+    final second = await client.generate('page two', fileName: 'narr_b.mp3');
+
+    expect(first.path, isNot(second.path));
+    expect(first.path, '${temporaryDirectory.path}/narr_a.mp3');
+    expect(second.path, '${temporaryDirectory.path}/narr_b.mp3');
+    expect(await first.exists(), isTrue);
+    expect(await second.exists(), isTrue);
+  });
+
+  test('dispose deletes every generated file', () async {
+    final audio = Uint8List.fromList([1, 2, 3]);
+    final client = await _client(
+      temporaryDirectory,
+      (adapter) => adapter.onPost(
+        '/v1/tts',
+        (server) => server.reply(200, audio, headers: {
+          Headers.contentTypeHeader: ['audio/mpeg'],
+        }),
+      ),
+    );
+
+    final first = await client.generate('one', fileName: 'narr_a.mp3');
+    final second = await client.generate('two', fileName: 'narr_b.mp3');
+    await client.dispose();
+
+    expect(await first.exists(), isFalse);
+    expect(await second.exists(), isFalse);
+  });
+
+  test('omitting fileName keeps the existing default name', () async {
+    final audio = Uint8List.fromList([1, 2, 3]);
+    final client = await _client(
+      temporaryDirectory,
+      (adapter) => adapter.onPost(
+        '/v1/tts',
+        (server) => server.reply(200, audio, headers: {
+          Headers.contentTypeHeader: ['audio/mpeg'],
+        }),
+      ),
+    );
+
+    final file = await client.generate('text');
+
+    expect(file.path, '${temporaryDirectory.path}/scan_any_page_narration.mp3');
+  });
+
 }
 
 Future<HttpTtsClient> _client(

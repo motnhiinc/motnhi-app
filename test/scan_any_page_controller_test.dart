@@ -364,7 +364,7 @@ final class _FakeTtsClient implements TtsClient {
   var disposeCount = 0;
 
   @override
-  Future<File> generate(String confirmedText) {
+  Future<File> generate(String confirmedText, {String? fileName}) {
     generatedTexts.add(confirmedText);
     return results.removeAt(0);
   }
