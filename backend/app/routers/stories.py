@@ -15,18 +15,18 @@ def library(
     age_band: str | None = None,
     language: str | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> LibraryResponse:
-    return LibraryResponse(stories=repo.list_published(db, age_band, language))
+    return LibraryResponse(stories=repo.list_published(db, user.id, age_band, language))
 
 
 @router.get("/{story_id}", response_model=StoryDetailResponse)
 def detail(
     story_id: str,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> StoryDetailResponse:
-    payload = repo.get_detail(db, story_id)
+    payload = repo.get_detail(db, user.id, story_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="story not found")
     return payload
