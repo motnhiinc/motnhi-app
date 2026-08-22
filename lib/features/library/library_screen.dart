@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +49,18 @@ class LibraryScreen extends ConsumerWidget {
         child: Column(
           children: [
             _ThemeFilterBar(selected: selectedTheme),
+            if (kDebugMode)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => context.push(AppRoutes.scanAnyPage),
+                    icon: const Icon(Icons.document_scanner_rounded),
+                    label: const Text('Scan any page'),
+                  ),
+                ),
+              ),
             Expanded(
               child: library.when(
                 loading: () => const LoadingView(message: 'Finding stories…'),

@@ -11,6 +11,7 @@ import '../../features/ar/ar_story_screen.dart';
 import '../../features/parental_gate/parental_gate_screen.dart';
 import '../../features/player/story_player_screen.dart';
 import '../../features/profile/profile_providers.dart';
+import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
 /// Route paths. `/gate` is deliberately NOT under `/parent` so guarding
@@ -21,6 +22,7 @@ abstract final class AppRoutes {
   static const gate = '/gate';
   static const parent = '/parent';
   static const settings = '/parent/settings';
+  static const scanAnyPage = '/scan-any-page';
 
   static String story(String id) => '/story/$id';
   static String scan(String storyId) => '/story/$storyId/scan';
@@ -63,6 +65,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.home,
         builder: (_, _) => const LibraryScreen(),
       ),
+      if (kDebugMode)
+        GoRoute(
+          path: AppRoutes.scanAnyPage,
+          builder: (_, _) => const ScanAnyPageScreen(),
+        ),
       GoRoute(
         path: '/story/:storyId',
         builder: (_, state) =>

@@ -13,7 +13,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>The camera is used only to show storybook characters in AR over the page. Camera images are processed on-device and never stored or uploaded.</string>
+	<string>The camera detects and reads a storybook page on-device and places a character in AR. Camera images are not uploaded or stored.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>The microphone is used only if a grown-up turns on voice answers for a question. It is off by default and recordings are not stored.</string>
 	<key>CFBundleDevelopmentRegion</key>

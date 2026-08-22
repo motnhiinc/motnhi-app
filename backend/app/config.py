@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     asset_url_ttl_seconds: int = 3600
     storage_dir: str = "storage"
     default_target_physical_width_mm: int = 210
+    openai_api_key: str = ""
+    openai_tts_model: str = "gpt-4o-mini-tts"
+    openai_tts_voice: str = "coral"
+    openai_tts_timeout_seconds: float = 30.0
 
 
 settings = Settings()

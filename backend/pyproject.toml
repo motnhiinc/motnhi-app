@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "pyjwt>=2.8",
+    "openai>=1.0",
 ]
 
 [dependency-groups]

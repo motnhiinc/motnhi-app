@@ -1,8 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Camera-preview AR scenes (§7.1.4) + optional voice answers (§7.1.5).
          Camera is marked not-required so devices without one can still install.
-         (Native ARCore image tracking is a later slice; its meta-data/feature
-         are added back when that plugin is wired.) -->
+         Debug-only ARCore metadata/features live in src/debug. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
