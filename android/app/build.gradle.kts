@@ -80,5 +80,11 @@ dependencies {
     // ship Compose in release for the sake of a debug-only feature.
     compileOnly(platform("androidx.compose:compose-bom:2026.05.01"))
     compileOnly("androidx.compose.runtime:runtime")
+    // buildFeatures.compose is module-wide, so the Compose compiler also runs over the
+    // release and profile UNIT TEST sources. compileOnly above does not propagate to the
+    // test classpath, and the plugin refuses to run without the runtime on it — which only
+    // surfaces once src/test actually contains something to compile.
+    testCompileOnly(platform("androidx.compose:compose-bom:2026.05.01"))
+    testCompileOnly("androidx.compose.runtime:runtime")
     testImplementation("junit:junit:4.13.2")
 }

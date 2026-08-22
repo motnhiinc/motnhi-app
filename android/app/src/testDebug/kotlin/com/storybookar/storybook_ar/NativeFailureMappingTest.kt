@@ -7,47 +7,15 @@ import com.storybookar.storybook_ar.characterreader.ArCoreAvailabilityMapper
 import com.storybookar.storybook_ar.characterreader.ArCoreInstallPolicy
 import com.storybookar.storybook_ar.characterreader.ArCoreInstallStep
 import com.storybookar.storybook_ar.characterreader.CharacterReaderResultMapper
-import com.storybookar.storybook_ar.scananypage.ScannerFailureMapper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/**
+ * ARCore character-reader mapping only. The scanner's cases moved to
+ * src/test/.../ScannerFailureMappingTest once the scanner shipped in release.
+ */
 class NativeFailureMappingTest {
-    @Test
-    fun mapsScannerActivityResultsByOrderedDecisionRule() {
-        assertNull(
-            ScannerFailureMapper.activityResultFailureCode(
-                resultCode = Activity.RESULT_OK,
-                hasParsedResult = true,
-                pageCount = 1,
-            ),
-        )
-        assertEquals(
-            "capture_failed",
-            ScannerFailureMapper.activityResultFailureCode(
-                resultCode = Activity.RESULT_OK,
-                hasParsedResult = false,
-                pageCount = 0,
-            ),
-        )
-        assertEquals(
-            "capture_failed",
-            ScannerFailureMapper.activityResultFailureCode(
-                resultCode = Activity.RESULT_OK,
-                hasParsedResult = true,
-                pageCount = 0,
-            ),
-        )
-        assertEquals(
-            "cancelled",
-            ScannerFailureMapper.activityResultFailureCode(
-                resultCode = Activity.RESULT_CANCELED,
-                hasParsedResult = true,
-                pageCount = 1,
-            ),
-        )
-    }
-
     @Test
     fun mapsReaderActivityResultsToContractCodes() {
         assertEquals(
