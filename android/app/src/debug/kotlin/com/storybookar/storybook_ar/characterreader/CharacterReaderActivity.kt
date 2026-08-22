@@ -1,32 +1,42 @@
 package com.storybookar.storybook_ar.characterreader
 
-import android.app.Activity
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
-import android.view.View
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import java.io.File
 import java.io.FileNotFoundException
 
-class CharacterReaderActivity : Activity() {
+class CharacterReaderActivity : ComponentActivity() {
+    private val ui = ReaderUiState()
     private var mediaPlayer: MediaPlayer? = null
     private var audioFocusRequest: AudioFocusRequest? = null
     private var legacyFocusHeld = false
     private var playbackStarted = false
+    private var placed = false
     private var terminal = false
-    private lateinit var guidanceLabel: TextView
-    private lateinit var readButton: Button
-    private lateinit var waveBadge: TextView
+
+    /**
+     * Registered at construction, before the activity is STARTED, as the Activity Result API
+     * requires. ARCore's built-in permission handler is not used: on denial it opens the app's
+     * system settings and never reports a failure, so the reader would sit on a black screen
+     * with Close as the only way out. iOS surfaces the same denial as `ar_failed`.
+     */
+    private val cameraPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) showScene() else finishWith("ar_failed")
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,12 +51,55 @@ class CharacterReaderActivity : Activity() {
             return
         }
 
-        configureView()
         prepareAudio(audioFile)
+        if (terminal) return
+
+        onBackPressedDispatcher.addCallback(this) {
+            finishWith(if (playbackStarted) "completed" else "cancelled")
+        }
+
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            showScene()
+        } else {
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
     }
 
-    override fun onBackPressed() {
-        finishWith(if (playbackStarted) "completed" else "cancelled")
+    private fun showScene() {
+        if (terminal) return
+        setContent {
+            CharacterReaderScreen(
+                state = ui,
+                modelAssetFileName = MODEL_FILENAME,
+                onFailure = ::finishWith,
+                onPlaced = {
+                    placed = true
+                    ui.guidance = GUIDANCE_READY
+                    ui.controlsVisible = true
+                },
+                onReadClick = ::togglePlayback,
+                onCloseClick = {
+                    finishWith(if (playbackStarted) "completed" else "cancelled")
+                },
+            )
+        }
+    }
+
+    /**
+     * Narration must not keep playing over the launcher or lock screen. The AR session pauses
+     * itself (ARSceneView registers its own lifecycle observers); the audio does not. iOS pauses
+     * it in applicationWillResignActive.
+     */
+    override fun onPause() {
+        super.onPause()
+        if (terminal) return
+        val player = mediaPlayer ?: return
+        if (!player.isPlaying) return
+        player.pause()
+        abandonAudioFocus()
+        ui.guidance = "Reading paused"
+        ui.readLabel = "Resume"
+        ui.speaking = false
     }
 
     override fun onDestroy() {
@@ -54,69 +107,27 @@ class CharacterReaderActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun configureView() {
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(0xFF000000.toInt())
-        }
-        val controls = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(32, 32, 32, 32)
-        }
-        guidanceLabel = TextView(this).apply {
-            text = "Character ready"
-            setTextColor(0xFFFFFFFF.toInt())
-            textSize = 20f
-            gravity = Gravity.CENTER
-        }
-        waveBadge = TextView(this).apply {
-            text = "Reading aloud"
-            setTextColor(0xFFFFFFFF.toInt())
-            visibility = View.GONE
-            gravity = Gravity.CENTER
-        }
-        readButton = Button(this).apply {
-            text = "Read"
-            setOnClickListener { togglePlayback() }
-        }
-        val closeButton = Button(this).apply {
-            text = "Close"
-            setOnClickListener {
-                finishWith(if (playbackStarted) "completed" else "cancelled")
-            }
-        }
-        controls.addView(guidanceLabel)
-        controls.addView(waveBadge)
-        controls.addView(readButton)
-        controls.addView(closeButton)
-        root.addView(
-            controls,
-            FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.CENTER,
-            ),
-        )
-        setContentView(root)
-    }
-
     private fun prepareAudio(audioFile: File) {
+        // Assigned before configuration so that a throw part-way through still leaves the native
+        // player reachable for releaseAudio() on the audio_failed path.
+        val player = MediaPlayer()
+        mediaPlayer = player
         try {
-            mediaPlayer = MediaPlayer().apply {
+            player.apply {
                 setAudioAttributes(speechAttributes())
                 setDataSource(audioFile.path)
                 setOnCompletionListener {
                     abandonAudioFocus()
                     seekTo(0)
-                    guidanceLabel.text = "Reading complete"
-                    readButton.text = "Read"
-                    waveBadge.visibility = View.GONE
+                    ui.guidance = "Reading complete"
+                    ui.readLabel = "Read"
+                    ui.speaking = false
                 }
                 setOnErrorListener { _, _, _ ->
                     abandonAudioFocus()
-                    guidanceLabel.text = "Audio couldn't play - Tap Retry"
-                    readButton.text = "Retry"
-                    waveBadge.visibility = View.GONE
+                    ui.guidance = "Audio couldn't play - Tap Retry"
+                    ui.readLabel = "Retry"
+                    ui.speaking = false
                     true
                 }
                 prepare()
@@ -127,34 +138,35 @@ class CharacterReaderActivity : Activity() {
     }
 
     private fun togglePlayback() {
+        if (!placed) return
         val player = mediaPlayer ?: return
         if (player.isPlaying) {
             player.pause()
             abandonAudioFocus()
-            guidanceLabel.text = "Reading paused"
-            readButton.text = "Resume"
-            waveBadge.visibility = View.GONE
+            ui.guidance = "Reading paused"
+            ui.readLabel = "Resume"
+            ui.speaking = false
             return
         }
 
         if (!requestAudioFocus()) {
-            guidanceLabel.text = "Audio couldn't play - Tap Retry"
-            readButton.text = "Retry"
-            waveBadge.visibility = View.GONE
+            ui.guidance = "Audio couldn't play - Tap Retry"
+            ui.readLabel = "Retry"
+            ui.speaking = false
             return
         }
 
         try {
             player.start()
             playbackStarted = true
-            guidanceLabel.text = "Reading aloud"
-            readButton.text = "Pause"
-            waveBadge.visibility = View.VISIBLE
+            ui.guidance = "Reading aloud"
+            ui.readLabel = "Pause"
+            ui.speaking = true
         } catch (_: IllegalStateException) {
             abandonAudioFocus()
-            guidanceLabel.text = "Audio couldn't play - Tap Retry"
-            readButton.text = "Retry"
-            waveBadge.visibility = View.GONE
+            ui.guidance = "Audio couldn't play - Tap Retry"
+            ui.readLabel = "Retry"
+            ui.speaking = false
         }
     }
 
@@ -163,9 +175,9 @@ class CharacterReaderActivity : Activity() {
             focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
         ) {
             mediaPlayer?.pause()
-            guidanceLabel.text = "Reading paused"
-            readButton.text = "Resume"
-            waveBadge.visibility = View.GONE
+            ui.guidance = "Reading paused"
+            ui.readLabel = "Resume"
+            ui.speaking = false
         }
     }
 

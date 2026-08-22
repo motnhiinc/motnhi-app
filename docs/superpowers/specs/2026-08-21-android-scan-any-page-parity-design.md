@@ -305,11 +305,52 @@ it.
   `requestInstall()` drives the Play Services for AR installation flow; a user decline maps to
   `cancelled`, not `ar_unsupported`. That flow is resume-driven and bounded — see §5.2.2.
 - **Rendering.** ARCore with SceneView (`io.github.sceneview:arsceneview`): horizontal plane
-  finding, tap-to-place anchor, `.glb` model with an idle animation.
+  finding, tap-to-place anchor, `.glb` model with an idle animation. **This requires Compose** —
+  see §7.1.1. The model is loaded off the main thread, scaled to 0.35 m on its largest axis and
+  seated on the plane (`scaleToUnits` + `centerOrigin`), and its first animation auto-plays.
+  Placement guidance is recomputed from the session's tracked planes every frame, so it reverts
+  when tracking is lost, as on iOS.
 - **Audio.** `MediaPlayer` on the supplied mp3, guarded by an `AudioFocusRequest`. This is the
   Android counterpart of the AVAudioSession interruption handling added for iOS in `501c43b`.
-- **Speaking indicator.** A View overlay above the `ARSceneView`, matching iOS, which also uses
-  a UIView overlay rather than blend shapes.
+- **Speaking indicator.** A Compose overlay above the scene, matching iOS, which also uses a
+  UIView overlay rather than blend shapes. Android's is **static**: present and driven by the
+  same playback state, but it does not animate. Android also has no 3D placement reticle; it
+  relies on SceneView's plane visualisation instead. Both are accepted cosmetic divergences.
+- **Camera permission.** Requested by the reader activity before the scene is shown, and a
+  denial replies `ar_failed`. SceneView's own permission handler is deliberately not used: on
+  denial it opens the app's system settings and never reports a failure, which would strand the
+  reader on a black screen with Close as the only exit. iOS surfaces the same denial as
+  `ar_failed`.
+- **Backgrounding.** The AR session pauses and resumes itself — `ARSceneView` registers its own
+  lifecycle observers. Audio does not, so the activity pauses playback in `onPause`, matching
+  iOS's `applicationWillResignActive`. Without that the narration keeps playing over the
+  launcher or lock screen.
+
+### 7.1.1 SceneView 4.x is Compose-only
+
+There is no `ARSceneView` **class**. In 4.18.0, both `ARScene` and `ARSceneView` are
+`@Composable` functions, and neither `arsceneview` nor `sceneview` contains any
+`android.view.*` subclass. An earlier draft of this design assumed a View that could be added to
+the reader activity's layout; no such API exists at any 4.x version. Rendering the character
+therefore requires:
+
+- the `org.jetbrains.kotlin.plugin.compose` plugin and `buildFeatures { compose = true }`, and
+- `CharacterReaderActivity` extending `androidx.activity.ComponentActivity` rather than
+  `android.app.Activity`, so it can call `setContent`.
+
+**Both of those are module-wide, not per-variant.** AGP and the Kotlin Compose plugin expose no
+per-variant toggle, so the Compose compiler also runs over the release and profile sources, and
+it refuses to run without the Compose runtime on the compile classpath. Every real Compose
+dependency is `debugImplementation`, so the runtime is added back as `compileOnly` for all
+variants: enough to satisfy the compiler, not enough to ship. Verified against the release APK —
+its dex contains no SceneView, ARCore, ML Kit or reader classes, and the only Compose reference
+is the `@StabilityInferred` annotation type, which has `CLASS` retention and is therefore never
+resolved at runtime.
+
+The trade-off to know about: because the runtime is `compileOnly` rather than absent, a
+`@Composable` accidentally added to `main/` or `release/` sources now compiles cleanly and fails
+later instead of immediately. The alternative — a separate debug-only Gradle module with Compose
+enabled — keeps that guardrail but is a larger restructure.
 - **Explicit read control, pause and resume**, matching iOS.
 
 ### 7.2 Completion semantics

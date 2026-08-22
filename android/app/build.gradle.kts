@@ -1,6 +1,12 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
+    // SceneView 4.x exposes ARScene only as a @Composable; neither arsceneview nor
+    // sceneview contains an Android View subclass. Rendering the character therefore
+    // requires Compose. The plugin and buildFeatures flag below are module-wide, not
+    // per-variant: the Compose compiler runs for release too. It emits nothing there,
+    // because every Compose dependency and every @Composable is debug-only.
+    id("org.jetbrains.kotlin.plugin.compose")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -30,6 +36,10 @@ android {
         versionName = flutter.versionName
     }
 
+    buildFeatures {
+        compose = true
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -53,5 +63,19 @@ dependencies {
     // whose 2.4.0 metadata this compiler rejects, which fails the build.
     // Raising this version requires bumping the Kotlin plugin first.
     debugImplementation("io.github.sceneview:arsceneview:4.18.0")
+    // arsceneview already brings compose-bom, compose.ui and compose.foundation
+    // transitively. This is only for ComponentActivity.setContent.
+    debugImplementation("androidx.activity:activity-compose:1.9.3")
+    debugImplementation(platform("androidx.compose:compose-bom:2026.05.01"))
+    debugImplementation("androidx.compose.ui:ui")
+    debugImplementation("androidx.compose.foundation:foundation")
+    // buildFeatures.compose is module-wide, so the Compose compiler also runs over the
+    // release and profile sources, and it refuses to run without the Compose runtime on
+    // the compile classpath. compileOnly satisfies that check for every variant without
+    // putting Compose into the release APK: no release or profile source references a
+    // @Composable, so nothing is needed at runtime. Keeping this as implementation would
+    // ship Compose in release for the sake of a debug-only feature.
+    compileOnly(platform("androidx.compose:compose-bom:2026.05.01"))
+    compileOnly("androidx.compose.runtime:runtime")
     testImplementation("junit:junit:4.13.2")
 }
