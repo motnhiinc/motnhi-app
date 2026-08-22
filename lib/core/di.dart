@@ -24,6 +24,7 @@ import '../features/scan_any_page/native_character_reader.dart';
 import '../features/scan_any_page/native_scan_service.dart';
 import '../features/scan_any_page/scan_any_page_controller.dart';
 import '../features/scan_any_page/tts_client.dart';
+import '../features/story_composer/story_composer_controller.dart';
 import 'api_config.dart';
 
 /// Provides the [KeyValueStore]. Overridden in `main()` with the instance built
@@ -117,5 +118,14 @@ final scanAnyPageControllerProvider = NotifierProvider.autoDispose
     scanService: dependencies.scanService,
     ttsClient: dependencies.ttsClient,
     characterReader: dependencies.characterReader,
+  ),
+);
+
+final storyComposerControllerProvider = NotifierProvider.autoDispose.family<
+    StoryComposerController, StoryComposerState, StoryComposerDependencies>(
+  (dependencies) => StoryComposerController(
+    scanService: dependencies.scanService,
+    repository: dependencies.repository,
+    languageCode: dependencies.languageCode,
   ),
 );
