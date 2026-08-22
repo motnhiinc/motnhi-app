@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import 'authored_stories_section.dart';
 import '../../data/models/models.dart';
 import '../../shared/widgets/async_views.dart';
 import '../library/story_cover.dart';
@@ -56,6 +57,7 @@ class ParentDashboardScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _StoryStrip(stories: s.recommended),
+            const AuthoredStoriesSection(),
           ],
         ),
       ),
