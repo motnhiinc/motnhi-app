@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -46,3 +46,14 @@ def create(
     if repo.count_authored(db, user.id) >= repo.MAX_AUTHORED_PER_USER:
         raise HTTPException(status_code=409, detail="authored story limit reached")
     return repo.create_authored(db, user.id, body)
+
+
+@router.delete("/{story_id}", status_code=204)
+def delete(
+    story_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    if not repo.delete_authored(db, user.id, story_id):
+        raise HTTPException(status_code=404, detail="story not found")
+    return Response(status_code=204)

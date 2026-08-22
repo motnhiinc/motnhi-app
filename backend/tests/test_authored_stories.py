@@ -1,7 +1,15 @@
 import uuid as _uuid
 
+from sqlalchemy import select
+
 from app.auth import decode_token
-from app.models import Story
+from app.models import (
+    InteractionEvent,
+    NarrationSegment,
+    Story,
+    StoryPage,
+    StorySession,
+)
 
 
 def _auth(client, device_id="d1"):
@@ -212,3 +220,61 @@ def test_create_enforces_story_cap(client, db, seeded):
         _make_authored(db, uid)
     db.flush()
     assert client.post("/v1/stories", json=_payload(), headers=headers).status_code == 409
+
+
+def test_delete_after_reading_succeeds_and_clears_sessions(client, db, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
+    profile = _profile_for(client, headers)
+
+    # Read it exactly as the player does: this creates a story_session and a
+    # story_started interaction_event, which is what breaks a naive delete.
+    session = client.post(
+        "/v1/story-sessions",
+        json={"child_profile_id": profile["id"], "story_id": story_id},
+        headers=headers,
+    ).json()
+    assert db.get(StorySession, session["id"]) is not None
+
+    resp = client.delete(f"/v1/stories/{story_id}", headers=headers)
+    assert resp.status_code == 204
+
+    assert db.get(StorySession, session["id"]) is None
+    assert list(db.scalars(
+        select(InteractionEvent).where(
+            InteractionEvent.story_session_id == session["id"]
+        )
+    )) == []
+    assert client.get(f"/v1/stories/{story_id}", headers=headers).status_code == 404
+
+
+def test_delete_cascades_pages_and_segments(client, db, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
+    assert client.delete(f"/v1/stories/{story_id}", headers=headers).status_code == 204
+    assert list(db.scalars(
+        select(StoryPage).where(StoryPage.story_id == story_id)
+    )) == []
+    assert list(db.scalars(
+        select(NarrationSegment).where(NarrationSegment.story_id == story_id)
+    )) == []
+
+
+def test_delete_is_owner_only(client, seeded):
+    _, owner_headers = _user_id_for(client, "owner-device")
+    story_id = client.post("/v1/stories", json=_payload(), headers=owner_headers).json()["id"]
+    _, other_headers = _user_id_for(client, "other-device")
+    assert client.delete(f"/v1/stories/{story_id}", headers=other_headers).status_code == 404
+    assert client.get(f"/v1/stories/{story_id}", headers=owner_headers).status_code == 200
+
+
+def test_delete_rejects_curated_story(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    curated_id = client.get("/v1/stories", headers=headers).json()["stories"][0]["id"]
+    assert client.delete(f"/v1/stories/{curated_id}", headers=headers).status_code == 404
+    assert client.get(f"/v1/stories/{curated_id}", headers=headers).status_code == 200
+
+
+def test_delete_unknown_story_404s(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    assert client.delete(f"/v1/stories/{_uuid.uuid4()}", headers=headers).status_code == 404

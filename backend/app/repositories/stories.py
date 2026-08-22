@@ -4,7 +4,15 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import ArScene, NarrationSegment, Question, Story, StoryPage
+from app.models import (
+    ArScene,
+    InteractionEvent,
+    NarrationSegment,
+    Question,
+    Story,
+    StoryPage,
+    StorySession,
+)
 
 # Age bands -> (min, max) per enums.dart
 _BANDS = {"3-4": (3, 4), "5-6": (5, 6), "7-8": (7, 8)}
@@ -101,3 +109,36 @@ def create_authored(db: Session, user_id: str, payload) -> Story:
     db.commit()
     db.refresh(story)
     return story
+
+
+def delete_authored(db: Session, user_id: str, story_id: str) -> bool:
+    """Delete a story the user authored.
+
+    Returns False when the story is unknown, curated, or owned by someone else;
+    the router turns that into a 404 rather than a 403, so the endpoint never
+    confirms that an id exists.
+    """
+    story = db.get(Story, story_id)
+    if story is None or story.owner_user_id != user_id:
+        return False
+
+    # story_sessions.story_id is a bare FK with no ondelete, and Story has no
+    # ORM relationship to StorySession, so nothing cascades here. Clear the
+    # sessions and their events first or Postgres raises an IntegrityError for
+    # any story that was ever opened in the player.
+    session_ids = list(db.scalars(
+        select(StorySession.id).where(StorySession.story_id == story_id)
+    ))
+    if session_ids:
+        db.query(InteractionEvent).filter(
+            InteractionEvent.story_session_id.in_(session_ids)
+        ).delete(synchronize_session=False)
+        db.query(StorySession).filter(
+            StorySession.id.in_(session_ids)
+        ).delete(synchronize_session=False)
+
+    # pages / segments / ar_scenes / questions go via the cascade="all,
+    # delete-orphan" relationships declared on the Story model.
+    db.delete(story)
+    db.commit()
+    return True
