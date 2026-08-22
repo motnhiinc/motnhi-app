@@ -8,9 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/repositories/http_profile_repository.dart';
 import 'package:storybook_ar/data/repositories/http_session_repository.dart';
+import 'package:storybook_ar/data/repositories/authored_story_repository.dart';
+import 'package:storybook_ar/data/repositories/http_authored_story_repository.dart';
 import 'package:storybook_ar/data/repositories/http_story_repository.dart';
 import 'package:storybook_ar/data/sources/api_client.dart';
 import 'package:storybook_ar/data/sources/key_value_store.dart';
+import 'package:storybook_ar/features/story_composer/story_draft.dart';
 
 /// Creates a [Dio] + [DioAdapter] pair configured by [wire].
 /// Uses [UrlRequestMatcher] so mock routes match by path only.
@@ -404,6 +407,138 @@ void main() {
     expect(session.id, 'sess1');
     expect(session.mode, SessionMode.bedtime);
   });
+
+  // ---------------------------------------------------------------------------
+  // HttpAuthoredStoryRepository (capture-to-story)
+  // ---------------------------------------------------------------------------
+
+  Future<ApiClient> authedApi(void Function(DioAdapter) wire) async {
+    SharedPreferences.setMockInitialValues({
+      'device_id': 'd1',
+      'auth_token': 'tok',
+      'device_secret': 'sec',
+    });
+    final store = await KeyValueStore.create();
+    final (dio, _) = _mockDio(wire);
+    return ApiClient(dio: dio, store: store, authDio: dio);
+  }
+
+  test('createStory posts contiguous page numbers taken from list order',
+      () async {
+    Map<String, dynamic>? captured;
+    final api = await authedApi((a) {
+      a.onPost(
+        '/v1/stories',
+        (s) => s.reply(201, {
+          'id': 'new-id',
+          'title': 'My Book',
+          'slug': 'authored-x',
+          'age_min': 3,
+          'age_max': 8,
+          'language_code': 'en',
+          'duration_seconds': 60,
+          'content_status': 'published',
+          'themes': <String>[],
+          'is_authored': true,
+        }),
+        data: Matchers.any,
+      );
+    });
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      captured = options.data as Map<String, dynamic>;
+      handler.next(options);
+    }));
+
+    final story = await HttpAuthoredStoryRepository(api).createStory(
+      const StoryDraft(
+        title: '  My Book  ',
+        pages: [
+          DraftPage(localId: 'a', text: 'page one'),
+          DraftPage(localId: 'b', text: 'page two'),
+        ],
+      ),
+    );
+
+    expect(captured!['title'], 'My Book');
+    expect(
+      (captured!['pages'] as List).map((p) => p['page_number']).toList(),
+      [1, 2],
+    );
+    expect(story.id, 'new-id');
+    expect(story.isAuthored, isTrue);
+  });
+
+  test('createStory maps a 409 to quota_reached', () async {
+    final api = await authedApi((a) {
+      a.onPost('/v1/stories', (s) => s.reply(409, {'detail': 'limit'}),
+          data: Matchers.any);
+    });
+
+    await expectLater(
+      HttpAuthoredStoryRepository(api).createStory(
+        const StoryDraft(
+          title: 'T',
+          pages: [DraftPage(localId: 'a', text: 'x')],
+        ),
+      ),
+      throwsA(isA<AuthoredStoryFailure>()
+          .having((e) => e.code, 'code', 'quota_reached')),
+    );
+  });
+
+  test('createStory maps a 422 to invalid_story', () async {
+    final api = await authedApi((a) {
+      a.onPost('/v1/stories', (s) => s.reply(422, {'detail': 'bad'}),
+          data: Matchers.any);
+    });
+
+    await expectLater(
+      HttpAuthoredStoryRepository(api).createStory(
+        const StoryDraft(
+          title: 'T',
+          pages: [DraftPage(localId: 'a', text: 'x')],
+        ),
+      ),
+      throwsA(isA<AuthoredStoryFailure>()
+          .having((e) => e.code, 'code', 'invalid_story')),
+    );
+  });
+
+  test('deleteStory treats a 404 as success', () async {
+    final api = await authedApi((a) {
+      a.onDelete('/v1/stories/gone', (s) => s.reply(404, {'detail': 'nope'}));
+    });
+
+    await expectLater(
+      HttpAuthoredStoryRepository(api).deleteStory('gone'),
+      completes,
+    );
+  });
+
+  test('deleteStory surfaces a real failure', () async {
+    final api = await authedApi((a) {
+      a.onDelete('/v1/stories/s1', (s) => s.reply(500, {'detail': 'boom'}));
+    });
+
+    await expectLater(
+      HttpAuthoredStoryRepository(api).deleteStory('s1'),
+      throwsA(isA<AuthoredStoryFailure>()),
+    );
+  });
+
+  test('StoryDraft renumbers pages from list order after a removal', () {
+    const draft = StoryDraft(
+      title: 'T',
+      pages: [
+        DraftPage(localId: 'b', text: 'second'),
+        DraftPage(localId: 'c', text: 'third'),
+      ],
+    );
+    final pages = draft.toJson()['pages'] as List;
+    expect(pages.map((p) => p['page_number']).toList(), [1, 2]);
+    expect(pages.first['page_text'], 'second');
+  });
+
 }
 
 // ---------------------------------------------------------------------------

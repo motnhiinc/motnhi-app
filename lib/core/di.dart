@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/image_target_manifest.dart';
+import '../data/repositories/authored_story_repository.dart';
+import '../data/repositories/http_authored_story_repository.dart';
 import '../data/repositories/http_profile_repository.dart';
 import '../data/repositories/http_session_repository.dart';
 import '../data/repositories/http_story_repository.dart';
@@ -63,6 +65,13 @@ final pageDetectorProvider =
 
 final storyRepositoryProvider = Provider<StoryRepository>(
   (ref) => HttpStoryRepository(ref.watch(apiClientProvider)),
+);
+
+/// Write access for stories captured in-app (POST/DELETE /v1/stories). Reads
+/// still go through [storyRepositoryProvider] — authored stories come back in
+/// the normal library payload.
+final authoredStoryRepositoryProvider = Provider<AuthoredStoryRepository>(
+  (ref) => HttpAuthoredStoryRepository(ref.watch(apiClientProvider)),
 );
 
 final profileRepositoryProvider = Provider<ProfileRepository>(
