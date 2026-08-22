@@ -8,7 +8,7 @@
 # It will:
 #   1. Ensure Docker is installed (offers to install on Ubuntu).
 #   2. Create ./.env with generated secrets if missing, then stop so you can
-#      set DOMAIN + ACME_EMAIL.
+#      set DOMAIN + ACME_EMAIL + OPENAI_API_KEY.
 #   3. Refuse to run with dev-default / placeholder secrets.
 #   4. Build and start caddy + api + db.
 #   5. Wait for the API to become healthy.
@@ -51,7 +51,7 @@ if [ ! -f "$ENV_FILE" ]; then
   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   log "Secrets generated into $ENV_FILE."
-  die "Now edit $ENV_FILE — set DOMAIN and ACME_EMAIL — then re-run ./deploy.sh"
+  die "Now edit $ENV_FILE — set DOMAIN, ACME_EMAIL and OPENAI_API_KEY — then re-run ./deploy.sh"
 fi
 
 # --- 3. Validate secrets/config ----------------------------------------------
@@ -64,6 +64,9 @@ set -a; . "./$ENV_FILE"; set +a
 [ -n "${JWT_SECRET:-}" ]        && [ "$JWT_SECRET" != "$DEV_JWT" ]     && [ "$JWT_SECRET" != "CHANGE_ME" ]     || die "JWT_SECRET is unset, dev-default, or CHANGE_ME. Generate: openssl rand -hex 32"
 [ -n "${ASSET_URL_SECRET:-}" ]  && [ "$ASSET_URL_SECRET" != "$DEV_ASSET" ] && [ "$ASSET_URL_SECRET" != "CHANGE_ME" ] || die "ASSET_URL_SECRET is unset, dev-default, or CHANGE_ME. Generate: openssl rand -hex 32"
 [ -n "${POSTGRES_PASSWORD:-}" ] && [ "$POSTGRES_PASSWORD" != "CHANGE_ME" ] || die "POSTGRES_PASSWORD is unset or CHANGE_ME. Generate: openssl rand -hex 32"
+# Unlike the secrets above this one cannot be generated — it is an external
+# credential. Checked here so a bad deploy fails now, not silently at /v1/tts.
+[ -n "${OPENAI_API_KEY:-}" ]    && [ "$OPENAI_API_KEY" != "CHANGE_ME" ] || die "OPENAI_API_KEY is unset or CHANGE_ME. Required by POST /v1/tts (scan-any-page narration); there is no default. Get one at https://platform.openai.com/api-keys"
 
 log "Config looks good. Deploying to https://${DOMAIN}"
 

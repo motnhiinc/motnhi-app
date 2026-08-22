@@ -17,6 +17,11 @@ touches your server automatically.
    ```bash
    sudo ufw allow 80,443/tcp   # if ufw is enabled
    ```
+4. An **OpenAI API key**. `POST /v1/tts` proxies to OpenAI to narrate a scanned
+   page; there is no default and no local fallback. Without a valid key that
+   endpoint returns **502 on every request** while `/health`, the story list and
+   TLS all stay green — so the break is invisible until someone scans a page on
+   a device. Use a restricted project key scoped to `/v1/audio/speech`.
 
 ## Steps
 
@@ -29,12 +34,14 @@ cd app-book/backend/deploy
 ```
 
 First run creates `.env` with **generated secrets** and stops so you can set the
-two values only you know:
+three values only you know:
 
 ```bash
-nano .env        # set DOMAIN=api.yourdomain.com and ACME_EMAIL=you@...
+nano .env        # DOMAIN=api.yourdomain.com, ACME_EMAIL=you@..., OPENAI_API_KEY=sk-...
 ./deploy.sh      # run again — builds, starts, waits for health, seeds stories
 ```
+
+`deploy.sh` refuses to deploy while any of the three is still a placeholder.
 
 When it finishes:
 
@@ -42,16 +49,24 @@ When it finishes:
 curl -sS https://api.yourdomain.com/health   # -> {"status":"ok"}
 ```
 
-## Point the Android app at it
+## Point the app at it
 
 ```bash
+# Android
 flutter build apk --dart-define=API_BASE_URL=https://api.yourdomain.com
-# or, to run on a connected device:
+
+# iOS
+flutter build ipa --dart-define=API_BASE_URL=https://api.yourdomain.com
+
+# or, to run on a connected device (either platform):
 flutter run --dart-define=API_BASE_URL=https://api.yourdomain.com
 ```
 
-No Android native changes are needed — the URL is HTTPS, which Android permits
-by default.
+No native changes are needed on either platform — the URL is HTTPS, which
+Android permits by default and which satisfies iOS App Transport Security.
+
+`API_BASE_URL` is not optional for a release build: `resolveApiBaseUrl()` throws
+unless it is an explicit HTTPS URL with a non-loopback host.
 
 ## Adding narration audio later
 

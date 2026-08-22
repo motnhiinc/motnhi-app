@@ -37,6 +37,12 @@ services:
       ASSET_URL_SECRET: ${ASSET_URL_SECRET:?set ASSET_URL_SECRET in .env}
       ASSET_URL_TTL_SECONDS: ${ASSET_URL_TTL_SECONDS:-3600}
       STORAGE_DIR: storage
+      # TTS proxy (POST /v1/tts). Compose forwards ONLY what is named here, so
+      # putting the key in .env is not enough on its own — it must be listed.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env}
+      OPENAI_TTS_MODEL: ${OPENAI_TTS_MODEL:-gpt-4o-mini-tts}
+      OPENAI_TTS_VOICE: ${OPENAI_TTS_VOICE:-coral}
+      OPENAI_TTS_TIMEOUT_SECONDS: ${OPENAI_TTS_TIMEOUT_SECONDS:-30}
     volumes:
       # Audio binaries live on the host so `register_assets.py` picks up files
       # you scp in later, and they survive image rebuilds. Maps to backend/storage.
