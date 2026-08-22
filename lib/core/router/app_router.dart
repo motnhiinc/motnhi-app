@@ -13,6 +13,7 @@ import '../../features/player/story_player_screen.dart';
 import '../../features/profile/profile_providers.dart';
 import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/story_composer/story_composer_screen.dart';
 
 /// Route paths. `/gate` is deliberately NOT under `/parent` so guarding
 /// `/parent*` never traps the gate itself in a redirect loop.
@@ -23,6 +24,7 @@ abstract final class AppRoutes {
   static const parent = '/parent';
   static const settings = '/parent/settings';
   static const scanAnyPage = '/scan-any-page';
+  static const createStory = '/create-story';
 
   static String story(String id) => '/story/$id';
   static String scan(String storyId) => '/story/$storyId/scan';
@@ -70,6 +72,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.scanAnyPage,
           builder: (_, _) => const ScanAnyPageScreen(),
         ),
+      // Not kDebugMode-gated: capture-to-story ships in release builds.
+      GoRoute(
+        path: AppRoutes.createStory,
+        builder: (_, _) => const StoryComposerScreen(),
+      ),
       GoRoute(
         path: '/story/:storyId',
         builder: (_, state) =>

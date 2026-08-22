@@ -31,6 +31,11 @@ class LibraryScreen extends ConsumerWidget {
             : "${profile!.nickname}'s Stories"),
         actions: [
           IconButton(
+            tooltip: 'Create a story',
+            icon: const Icon(Icons.add_a_photo_outlined),
+            onPressed: () => context.push(AppRoutes.createStory),
+          ),
+          IconButton(
             tooltip: 'Bedtime mode',
             icon: Icon(bedtime
                 ? Icons.bedtime_rounded
@@ -161,6 +166,28 @@ class _StoryCard extends StatelessWidget {
                       right: 8,
                       child: Icon(Icons.download_done_rounded,
                           color: Colors.white),
+                    ),
+                  if (story.isAuthored)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          child: Text(
+                            'Made by you',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: theme.colorScheme.onSecondaryContainer,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                 ],
               ),
