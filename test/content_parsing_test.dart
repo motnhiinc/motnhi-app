@@ -59,4 +59,20 @@ void main() {
       }
     });
   }
+
+  test('Story.isAuthored defaults to false and decodes is_authored', () {
+    const base = {
+      'id': 's1',
+      'title': 'T',
+      'slug': 'authored-abc',
+      'age_min': 3,
+      'age_max': 8,
+      'language_code': 'en',
+      'duration_seconds': 60,
+      'content_status': 'published',
+      'themes': <String>[],
+    };
+    expect(Story.fromJson({...base}).isAuthored, isFalse);
+    expect(Story.fromJson({...base, 'is_authored': true}).isAuthored, isTrue);
+  });
 }

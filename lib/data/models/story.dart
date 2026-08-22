@@ -35,6 +35,11 @@ abstract class Story with _$Story {
     /// premium/publisher-code stories stay locked until entitled (§5.7).
     @Default(false) bool isDownloaded,
     @Default(true) bool isUnlocked,
+
+    /// True when this story was captured in-app by the user rather than
+    /// curated (server-side `owner_user_id IS NOT NULL`). Gates the per-read
+    /// narration fetcher in the player.
+    @Default(false) bool isAuthored,
   }) = _Story;
 
   factory Story.fromJson(Map<String, dynamic> json) => _$StoryFromJson(json);

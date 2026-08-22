@@ -27,6 +27,7 @@ _Story _$StoryFromJson(Map<String, dynamic> json) => _Story(
       const <StoryTheme>[],
   isDownloaded: json['is_downloaded'] as bool? ?? false,
   isUnlocked: json['is_unlocked'] as bool? ?? true,
+  isAuthored: json['is_authored'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$StoryToJson(_Story instance) => <String, dynamic>{
@@ -44,6 +45,7 @@ Map<String, dynamic> _$StoryToJson(_Story instance) => <String, dynamic>{
   'themes': instance.themes.map((e) => _$StoryThemeEnumMap[e]!).toList(),
   'is_downloaded': instance.isDownloaded,
   'is_unlocked': instance.isUnlocked,
+  'is_authored': instance.isAuthored,
 };
 
 const _$ContentStatusEnumMap = {

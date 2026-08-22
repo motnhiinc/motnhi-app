@@ -20,7 +20,10 @@ mixin _$Story {
  String? get coverAssetId; ContentStatus get contentStatus; String? get rightsOwnerId;/// Theme tags for browsing (§7.1.1).
  List<StoryTheme> get themes;/// Client/runtime flags (§11.1). Local impl unlocks all demo content;
 /// premium/publisher-code stories stay locked until entitled (§5.7).
- bool get isDownloaded; bool get isUnlocked;
+ bool get isDownloaded; bool get isUnlocked;/// True when this story was captured in-app by the user rather than
+/// curated (server-side `owner_user_id IS NOT NULL`). Gates the per-read
+/// narration fetcher in the player.
+ bool get isAuthored;
 /// Create a copy of Story
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -33,16 +36,16 @@ $StoryCopyWith<Story> get copyWith => _$StoryCopyWithImpl<Story>(this as Story, 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Story&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.slug, slug) || other.slug == slug)&&(identical(other.description, description) || other.description == description)&&(identical(other.ageMin, ageMin) || other.ageMin == ageMin)&&(identical(other.ageMax, ageMax) || other.ageMax == ageMax)&&(identical(other.languageCode, languageCode) || other.languageCode == languageCode)&&(identical(other.durationSeconds, durationSeconds) || other.durationSeconds == durationSeconds)&&(identical(other.coverAssetId, coverAssetId) || other.coverAssetId == coverAssetId)&&(identical(other.contentStatus, contentStatus) || other.contentStatus == contentStatus)&&(identical(other.rightsOwnerId, rightsOwnerId) || other.rightsOwnerId == rightsOwnerId)&&const DeepCollectionEquality().equals(other.themes, themes)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.isUnlocked, isUnlocked) || other.isUnlocked == isUnlocked));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Story&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.slug, slug) || other.slug == slug)&&(identical(other.description, description) || other.description == description)&&(identical(other.ageMin, ageMin) || other.ageMin == ageMin)&&(identical(other.ageMax, ageMax) || other.ageMax == ageMax)&&(identical(other.languageCode, languageCode) || other.languageCode == languageCode)&&(identical(other.durationSeconds, durationSeconds) || other.durationSeconds == durationSeconds)&&(identical(other.coverAssetId, coverAssetId) || other.coverAssetId == coverAssetId)&&(identical(other.contentStatus, contentStatus) || other.contentStatus == contentStatus)&&(identical(other.rightsOwnerId, rightsOwnerId) || other.rightsOwnerId == rightsOwnerId)&&const DeepCollectionEquality().equals(other.themes, themes)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.isUnlocked, isUnlocked) || other.isUnlocked == isUnlocked)&&(identical(other.isAuthored, isAuthored) || other.isAuthored == isAuthored));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,slug,description,ageMin,ageMax,languageCode,durationSeconds,coverAssetId,contentStatus,rightsOwnerId,const DeepCollectionEquality().hash(themes),isDownloaded,isUnlocked);
+int get hashCode => Object.hash(runtimeType,id,title,slug,description,ageMin,ageMax,languageCode,durationSeconds,coverAssetId,contentStatus,rightsOwnerId,const DeepCollectionEquality().hash(themes),isDownloaded,isUnlocked,isAuthored);
 
 @override
 String toString() {
-  return 'Story(id: $id, title: $title, slug: $slug, description: $description, ageMin: $ageMin, ageMax: $ageMax, languageCode: $languageCode, durationSeconds: $durationSeconds, coverAssetId: $coverAssetId, contentStatus: $contentStatus, rightsOwnerId: $rightsOwnerId, themes: $themes, isDownloaded: $isDownloaded, isUnlocked: $isUnlocked)';
+  return 'Story(id: $id, title: $title, slug: $slug, description: $description, ageMin: $ageMin, ageMax: $ageMax, languageCode: $languageCode, durationSeconds: $durationSeconds, coverAssetId: $coverAssetId, contentStatus: $contentStatus, rightsOwnerId: $rightsOwnerId, themes: $themes, isDownloaded: $isDownloaded, isUnlocked: $isUnlocked, isAuthored: $isAuthored)';
 }
 
 
@@ -53,7 +56,7 @@ abstract mixin class $StoryCopyWith<$Res>  {
   factory $StoryCopyWith(Story value, $Res Function(Story) _then) = _$StoryCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String slug, String? description, int ageMin, int ageMax, String languageCode, int durationSeconds, String? coverAssetId, ContentStatus contentStatus, String? rightsOwnerId, List<StoryTheme> themes, bool isDownloaded, bool isUnlocked
+ String id, String title, String slug, String? description, int ageMin, int ageMax, String languageCode, int durationSeconds, String? coverAssetId, ContentStatus contentStatus, String? rightsOwnerId, List<StoryTheme> themes, bool isDownloaded, bool isUnlocked, bool isAuthored
 });
 
 
@@ -70,7 +73,7 @@ class _$StoryCopyWithImpl<$Res>
 
 /// Create a copy of Story
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? slug = null,Object? description = freezed,Object? ageMin = null,Object? ageMax = null,Object? languageCode = null,Object? durationSeconds = null,Object? coverAssetId = freezed,Object? contentStatus = null,Object? rightsOwnerId = freezed,Object? themes = null,Object? isDownloaded = null,Object? isUnlocked = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? slug = null,Object? description = freezed,Object? ageMin = null,Object? ageMax = null,Object? languageCode = null,Object? durationSeconds = null,Object? coverAssetId = freezed,Object? contentStatus = null,Object? rightsOwnerId = freezed,Object? themes = null,Object? isDownloaded = null,Object? isUnlocked = null,Object? isAuthored = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -86,6 +89,7 @@ as ContentStatus,rightsOwnerId: freezed == rightsOwnerId ? _self.rightsOwnerId :
 as String?,themes: null == themes ? _self.themes : themes // ignore: cast_nullable_to_non_nullable
 as List<StoryTheme>,isDownloaded: null == isDownloaded ? _self.isDownloaded : isDownloaded // ignore: cast_nullable_to_non_nullable
 as bool,isUnlocked: null == isUnlocked ? _self.isUnlocked : isUnlocked // ignore: cast_nullable_to_non_nullable
+as bool,isAuthored: null == isAuthored ? _self.isAuthored : isAuthored // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -171,10 +175,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String slug,  String? description,  int ageMin,  int ageMax,  String languageCode,  int durationSeconds,  String? coverAssetId,  ContentStatus contentStatus,  String? rightsOwnerId,  List<StoryTheme> themes,  bool isDownloaded,  bool isUnlocked)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String slug,  String? description,  int ageMin,  int ageMax,  String languageCode,  int durationSeconds,  String? coverAssetId,  ContentStatus contentStatus,  String? rightsOwnerId,  List<StoryTheme> themes,  bool isDownloaded,  bool isUnlocked,  bool isAuthored)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Story() when $default != null:
-return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_that.ageMax,_that.languageCode,_that.durationSeconds,_that.coverAssetId,_that.contentStatus,_that.rightsOwnerId,_that.themes,_that.isDownloaded,_that.isUnlocked);case _:
+return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_that.ageMax,_that.languageCode,_that.durationSeconds,_that.coverAssetId,_that.contentStatus,_that.rightsOwnerId,_that.themes,_that.isDownloaded,_that.isUnlocked,_that.isAuthored);case _:
   return orElse();
 
 }
@@ -192,10 +196,10 @@ return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String slug,  String? description,  int ageMin,  int ageMax,  String languageCode,  int durationSeconds,  String? coverAssetId,  ContentStatus contentStatus,  String? rightsOwnerId,  List<StoryTheme> themes,  bool isDownloaded,  bool isUnlocked)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String slug,  String? description,  int ageMin,  int ageMax,  String languageCode,  int durationSeconds,  String? coverAssetId,  ContentStatus contentStatus,  String? rightsOwnerId,  List<StoryTheme> themes,  bool isDownloaded,  bool isUnlocked,  bool isAuthored)  $default,) {final _that = this;
 switch (_that) {
 case _Story():
-return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_that.ageMax,_that.languageCode,_that.durationSeconds,_that.coverAssetId,_that.contentStatus,_that.rightsOwnerId,_that.themes,_that.isDownloaded,_that.isUnlocked);case _:
+return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_that.ageMax,_that.languageCode,_that.durationSeconds,_that.coverAssetId,_that.contentStatus,_that.rightsOwnerId,_that.themes,_that.isDownloaded,_that.isUnlocked,_that.isAuthored);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -212,10 +216,10 @@ return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String slug,  String? description,  int ageMin,  int ageMax,  String languageCode,  int durationSeconds,  String? coverAssetId,  ContentStatus contentStatus,  String? rightsOwnerId,  List<StoryTheme> themes,  bool isDownloaded,  bool isUnlocked)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String slug,  String? description,  int ageMin,  int ageMax,  String languageCode,  int durationSeconds,  String? coverAssetId,  ContentStatus contentStatus,  String? rightsOwnerId,  List<StoryTheme> themes,  bool isDownloaded,  bool isUnlocked,  bool isAuthored)?  $default,) {final _that = this;
 switch (_that) {
 case _Story() when $default != null:
-return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_that.ageMax,_that.languageCode,_that.durationSeconds,_that.coverAssetId,_that.contentStatus,_that.rightsOwnerId,_that.themes,_that.isDownloaded,_that.isUnlocked);case _:
+return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_that.ageMax,_that.languageCode,_that.durationSeconds,_that.coverAssetId,_that.contentStatus,_that.rightsOwnerId,_that.themes,_that.isDownloaded,_that.isUnlocked,_that.isAuthored);case _:
   return null;
 
 }
@@ -227,7 +231,7 @@ return $default(_that.id,_that.title,_that.slug,_that.description,_that.ageMin,_
 @JsonSerializable()
 
 class _Story extends Story {
-  const _Story({required this.id, required this.title, required this.slug, this.description, this.ageMin = 3, this.ageMax = 8, this.languageCode = 'en', this.durationSeconds = 0, this.coverAssetId, this.contentStatus = ContentStatus.published, this.rightsOwnerId, final  List<StoryTheme> themes = const <StoryTheme>[], this.isDownloaded = false, this.isUnlocked = true}): _themes = themes,super._();
+  const _Story({required this.id, required this.title, required this.slug, this.description, this.ageMin = 3, this.ageMax = 8, this.languageCode = 'en', this.durationSeconds = 0, this.coverAssetId, this.contentStatus = ContentStatus.published, this.rightsOwnerId, final  List<StoryTheme> themes = const <StoryTheme>[], this.isDownloaded = false, this.isUnlocked = true, this.isAuthored = false}): _themes = themes,super._();
   factory _Story.fromJson(Map<String, dynamic> json) => _$StoryFromJson(json);
 
 @override final  String id;
@@ -256,6 +260,10 @@ class _Story extends Story {
 /// premium/publisher-code stories stay locked until entitled (§5.7).
 @override@JsonKey() final  bool isDownloaded;
 @override@JsonKey() final  bool isUnlocked;
+/// True when this story was captured in-app by the user rather than
+/// curated (server-side `owner_user_id IS NOT NULL`). Gates the per-read
+/// narration fetcher in the player.
+@override@JsonKey() final  bool isAuthored;
 
 /// Create a copy of Story
 /// with the given fields replaced by the non-null parameter values.
@@ -270,16 +278,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Story&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.slug, slug) || other.slug == slug)&&(identical(other.description, description) || other.description == description)&&(identical(other.ageMin, ageMin) || other.ageMin == ageMin)&&(identical(other.ageMax, ageMax) || other.ageMax == ageMax)&&(identical(other.languageCode, languageCode) || other.languageCode == languageCode)&&(identical(other.durationSeconds, durationSeconds) || other.durationSeconds == durationSeconds)&&(identical(other.coverAssetId, coverAssetId) || other.coverAssetId == coverAssetId)&&(identical(other.contentStatus, contentStatus) || other.contentStatus == contentStatus)&&(identical(other.rightsOwnerId, rightsOwnerId) || other.rightsOwnerId == rightsOwnerId)&&const DeepCollectionEquality().equals(other._themes, _themes)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.isUnlocked, isUnlocked) || other.isUnlocked == isUnlocked));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Story&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.slug, slug) || other.slug == slug)&&(identical(other.description, description) || other.description == description)&&(identical(other.ageMin, ageMin) || other.ageMin == ageMin)&&(identical(other.ageMax, ageMax) || other.ageMax == ageMax)&&(identical(other.languageCode, languageCode) || other.languageCode == languageCode)&&(identical(other.durationSeconds, durationSeconds) || other.durationSeconds == durationSeconds)&&(identical(other.coverAssetId, coverAssetId) || other.coverAssetId == coverAssetId)&&(identical(other.contentStatus, contentStatus) || other.contentStatus == contentStatus)&&(identical(other.rightsOwnerId, rightsOwnerId) || other.rightsOwnerId == rightsOwnerId)&&const DeepCollectionEquality().equals(other._themes, _themes)&&(identical(other.isDownloaded, isDownloaded) || other.isDownloaded == isDownloaded)&&(identical(other.isUnlocked, isUnlocked) || other.isUnlocked == isUnlocked)&&(identical(other.isAuthored, isAuthored) || other.isAuthored == isAuthored));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,slug,description,ageMin,ageMax,languageCode,durationSeconds,coverAssetId,contentStatus,rightsOwnerId,const DeepCollectionEquality().hash(_themes),isDownloaded,isUnlocked);
+int get hashCode => Object.hash(runtimeType,id,title,slug,description,ageMin,ageMax,languageCode,durationSeconds,coverAssetId,contentStatus,rightsOwnerId,const DeepCollectionEquality().hash(_themes),isDownloaded,isUnlocked,isAuthored);
 
 @override
 String toString() {
-  return 'Story(id: $id, title: $title, slug: $slug, description: $description, ageMin: $ageMin, ageMax: $ageMax, languageCode: $languageCode, durationSeconds: $durationSeconds, coverAssetId: $coverAssetId, contentStatus: $contentStatus, rightsOwnerId: $rightsOwnerId, themes: $themes, isDownloaded: $isDownloaded, isUnlocked: $isUnlocked)';
+  return 'Story(id: $id, title: $title, slug: $slug, description: $description, ageMin: $ageMin, ageMax: $ageMax, languageCode: $languageCode, durationSeconds: $durationSeconds, coverAssetId: $coverAssetId, contentStatus: $contentStatus, rightsOwnerId: $rightsOwnerId, themes: $themes, isDownloaded: $isDownloaded, isUnlocked: $isUnlocked, isAuthored: $isAuthored)';
 }
 
 
@@ -290,7 +298,7 @@ abstract mixin class _$StoryCopyWith<$Res> implements $StoryCopyWith<$Res> {
   factory _$StoryCopyWith(_Story value, $Res Function(_Story) _then) = __$StoryCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String slug, String? description, int ageMin, int ageMax, String languageCode, int durationSeconds, String? coverAssetId, ContentStatus contentStatus, String? rightsOwnerId, List<StoryTheme> themes, bool isDownloaded, bool isUnlocked
+ String id, String title, String slug, String? description, int ageMin, int ageMax, String languageCode, int durationSeconds, String? coverAssetId, ContentStatus contentStatus, String? rightsOwnerId, List<StoryTheme> themes, bool isDownloaded, bool isUnlocked, bool isAuthored
 });
 
 
@@ -307,7 +315,7 @@ class __$StoryCopyWithImpl<$Res>
 
 /// Create a copy of Story
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? slug = null,Object? description = freezed,Object? ageMin = null,Object? ageMax = null,Object? languageCode = null,Object? durationSeconds = null,Object? coverAssetId = freezed,Object? contentStatus = null,Object? rightsOwnerId = freezed,Object? themes = null,Object? isDownloaded = null,Object? isUnlocked = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? slug = null,Object? description = freezed,Object? ageMin = null,Object? ageMax = null,Object? languageCode = null,Object? durationSeconds = null,Object? coverAssetId = freezed,Object? contentStatus = null,Object? rightsOwnerId = freezed,Object? themes = null,Object? isDownloaded = null,Object? isUnlocked = null,Object? isAuthored = null,}) {
   return _then(_Story(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -323,6 +331,7 @@ as ContentStatus,rightsOwnerId: freezed == rightsOwnerId ? _self.rightsOwnerId :
 as String?,themes: null == themes ? _self._themes : themes // ignore: cast_nullable_to_non_nullable
 as List<StoryTheme>,isDownloaded: null == isDownloaded ? _self.isDownloaded : isDownloaded // ignore: cast_nullable_to_non_nullable
 as bool,isUnlocked: null == isUnlocked ? _self.isUnlocked : isUnlocked // ignore: cast_nullable_to_non_nullable
+as bool,isAuthored: null == isAuthored ? _self.isAuthored : isAuthored // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
