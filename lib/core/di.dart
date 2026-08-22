@@ -21,6 +21,7 @@ import '../features/ar/ar_scene_controller.dart';
 import '../features/ar/page_detector.dart';
 import '../features/ar/simulated_page_detector.dart';
 import '../features/scan_any_page/native_character_reader.dart';
+import '../features/player/narration_audio_fetcher.dart';
 import '../features/scan_any_page/native_scan_service.dart';
 import '../features/scan_any_page/scan_any_page_controller.dart';
 import '../features/scan_any_page/tts_client.dart';
@@ -105,6 +106,21 @@ final ttsClientProvider = Provider.autoDispose.family<TtsClient, Object>(
     temporaryDirectory: ref.watch(ttsTemporaryDirectoryProvider),
   ),
 );
+
+/// Per-story narration fetcher, used only by authored stories. autoDispose so
+/// the underlying TtsClient — and every temp clip it wrote — is torn down when
+/// the player leaves.
+final narrationAudioFetcherProvider =
+    Provider.autoDispose.family<NarrationAudioFetcher, String>((ref, storyId) {
+  final fetcher = TtsNarrationAudioFetcher(
+    HttpTtsClient(
+      ref.watch(apiClientProvider),
+      temporaryDirectory: ref.watch(ttsTemporaryDirectoryProvider),
+    ),
+  );
+  ref.onDispose(fetcher.dispose);
+  return fetcher;
+});
 
 typedef ScanAnyPageDependencies = ({
   ScanService scanService,

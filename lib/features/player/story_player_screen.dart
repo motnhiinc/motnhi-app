@@ -62,7 +62,16 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   @override
   void initState() {
     super.initState();
-    _player = NarrationPlayer(resolver: ref.read(assetUrlResolverProvider));
+    _player = NarrationPlayer(
+      resolver: ref.read(assetUrlResolverProvider),
+      // Curated stories play registered clips or the device-TTS fallback; only
+      // authored stories generate narration per read. Without this gate, an
+      // environment where register_assets.py never ran would silently turn
+      // every curated page into an OpenAI call.
+      fetcher: _story.isAuthored
+          ? ref.read(narrationAudioFetcherProvider(_story.id))
+          : null,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startSession();
       _loadPage(0, autoplay: false);
