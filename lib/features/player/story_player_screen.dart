@@ -52,6 +52,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   late final NarrationPlayer _player;
   final PageController _pageController = PageController();
   int _pageIndex = 0;
+  int _loadGeneration = 0;
   String? _sessionId;
   bool _storyCompleted = false;
 
@@ -88,23 +89,32 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     return speed;
   }
 
+  /// Fired per page turn without being awaited, so everything after an await
+  /// must re-check the generation: for an authored story the load contains a
+  /// multi-second narration fetch, and a stale continuation would regress
+  /// last_page_number and start playback for the page the reader just left.
   Future<void> _loadPage(int index, {required bool autoplay}) async {
+    final generation = ++_loadGeneration;
     final page = _pages[index];
     await _player.load(
       widget.detail.segmentsForPage(page.id),
       speedMultiplier: _effectiveSpeed(),
       languageCode: _story.languageCode,
     );
+    if (!mounted || generation != _loadGeneration) return;
+
     final sid = _sessionId;
     if (sid != null) {
       final repo = ref.read(sessionRepositoryProvider);
       await repo.updateLastPage(sid, page.pageNumber);
+      if (!mounted || generation != _loadGeneration) return;
       await repo.recordEvent(
         sessionId: sid,
         eventType: 'page_viewed',
         pageId: page.id,
         payload: {'page_number': page.pageNumber},
       );
+      if (!mounted || generation != _loadGeneration) return;
     }
     if (autoplay) await _player.play();
   }
@@ -375,11 +385,17 @@ class _PlayerControls extends StatelessWidget {
                 onPressed: player.replay,
               ),
               ValueListenableBuilder<bool>(
-                valueListenable: player.isPlaying,
-                builder: (_, playing, _) => BigPlayButton(
-                  isPlaying: playing,
-                  onPressed: () =>
-                      playing ? player.pause() : player.play(),
+                valueListenable: player.isLoading,
+                builder: (_, loading, _) => ValueListenableBuilder<bool>(
+                  valueListenable: player.isPlaying,
+                  builder: (_, playing, _) => BigPlayButton(
+                    isPlaying: playing,
+                    // Disabled while a clip is being fetched: a tap here would
+                    // otherwise start device TTS a moment before it lands.
+                    onPressed: loading
+                        ? null
+                        : () => playing ? player.pause() : player.play(),
+                  ),
                 ),
               ),
               if (arAvailable)

@@ -12,17 +12,21 @@ class BigPlayButton extends StatelessWidget {
   });
 
   final bool isPlaying;
-  final VoidCallback onPressed;
+  /// Null disables the button — used while a page's narration clip is
+  /// still being fetched.
+  final VoidCallback? onPressed;
   final double size;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final enabled = onPressed != null;
     return Semantics(
       button: true,
+      enabled: enabled,
       label: isPlaying ? 'Pause' : 'Play',
       child: Material(
-        color: scheme.primary,
+        color: enabled ? scheme.primary : scheme.surfaceContainerHighest,
         shape: const CircleBorder(),
         elevation: 2,
         child: InkWell(
@@ -34,7 +38,7 @@ class BigPlayButton extends StatelessWidget {
             child: Icon(
               isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
               size: size * 0.55,
-              color: scheme.onPrimary,
+              color: enabled ? scheme.onPrimary : scheme.onSurfaceVariant,
             ),
           ),
         ),

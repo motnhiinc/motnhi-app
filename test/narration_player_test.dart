@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:storybook_ar/data/models/models.dart';
+import 'package:storybook_ar/features/player/narration_audio_fetcher.dart';
 import 'package:storybook_ar/features/player/narration_player.dart';
 
 NarrationSegment _seg(String id, {String? audioAssetId}) => NarrationSegment(
@@ -14,30 +19,166 @@ NarrationSegment _seg(String id, {String? audioAssetId}) => NarrationSegment(
     );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('no fallback when every segment has a resolved URL', () {
     final segs = [_seg('a', audioAssetId: 'aud_a'), _seg('b', audioAssetId: 'aud_b')];
     final urls = {'aud_a': 'http://x/a', 'aud_b': 'http://x/b'};
-    expect(NarrationPlayer.computeTtsFallback(segs, urls), isFalse);
+    expect(NarrationPlayer.computeTtsFallback(segs, urls, const {}), isFalse);
   });
 
   test('fallback when a segment has an asset id but no resolved URL', () {
     final segs = [_seg('a', audioAssetId: 'aud_a'), _seg('b', audioAssetId: 'aud_b')];
     final urls = {'aud_a': 'http://x/a'}; // aud_b unresolved
-    expect(NarrationPlayer.computeTtsFallback(segs, urls), isTrue);
+    expect(NarrationPlayer.computeTtsFallback(segs, urls, const {}), isTrue);
   });
 
   test('fallback when a segment has no asset id at all', () {
     final segs = [_seg('a', audioAssetId: 'aud_a'), _seg('b')];
     final urls = {'aud_a': 'http://x/a'};
-    expect(NarrationPlayer.computeTtsFallback(segs, urls), isTrue);
+    expect(NarrationPlayer.computeTtsFallback(segs, urls, const {}), isTrue);
   });
 
   test('no fallback when segments list is empty', () {
-    expect(NarrationPlayer.computeTtsFallback([], {}), isFalse);
+    expect(NarrationPlayer.computeTtsFallback([], const {}, const {}), isFalse);
   });
 
   test('fallback for an all-TTS page (no asset ids anywhere)', () {
     final segs = [_seg('a'), _seg('b')]; // neither has an audioAssetId
-    expect(NarrationPlayer.computeTtsFallback(segs, {}), isTrue);
+    expect(NarrationPlayer.computeTtsFallback(segs, const {}, const {}), isTrue);
   });
+
+  test('no fallback when a fetched clip covers a segment with no asset id', () {
+    final segs = [_seg('a')];
+    expect(
+      NarrationPlayer.computeTtsFallback(segs, const {}, {'a': '/tmp/a.mp3'}),
+      isFalse,
+    );
+  });
+
+  test('fallback when only some segments have a fetched clip', () {
+    final segs = [_seg('a'), _seg('b')];
+    expect(
+      NarrationPlayer.computeTtsFallback(segs, const {}, {'a': '/tmp/a.mp3'}),
+      isTrue,
+    );
+  });
+
+  test('a registered clip still wins over a missing fetch', () {
+    final segs = [_seg('a', audioAssetId: 'aud_a')];
+    expect(
+      NarrationPlayer.computeTtsFallback(
+          segs, {'aud_a': 'http://x/a'}, const {}),
+      isFalse,
+    );
+  });
+
+  test('a stale load does not overwrite a newer page state', () async {
+    final fetcher = _ControllableFetcher();
+    final player = NarrationPlayer(
+      filePlayer: _StubAudioPlayer(),
+      tts: _StubTts(),
+      fetcher: fetcher,
+    );
+    addTearDown(player.dispose);
+
+    final pageOne = [_seg('a')];
+    final pageTwo = [_seg('b')];
+
+    final staleLoad = player.load(pageOne); // in flight, awaiting the fetch
+    await Future<void>.delayed(Duration.zero);
+    final newerLoad = player.load(pageTwo);
+    await Future<void>.delayed(Duration.zero);
+
+    // The stale page's fetch resolves last — it must not write anything.
+    fetcher.complete('b', '/tmp/b.mp3');
+    fetcher.complete('a', '/tmp/a.mp3');
+    await Future.wait([staleLoad, newerLoad]);
+
+    expect(player.debugFetchedPaths.containsKey('a'), isFalse,
+        reason: 'the stale load must not write into the current page state');
+    expect(player.debugFetchedPaths.containsKey('b'), isTrue);
+  });
+
+  test('a load with no fetcher behaves exactly as before', () async {
+    final player = NarrationPlayer(
+      filePlayer: _StubAudioPlayer(),
+      tts: _StubTts(),
+    );
+    addTearDown(player.dispose);
+
+    await player.load([_seg('a')]);
+
+    expect(player.debugFetchedPaths, isEmpty);
+    expect(player.usingTtsFallback.value, isTrue);
+  });
+}
+
+/// A fetcher whose per-segment completion the test drives by hand.
+class _ControllableFetcher implements NarrationAudioFetcher {
+  final _pending = <String, Completer<String?>>{};
+
+  void complete(String segmentId, String? path) {
+    _pending.putIfAbsent(segmentId, Completer<String?>.new);
+    if (!_pending[segmentId]!.isCompleted) _pending[segmentId]!.complete(path);
+  }
+
+  @override
+  Future<String?> pathFor(NarrationSegment segment) {
+    return _pending
+        .putIfAbsent(segment.id, Completer<String?>.new)
+        .future;
+  }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// Overrides everything [NarrationPlayer] touches so no real platform call is
+/// made. The superclass constructor still runs, hence ensureInitialized above.
+class _StubAudioPlayer extends AudioPlayer {
+  @override
+  Future<Duration?> setUrl(String url,
+          {Map<String, String>? headers,
+          Duration? initialPosition,
+          bool preload = true,
+          dynamic tag}) async =>
+      Duration.zero;
+
+  @override
+  Future<Duration?> setFilePath(String filePath,
+          {Duration? initialPosition, bool preload = true, dynamic tag}) async =>
+      Duration.zero;
+
+  @override
+  Future<void> setSpeed(double speed) async {}
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> pause() async {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _StubTts extends FlutterTts {
+  @override
+  Future<dynamic> stop() async => 1;
+
+  @override
+  Future<dynamic> speak(String text, {bool focus = false}) async => 1;
+
+  @override
+  Future<dynamic> setLanguage(String language) async => 1;
+
+  @override
+  Future<dynamic> setSpeechRate(double rate) async => 1;
+
+  @override
+  Future<dynamic> setPitch(double pitch) async => 1;
+
+  @override
+  Future<dynamic> awaitSpeakCompletion(bool awaitCompletion) async => 1;
 }

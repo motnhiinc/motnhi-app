@@ -6,37 +6,58 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../data/models/models.dart';
 import '../../data/sources/asset_url_resolver.dart';
+import 'narration_audio_fetcher.dart';
 
 /// Drives narration for the pages of a story (§9.4.3). Plays segments in
 /// `sort_order` and exposes [currentSegment] so the player can highlight the
 /// spoken sentence (§7.1.2, §4.2 timing).
 ///
-/// Audio source strategy (per the chosen slice):
+/// Audio source strategy, in precedence order:
 ///  * If a segment carries a bundled `audio_asset_id`, the real pre-generated
 ///    clip is played via [just_audio] — the production contract.
-///  * Otherwise it falls back to on-device [FlutterTts]. This is a DEV-ONLY
-///    stand-in until the content/TTS pipeline produces reviewed clips; the
-///    spec forbids real-time TTS in child production sessions (§13.1, §18.2).
+///  * Else, if a [NarrationAudioFetcher] is supplied, a clip generated for this
+///    segment is played from disk. Only authored (user-captured) stories get a
+///    fetcher; curated stories never do.
+///  * Otherwise it falls back to on-device [FlutterTts]. For curated content
+///    this is a DEV-ONLY stand-in until the content/TTS pipeline produces
+///    reviewed clips (§13.1, §18.2); for an authored story it means the
+///    narration fetch failed and playback degraded.
 class NarrationPlayer {
-  NarrationPlayer({AudioPlayer? filePlayer, FlutterTts? tts, AssetUrlResolver? resolver})
-      : _file = filePlayer ?? AudioPlayer(),
+  NarrationPlayer({
+    AudioPlayer? filePlayer,
+    FlutterTts? tts,
+    AssetUrlResolver? resolver,
+    NarrationAudioFetcher? fetcher,
+  })  : _file = filePlayer ?? AudioPlayer(),
         _tts = tts ?? FlutterTts(),
-        _resolver = resolver;
+        _resolver = resolver,
+        _fetcher = fetcher;
 
   final AudioPlayer _file;
   final FlutterTts _tts;
   final AssetUrlResolver? _resolver;
+  final NarrationAudioFetcher? _fetcher;
 
   /// Resolved signed URLs for the current page, keyed by `audio_asset_id`.
   Map<String, String> _urlByAssetId = {};
 
-  /// True when at least one segment cannot be played from a real clip and must
-  /// use the DEV-ONLY TTS fallback. Pure so it is unit-testable without audio.
+  /// Locally generated clips for the current page, keyed by segment id.
+  Map<String, String> _pathBySegmentId = {};
+
+  @visibleForTesting
+  Map<String, String> get debugFetchedPaths => _pathBySegmentId;
+
+  /// True when at least one segment can play from neither a registered clip
+  /// nor a locally fetched one, and must therefore use on-device TTS. Pure so
+  /// it is unit-testable without audio.
   static bool computeTtsFallback(
     List<NarrationSegment> segments,
     Map<String, String> urls,
+    Map<String, String> fetched,
   ) =>
-      segments.any((s) => !s.hasAudioAsset || !urls.containsKey(s.audioAssetId));
+      segments.any((s) =>
+          !(s.hasAudioAsset && urls.containsKey(s.audioAssetId)) &&
+          !fetched.containsKey(s.id));
 
   /// Index into [_segments] currently being spoken; -1 when idle.
   final ValueNotifier<int> currentSegmentIndex = ValueNotifier(-1);
@@ -47,12 +68,18 @@ class NarrationPlayer {
   /// mistaken for reviewed production audio.
   final ValueNotifier<bool> usingTtsFallback = ValueNotifier(false);
 
+  /// True while a page's audio is being resolved or fetched. The player UI
+  /// disables playback controls on this, so a tap during a multi-second TTS
+  /// fetch cannot start device TTS a moment before the clip lands.
+  final ValueNotifier<bool> isLoading = ValueNotifier(false);
+
   List<NarrationSegment> _segments = const [];
   double _speedMultiplier = 1.0;
   String _languageCode = 'en';
   bool _ttsReady = false;
 
   int _cursor = 0;
+  var _loadGeneration = 0;
   bool _running = false;
   Completer<void>? _segmentInterrupt;
 
@@ -63,27 +90,58 @@ class NarrationPlayer {
   }
 
   /// Load a page's segments and reset to the start.
+  ///
+  /// Every await is followed by a generation check before any field write: the
+  /// player fires this per page turn without awaiting it, and with a TTS fetch
+  /// in the middle a stale load could otherwise overwrite the newer page's
+  /// audio maps seconds later.
   Future<void> load(
     List<NarrationSegment> segments, {
     double speedMultiplier = 1.0,
     String languageCode = 'en',
   }) async {
+    final generation = ++_loadGeneration;
     await _haltLoop();
+    if (generation != _loadGeneration) return;
+
     _segments = segments;
     _speedMultiplier = speedMultiplier;
     _languageCode = languageCode;
     _cursor = 0;
     currentSegmentIndex.value = -1;
     isComplete.value = false;
+    isLoading.value = true;
 
-    final ids = segments
-        .where((s) => s.hasAudioAsset)
-        .map((s) => s.audioAssetId!)
-        .toList();
-    _urlByAssetId = (_resolver != null && ids.isNotEmpty)
-        ? await _resolver!.resolve(ids)
-        : <String, String>{};
-    usingTtsFallback.value = computeTtsFallback(segments, _urlByAssetId);
+    try {
+      final ids = segments
+          .where((s) => s.hasAudioAsset)
+          .map((s) => s.audioAssetId!)
+          .toList();
+      final urls = (_resolver != null && ids.isNotEmpty)
+          ? await _resolver!.resolve(ids)
+          : <String, String>{};
+      if (generation != _loadGeneration) return;
+
+      final fetcher = _fetcher;
+      final fetched = <String, String>{};
+      if (fetcher != null) {
+        for (final segment in segments) {
+          if (segment.hasAudioAsset && urls.containsKey(segment.audioAssetId)) {
+            continue;
+          }
+          final path = await fetcher.pathFor(segment);
+          if (generation != _loadGeneration) return;
+          if (path != null) fetched[segment.id] = path;
+        }
+      }
+
+      _urlByAssetId = urls;
+      _pathBySegmentId = fetched;
+      usingTtsFallback.value =
+          computeTtsFallback(segments, _urlByAssetId, _pathBySegmentId);
+    } finally {
+      if (generation == _loadGeneration) isLoading.value = false;
+    }
   }
 
   void setSpeedMultiplier(double value) => _speedMultiplier = value;
@@ -128,24 +186,33 @@ class NarrationPlayer {
     final speed = (seg.speed * _speedMultiplier).clamp(0.5, 2.0);
 
     final url = seg.hasAudioAsset ? _urlByAssetId[seg.audioAssetId] : null;
-    if (url != null) {
+    final path = _pathBySegmentId[seg.id];
+
+    if (url != null || path != null) {
       try {
-        await _file.setUrl(url);
+        if (url != null) {
+          await _file.setUrl(url);
+        } else {
+          await _file.setFilePath(path!);
+        }
         await _file.setSpeed(speed);
         final done = _file.processingStateStream
             .firstWhere((s) => s == ProcessingState.completed);
         unawaited(_file.play());
         await Future.any([done, interrupt]);
+        return;
       } catch (_) {
-        // A missing/corrupt clip shouldn't break the story — fall through.
+        // A missing or corrupt clip must not leave the page silent. With one
+        // segment per page, skipping here means no narration at all and, on the
+        // last page, an instant completion dialog. Fall through to device TTS.
       }
-    } else {
-      await _ensureTts();
-      await _tts.setSpeechRate(_ttsRate(speed));
-      await _tts.setPitch(_pitchFor(seg.speakerKey));
-      // awaitSpeakCompletion(true) makes speak() resolve when finished/stopped.
-      await Future.any([_tts.speak(seg.text), interrupt]);
     }
+
+    await _ensureTts();
+    await _tts.setSpeechRate(_ttsRate(speed));
+    await _tts.setPitch(_pitchFor(seg.speakerKey));
+    // awaitSpeakCompletion(true) makes speak() resolve when finished/stopped.
+    await Future.any([_tts.speak(seg.text), interrupt]);
   }
 
   /// Pause playback, holding position at the current segment.
@@ -190,12 +257,14 @@ class NarrationPlayer {
 
   Future<void> dispose() async {
     await _haltLoop();
+    await _fetcher?.dispose();
     await _file.dispose();
     await _tts.stop();
     currentSegmentIndex.dispose();
     isPlaying.dispose();
     isComplete.dispose();
     usingTtsFallback.dispose();
+    isLoading.dispose();
   }
 
   /// flutter_tts speech rate is ~0.5 == normal on both platforms; scale around
