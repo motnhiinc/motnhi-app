@@ -54,8 +54,11 @@ flutter {
 }
 
 dependencies {
-    debugImplementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
-    debugImplementation("com.google.mlkit:text-recognition:16.0.1")
+    // Promoted out of debug: the page scanner ships in release builds. ARCore,
+    // SceneView and Compose below stay debug-only, so the release manifest keeps
+    // zero AR entries.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     debugImplementation("com.google.ar:core:1.54.0")
     // Pinned to 4.18.0 deliberately: this is the newest arsceneview whose
     // kotlin-stdlib constraint (2.3.21, metadata 2.3.0) the project's Kotlin

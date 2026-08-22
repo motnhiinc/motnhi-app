@@ -20,7 +20,6 @@ class ScanAnyPageBridges private constructor(
     }
 
     companion object {
-        const val SCANNER_REQUEST_CODE = 0x51A1
         const val READER_REQUEST_CODE = 0x51A2
 
         fun register(activity: Activity, messenger: BinaryMessenger): ScanAnyPageBridges {
