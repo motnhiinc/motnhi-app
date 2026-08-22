@@ -121,3 +121,94 @@ def test_other_user_gets_404_on_authored_image_target_manifest(client, db, seede
         f"/v1/stories/{story.id}/image-target-manifest", headers=other_headers
     )
     assert resp.status_code == 404
+
+
+def _payload(pages=None, title="My Book", language="en"):
+    pages = pages if pages is not None else [
+        {"page_number": 1, "page_text": "Once upon a time there was a fox."},
+        {"page_number": 2, "page_text": "The fox found a red balloon."},
+    ]
+    return {"title": title, "language_code": language, "pages": pages}
+
+
+def test_create_story_returns_it_and_sets_owner(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    resp = client.post("/v1/stories", json=_payload(), headers=headers)
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["title"] == "My Book"
+    assert body["is_authored"] is True
+    assert body["slug"].startswith("authored-")
+    assert body["duration_seconds"] >= 60
+
+
+def test_created_story_round_trips_with_one_segment_per_page(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
+    detail = client.get(f"/v1/stories/{story_id}", headers=headers).json()
+    assert len(detail["pages"]) == 2
+    assert len(detail["segments"]) == 2
+    assert sorted(p["page_number"] for p in detail["pages"]) == [1, 2]
+    for seg in detail["segments"]:
+        assert seg["speaker_key"] == "narrator"
+        assert seg["audio_asset_id"] is None
+        assert seg["sort_order"] == 0
+    assert "The fox found a red balloon." in {s["text"] for s in detail["segments"]}
+
+
+def test_created_story_appears_in_library(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    client.post("/v1/stories", json=_payload(), headers=headers)
+    titles = [s["title"] for s in client.get("/v1/stories", headers=headers).json()["stories"]]
+    assert "My Book" in titles
+
+
+def test_create_requires_auth(client, seeded):
+    assert client.post("/v1/stories", json=_payload()).status_code == 401
+
+
+def test_create_rejects_empty_pages(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    assert client.post("/v1/stories", json=_payload(pages=[]), headers=headers).status_code == 422
+
+
+def test_create_rejects_too_many_pages(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    pages = [{"page_number": i + 1, "page_text": "x"} for i in range(51)]
+    assert client.post("/v1/stories", json=_payload(pages=pages), headers=headers).status_code == 422
+
+
+def test_create_rejects_non_contiguous_page_numbers(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    pages = [{"page_number": 1, "page_text": "a"}, {"page_number": 3, "page_text": "b"}]
+    assert client.post("/v1/stories", json=_payload(pages=pages), headers=headers).status_code == 422
+
+
+def test_create_rejects_duplicate_page_numbers(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    pages = [{"page_number": 1, "page_text": "a"}, {"page_number": 1, "page_text": "b"}]
+    assert client.post("/v1/stories", json=_payload(pages=pages), headers=headers).status_code == 422
+
+
+def test_create_rejects_overlong_page_text(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    pages = [{"page_number": 1, "page_text": "x" * 4001}]
+    assert client.post("/v1/stories", json=_payload(pages=pages), headers=headers).status_code == 422
+
+
+def test_create_rejects_blank_title(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    assert client.post("/v1/stories", json=_payload(title="   "), headers=headers).status_code == 422
+
+
+def test_create_rejects_unsupported_language(client, seeded):
+    _, headers = _user_id_for(client, "owner-device")
+    assert client.post("/v1/stories", json=_payload(language="fr"), headers=headers).status_code == 422
+
+
+def test_create_enforces_story_cap(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    for _ in range(100):
+        _make_authored(db, uid)
+    db.flush()
+    assert client.post("/v1/stories", json=_payload(), headers=headers).status_code == 409

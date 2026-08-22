@@ -1,7 +1,13 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    model_validator,
+)
 
 
 class DeviceAuthRequest(BaseModel):
@@ -39,6 +45,37 @@ class StoryOut(_ORM):
 
 class LibraryResponse(BaseModel):
     stories: list[StoryOut]
+
+
+AuthoredTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)
+]
+AuthoredPageText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+]
+
+
+class CreateStoryPage(BaseModel):
+    page_number: int = Field(ge=1, le=50)
+    page_text: AuthoredPageText
+
+
+class CreateStoryRequest(BaseModel):
+    """Body of POST /v1/stories. Page numbers must be contiguous 1..N so the
+    client's orderedPages and last_page_number stay unambiguous."""
+
+    title: AuthoredTitle
+    language_code: str = "en"
+    pages: list[CreateStoryPage] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def _check(self) -> "CreateStoryRequest":
+        if self.language_code not in ("en", "vi"):
+            raise ValueError("language_code must be 'en' or 'vi'")
+        numbers = [p.page_number for p in self.pages]
+        if sorted(numbers) != list(range(1, len(numbers) + 1)):
+            raise ValueError("page_number must be contiguous 1..N with no duplicates")
+        return self
 
 
 class PageOut(_ORM):

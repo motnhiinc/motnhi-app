@@ -5,7 +5,12 @@ from app.auth import get_current_user
 from app.db import get_db
 from app.models import User
 from app.repositories import stories as repo
-from app.schemas import LibraryResponse, StoryDetailResponse
+from app.schemas import (
+    CreateStoryRequest,
+    LibraryResponse,
+    StoryDetailResponse,
+    StoryOut,
+)
 
 router = APIRouter(prefix="/v1/stories", tags=["stories"])
 
@@ -30,3 +35,14 @@ def detail(
     if payload is None:
         raise HTTPException(status_code=404, detail="story not found")
     return payload
+
+
+@router.post("", response_model=StoryOut, status_code=201)
+def create(
+    body: CreateStoryRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StoryOut:
+    if repo.count_authored(db, user.id) >= repo.MAX_AUTHORED_PER_USER:
+        raise HTTPException(status_code=409, detail="authored story limit reached")
+    return repo.create_authored(db, user.id, body)
