@@ -7,10 +7,14 @@ from app.models import Asset, Story, StoryPage
 from app.schemas import ImageTargetEntry, ImageTargetManifest
 
 
-def build_image_target_manifest(db: Session, story_id: str) -> ImageTargetManifest | None:
+def build_image_target_manifest(
+    db: Session, user_id: str, story_id: str
+) -> ImageTargetManifest | None:
     story = db.get(Story, story_id)
     if story is None:
         return None
+    if story.owner_user_id is not None and story.owner_user_id != user_id:
+        return None  # 404, not 403 - a 403 confirms the id exists
 
     pages = list(db.scalars(
         select(StoryPage)

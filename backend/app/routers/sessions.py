@@ -21,7 +21,10 @@ def start_session(body: StartSessionRequest, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     if not repo.owns_profile(db, user.id, body.child_profile_id):
         raise HTTPException(status_code=404, detail="profile not found")
-    if db.get(Story, body.story_id) is None:
+    story = db.get(Story, body.story_id)
+    if story is None or (
+        story.owner_user_id is not None and story.owner_user_id != user.id
+    ):
         raise HTTPException(status_code=404, detail="story not found")
     return repo.start(db, body.story_id, body.child_profile_id, body.mode)
 

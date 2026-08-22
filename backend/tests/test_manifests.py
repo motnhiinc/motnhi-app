@@ -73,7 +73,7 @@ def test_repo_only_targeted_pages_ordered_by_page_number(db):
                      image_target_id="imgt_page_r_02"))
     db.flush()
 
-    manifest = build_image_target_manifest(db, "story_repo")
+    manifest = build_image_target_manifest(db, "u_test", "story_repo")
     assert manifest is not None
     assert [t.page_id for t in manifest.targets] == ["page_r_01", "page_r_02"]
     assert [t.page_number for t in manifest.targets] == [1, 2]
@@ -85,17 +85,17 @@ def test_repo_defaults_width_and_version(db):
                      image_target_id="imgt_page_d_01"))
     db.flush()
 
-    manifest = build_image_target_manifest(db, "story_def")
+    manifest = build_image_target_manifest(db, "u_test", "story_def")
     assert manifest.version == 1
     assert all(t.physical_width_mm == 210 for t in manifest.targets)
 
 
 def test_repo_unknown_story_returns_none(db):
-    assert build_image_target_manifest(db, "story_missing") is None
+    assert build_image_target_manifest(db, "u_test", "story_missing") is None
 
 
 def test_repo_reference_url_none_for_unregistered_asset(db, seeded):
-    manifest = build_image_target_manifest(db, "story_bunny_forest")
+    manifest = build_image_target_manifest(db, "u_test", "story_bunny_forest")
     assert manifest is not None
     assert len(manifest.targets) == 5
     # page_image_asset_id are path strings, not registered in the assets table.
@@ -112,7 +112,7 @@ def test_repo_reference_url_signed_for_registered_asset(db):
                  content_type="image/png", byte_size=4))
     db.flush()
 
-    manifest = build_image_target_manifest(db, "story_img")
+    manifest = build_image_target_manifest(db, "u_test", "story_img")
     url = manifest.targets[0].reference_image_url
     assert url is not None
     assert url.startswith("/v1/assets/img_page_i_01?exp=")

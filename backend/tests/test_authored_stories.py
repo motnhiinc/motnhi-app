@@ -78,3 +78,46 @@ def test_owner_gets_200_on_own_authored_detail(client, db, seeded):
     uid, headers = _user_id_for(client, "owner-device")
     story = _make_authored(db, uid)
     assert client.get(f"/v1/stories/{story.id}", headers=headers).status_code == 200
+
+
+def _profile_for(client, headers):
+    return client.post(
+        "/v1/child-profiles",
+        json={"id": str(_uuid.uuid4()), "age_band": "5-6"},
+        headers=headers,
+    ).json()
+
+
+def test_other_user_cannot_start_session_on_authored_story(client, db, seeded):
+    owner_uid, _ = _user_id_for(client, "owner-device")
+    story = _make_authored(db, owner_uid)
+    _, other_headers = _user_id_for(client, "other-device")
+    profile = _profile_for(client, other_headers)
+    resp = client.post(
+        "/v1/story-sessions",
+        json={"child_profile_id": profile["id"], "story_id": story.id},
+        headers=other_headers,
+    )
+    assert resp.status_code == 404
+
+
+def test_owner_can_start_session_on_own_authored_story(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    story = _make_authored(db, uid)
+    profile = _profile_for(client, headers)
+    resp = client.post(
+        "/v1/story-sessions",
+        json={"child_profile_id": profile["id"], "story_id": story.id},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+
+def test_other_user_gets_404_on_authored_image_target_manifest(client, db, seeded):
+    owner_uid, _ = _user_id_for(client, "owner-device")
+    story = _make_authored(db, owner_uid)
+    _, other_headers = _user_id_for(client, "other-device")
+    resp = client.get(
+        f"/v1/stories/{story.id}/image-target-manifest", headers=other_headers
+    )
+    assert resp.status_code == 404

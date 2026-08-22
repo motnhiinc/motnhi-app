@@ -14,9 +14,9 @@ router = APIRouter(prefix="/v1/stories", tags=["manifests"])
 def image_target_manifest(
     story_id: str,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> ImageTargetManifest:
-    manifest = repo.build_image_target_manifest(db, story_id)
+    manifest = repo.build_image_target_manifest(db, user.id, story_id)
     if manifest is None:
         raise HTTPException(status_code=404, detail="story not found")
     return manifest
