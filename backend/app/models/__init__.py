@@ -76,6 +76,14 @@ class Story(Base):
     content_status: Mapped[str] = mapped_column(Text, default="published")
     rights_owner_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     themes: Mapped[list] = mapped_column(JSONB, default=list)
+    # NULL = curated/seeded content. Non-null = captured in-app by that user.
+    owner_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+
+    @property
+    def is_authored(self) -> bool:
+        return self.owner_user_id is not None
 
     pages: Mapped[list["StoryPage"]] = relationship(cascade="all, delete-orphan")
     segments: Mapped[list["NarrationSegment"]] = relationship(cascade="all, delete-orphan")

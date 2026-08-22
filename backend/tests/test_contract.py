@@ -14,7 +14,11 @@ def _auth(client):
 
 def _strip_runtime(story: dict) -> dict:
     # Server-derived flags the bundled file may set differently.
-    return {k: v for k, v in story.items() if k not in ("is_downloaded", "is_unlocked")}
+    return {
+        k: v
+        for k, v in story.items()
+        if k not in ("is_downloaded", "is_unlocked", "is_authored")
+    }
 
 
 @pytest.mark.parametrize("slug", SLUGS)

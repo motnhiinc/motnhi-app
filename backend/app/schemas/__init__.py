@@ -34,6 +34,7 @@ class StoryOut(_ORM):
     themes: list[str] = []
     is_downloaded: bool = False
     is_unlocked: bool = True
+    is_authored: bool = False
 
 
 class LibraryResponse(BaseModel):
