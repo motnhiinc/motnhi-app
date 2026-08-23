@@ -13,10 +13,32 @@ enum CharacterReaderFailure: String, Error {
   case audioFailed = "audio_failed"
 }
 
+/// How far the child got through a story. Empty for the single-clip scan-any-page flow,
+/// which has no pages to track.
+struct CharacterReaderProgress {
+  let lastPageId: String?
+  let pagesRead: [String]
+
+  static let none = CharacterReaderProgress(lastPageId: nil, pagesRead: [])
+}
+
 enum CharacterReaderResult {
-  case completed
-  case cancelled
+  /// Carried on cancel as well as completion: cancel is the normal way to leave AR, and the
+  /// page the child reached still matters to the player.
+  case completed(CharacterReaderProgress)
+  case cancelled(CharacterReaderProgress)
   case failure(CharacterReaderFailure)
+}
+
+/// One page of the story reader playlist: its clips, in narration order.
+///
+/// A page holds a list rather than a single clip because curated pages carry several
+/// narration segments, and they cannot be joined in general — a page can mix an `.mp3`
+/// from the backend with a `.caf` written by device speech synthesis.
+struct StoryReaderPage {
+  let pageId: String
+  let pageNumber: Int
+  let audioURLs: [URL]
 }
 
 enum CharacterReaderPlaybackState: Equatable {
@@ -33,13 +55,24 @@ enum CharacterReaderPlaybackState: Equatable {
 }
 
 final class CharacterReaderViewController: UIViewController {
-  private let audioURL: URL
+  /// Both entry points normalise onto this list, so there is exactly one playback path. The
+  /// single-clip scan-any-page flow is simply a one-page, one-clip story.
+  private let pages: [StoryReaderPage]
+  private let storyMode: Bool
+  private var pageIndex: Int
+  private var clipIndex = 0
+  /// Ordered and de-duplicated, so the player receives pages as the child heard them.
+  private var pagesRead: [String] = []
+
   private var onComplete: ((CharacterReaderResult) -> Void)?
 
   private let arView = ARView(frame: .zero)
   private let guidanceLabel = UILabel()
   private let closeButton = UIButton(type: .system)
   private let readButton = UIButton(type: .system)
+  private let previousButton = UIButton(type: .system)
+  private let nextButton = UIButton(type: .system)
+  private let pageLabel = UILabel()
   private let waveStack = UIStackView()
   private let waveBars = (0..<3).map { _ in UIView() }
 
@@ -63,10 +96,42 @@ final class CharacterReaderViewController: UIViewController {
   private var isApplicationActive = true
   private var ownsAudioSession = false
 
-  init(audioURL: URL, onComplete: @escaping (CharacterReaderResult) -> Void) {
-    self.audioURL = audioURL
+  /// Single-clip entry point, unchanged for the scan-any-page flow.
+  convenience init(audioURL: URL, onComplete: @escaping (CharacterReaderResult) -> Void) {
+    self.init(
+      pages: [StoryReaderPage(pageId: "", pageNumber: 1, audioURLs: [audioURL])],
+      initialPageIndex: 0,
+      storyMode: false,
+      onComplete: onComplete
+    )
+  }
+
+  init(
+    pages: [StoryReaderPage],
+    initialPageIndex: Int,
+    storyMode: Bool,
+    onComplete: @escaping (CharacterReaderResult) -> Void
+  ) {
+    self.pages = pages
+    self.storyMode = storyMode
+    self.pageIndex = min(max(initialPageIndex, 0), max(pages.count - 1, 0))
     self.onComplete = onComplete
     super.init(nibName: nil, bundle: nil)
+  }
+
+  private var currentAudioURL: URL? {
+    guard pageIndex < pages.count else { return nil }
+    let clips = pages[pageIndex].audioURLs
+    guard clipIndex < clips.count else { return nil }
+    return clips[clipIndex]
+  }
+
+  private var progress: CharacterReaderProgress {
+    guard storyMode else { return .none }
+    return CharacterReaderProgress(
+      lastPageId: pageIndex < pages.count ? pages[pageIndex].pageId : nil,
+      pagesRead: pagesRead
+    )
   }
 
   @available(*, unavailable)
@@ -85,7 +150,7 @@ final class CharacterReaderViewController: UIViewController {
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
     guard !isTerminal else { return }
-    finish(hasPlaybackStarted ? .completed : .cancelled)
+    finish(hasPlaybackStarted ? .completed(progress) : .cancelled(progress))
   }
 
   deinit {
@@ -138,6 +203,7 @@ final class CharacterReaderViewController: UIViewController {
     readButton.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
     view.addSubview(readButton)
 
+    configurePageControls()
     configureWaveBadge()
 
     NSLayoutConstraint.activate([
@@ -163,12 +229,52 @@ final class CharacterReaderViewController: UIViewController {
       waveStack.trailingAnchor.constraint(equalTo: readButton.leadingAnchor, constant: -14),
       waveStack.widthAnchor.constraint(equalToConstant: 42),
       waveStack.heightAnchor.constraint(equalToConstant: 40),
+      previousButton.centerYAnchor.constraint(equalTo: readButton.centerYAnchor),
+      previousButton.trailingAnchor.constraint(equalTo: waveStack.leadingAnchor, constant: -12),
+      previousButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+      previousButton.heightAnchor.constraint(equalToConstant: 56),
+      nextButton.centerYAnchor.constraint(equalTo: readButton.centerYAnchor),
+      nextButton.leadingAnchor.constraint(equalTo: readButton.trailingAnchor, constant: 12),
+      nextButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
+      nextButton.heightAnchor.constraint(equalToConstant: 56),
+      pageLabel.bottomAnchor.constraint(equalTo: readButton.topAnchor, constant: -12),
+      pageLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      pageLabel.heightAnchor.constraint(equalToConstant: 32),
     ])
 
     let placementTap = UITapGestureRecognizer(target: self, action: #selector(placeCharacter))
     placementTap.isEnabled = false
     arView.addGestureRecognizer(placementTap)
     self.placementTap = placementTap
+  }
+
+  /// Page controls exist only in story mode; the scan-any-page flow has a single clip and no
+  /// pages to move between, so they stay hidden and unreachable there.
+  private func configurePageControls() {
+    for (button, title, action) in [
+      (previousButton, "Back", #selector(goToPreviousPage)),
+      (nextButton, "Next", #selector(goToNextPage)),
+    ] {
+      button.translatesAutoresizingMaskIntoConstraints = false
+      button.setTitle(title, for: .normal)
+      button.setTitleColor(.white, for: .normal)
+      button.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+      button.backgroundColor = .systemIndigo
+      button.layer.cornerRadius = 14
+      button.isHidden = true
+      button.addTarget(self, action: action, for: .touchUpInside)
+      view.addSubview(button)
+    }
+
+    pageLabel.translatesAutoresizingMaskIntoConstraints = false
+    pageLabel.textAlignment = .center
+    pageLabel.textColor = .white
+    pageLabel.font = .preferredFont(forTextStyle: .subheadline)
+    pageLabel.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+    pageLabel.layer.cornerRadius = 10
+    pageLabel.layer.masksToBounds = true
+    pageLabel.isHidden = true
+    view.addSubview(pageLabel)
   }
 
   private func configureWaveBadge() {
@@ -219,7 +325,9 @@ final class CharacterReaderViewController: UIViewController {
       finish(.failure(.arUnsupported))
       return
     }
-    guard FileManager.default.fileExists(atPath: audioURL.path) else {
+    guard let audioURL = currentAudioURL,
+          FileManager.default.fileExists(atPath: audioURL.path)
+    else {
       finish(.failure(.audioMissing))
       return
     }
@@ -230,11 +338,12 @@ final class CharacterReaderViewController: UIViewController {
         return
       }
       audioPlayer?.delegate = self
+      syncPageControls()
     } catch {
       finish(.failure(.audioFailed))
       return
     }
-    guard let modelURL = Bundle.main.url(forResource: "toy_drummer", withExtension: "usdz") else {
+    guard let modelURL = Bundle.main.url(forResource: "scan_any_page_character", withExtension: "usdz") else {
       finish(.failure(.modelMissing))
       return
     }
@@ -339,6 +448,10 @@ final class CharacterReaderViewController: UIViewController {
     guidanceLabel.text = "Character ready"
     readButton.isHidden = false
     waveStack.isHidden = false
+    previousButton.isHidden = !storyMode
+    nextButton.isHidden = !storyMode
+    pageLabel.isHidden = !storyMode
+    syncPageControls()
     renderPlaybackState()
 
     if !playFirstAnimation(in: model) {
@@ -394,11 +507,93 @@ final class CharacterReaderViewController: UIViewController {
       }
       hasPlaybackStarted = true
       playbackState = .playing
+      markCurrentPageRead()
       guidanceLabel.text = "Reading aloud"
       renderPlaybackState()
     } catch {
       showPlaybackRetry()
     }
+  }
+
+  private func markCurrentPageRead() {
+    guard storyMode, pageIndex < pages.count else { return }
+    let pageId = pages[pageIndex].pageId
+    guard !pageId.isEmpty, !pagesRead.contains(pageId) else { return }
+    pagesRead.append(pageId)
+  }
+
+  /// Loads the current clip into a fresh player. Returns false rather than finishing: once the
+  /// scene is up, an audio failure must not take the child's placed character away.
+  @discardableResult
+  private func loadCurrentClip() -> Bool {
+    guard let url = currentAudioURL,
+          FileManager.default.fileExists(atPath: url.path),
+          let player = try? AVAudioPlayer(contentsOf: url),
+          player.prepareToPlay()
+    else {
+      return false
+    }
+    audioPlayer?.pause()
+    player.delegate = self
+    audioPlayer = player
+    return true
+  }
+
+  private func startCurrentClip() -> Bool {
+    guard let audioPlayer else { return false }
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .spokenAudio)
+      ownsAudioSession = true
+      try session.setActive(true)
+      guard audioPlayer.play() else { return false }
+      hasPlaybackStarted = true
+      playbackState = .playing
+      markCurrentPageRead()
+      guidanceLabel.text = "Reading aloud"
+      renderPlaybackState()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /// Moves between pages without touching the AR session or the placed anchor: only the audio
+  /// changes, which is what lets the character stay exactly where the child put it.
+  @objc private func goToPreviousPage() { goToPage(by: -1) }
+
+  @objc private func goToNextPage() { goToPage(by: 1) }
+
+  private func goToPage(by delta: Int) {
+    guard storyMode, isPlaced else { return }
+    let target = pageIndex + delta
+    guard target >= 0, target < pages.count else { return }
+
+    let wasPlaying = playbackState == .playing
+    pageIndex = target
+    clipIndex = 0
+    syncPageControls()
+
+    guard loadCurrentClip() else {
+      showPlaybackRetry()
+      return
+    }
+    if wasPlaying {
+      if !startCurrentClip() { showPlaybackRetry() }
+    } else {
+      playbackState = .ready
+      guidanceLabel.text = "Character ready"
+      renderPlaybackState()
+    }
+  }
+
+  private func syncPageControls() {
+    guard storyMode else { return }
+    pageLabel.text = "  Page \(pageIndex + 1) of \(pages.count)  "
+    previousButton.isEnabled = pageIndex > 0
+    nextButton.isEnabled = pageIndex < pages.count - 1
+    previousButton.alpha = previousButton.isEnabled ? 1.0 : 0.35
+    nextButton.alpha = nextButton.isEnabled ? 1.0 : 0.35
   }
 
   private func showPlaybackRetry() {
@@ -441,7 +636,7 @@ final class CharacterReaderViewController: UIViewController {
   }
 
   @objc private func close() {
-    finish(hasPlaybackStarted ? .completed : .cancelled)
+    finish(hasPlaybackStarted ? .completed(progress) : .cancelled(progress))
   }
 
   private func finish(_ result: CharacterReaderResult) {
@@ -530,14 +725,31 @@ extension CharacterReaderViewController: AVAudioPlayerDelegate {
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
     DispatchQueue.main.async { [weak self] in
       guard let self, !self.isTerminal else { return }
-      if flag {
-        player.currentTime = 0
-        self.playbackState = .ready
-        self.guidanceLabel.text = "Reading complete"
-      } else {
+      guard flag else {
         self.playbackState = .retry
         self.guidanceLabel.text = "Audio stopped - Tap Retry"
+        self.deactivateOwnedAudioSession()
+        self.renderPlaybackState()
+        return
       }
+
+      // A page's clips play back to back. Only when the last one ends is the page finished —
+      // this is what keeps multi-segment curated pages from stopping after one sentence.
+      let clips = self.pageIndex < self.pages.count
+        ? self.pages[self.pageIndex].audioURLs.count
+        : 0
+      if self.clipIndex + 1 < clips {
+        self.clipIndex += 1
+        if self.loadCurrentClip(), self.startCurrentClip() { return }
+        self.showPlaybackRetry()
+        return
+      }
+
+      player.currentTime = 0
+      self.playbackState = .ready
+      self.guidanceLabel.text = self.storyMode && self.pageIndex < self.pages.count - 1
+        ? "Page finished - Tap Next"
+        : "Reading complete"
       self.deactivateOwnedAudioSession()
       self.renderPlaybackState()
     }
