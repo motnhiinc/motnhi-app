@@ -186,7 +186,13 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
         fetcher: _fetcher,
         tts: ref.read(ttsFileSynthesizerProvider),
         downloader: ref.read(arAudioDownloaderProvider),
-        directory: Directory.systemTemp,
+        // Android's Directory.systemTemp is the app's code_cache dir, which is a
+        // *sibling* of the cacheDir the native AudioPathValidator allows, so every
+        // clip written there fails containment and AR returns audio_missing. This is
+        // the same platform split main.dart already applies to TTS; on iOS the
+        // provider is null and systemTemp (NSTemporaryDirectory) is correct.
+        directory:
+            ref.read(ttsTemporaryDirectoryProvider)?.call() ?? Directory.systemTemp,
         initialPageIndex: _pageIndex,
       );
 
