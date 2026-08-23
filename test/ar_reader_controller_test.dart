@@ -34,14 +34,9 @@ class _FakeTts implements TtsFileSynthesizer {
 }
 
 class _FakeReader implements StoryReader {
-  _FakeReader({
-    this.supported = true,
-    this.result,
-    this.failureCode,
-  });
+  _FakeReader({this.supported = true, this.failureCode});
 
   final bool supported;
-  final StoryReaderResult? result;
   final String? failureCode;
 
   int openCalls = 0;
@@ -60,12 +55,11 @@ class _FakeReader implements StoryReader {
     openedWith = pages;
     openedAtIndex = initialPageIndex;
     if (failureCode != null) throw StoryReaderFailure(failureCode!);
-    return result ??
-        const StoryReaderResult(
-          terminalCode: 'completed',
-          lastPageId: 'p1',
-          pagesRead: ['p1'],
-        );
+    return const StoryReaderResult(
+      terminalCode: 'completed',
+      lastPageId: 'p1',
+      pagesRead: ['p1'],
+    );
   }
 }
 
