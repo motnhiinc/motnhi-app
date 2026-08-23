@@ -4,6 +4,7 @@ import android.view.MotionEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +47,11 @@ internal class ReaderUiState {
     var readLabel by mutableStateOf("Read")
     var controlsVisible by mutableStateOf(false)
     var speaking by mutableStateOf(false)
+
+    /** Empty in the single-clip scan-any-page flow, which has no pages to move between. */
+    var pageLabel by mutableStateOf("")
+    var canGoPrevious by mutableStateOf(false)
+    var canGoNext by mutableStateOf(false)
 }
 
 internal const val GUIDANCE_PREPARING = "Preparing character reader"
@@ -64,6 +70,8 @@ internal fun CharacterReaderScreen(
     onFailure: (String) -> Unit,
     onPlaced: () -> Unit,
     onReadClick: () -> Unit,
+    onPreviousClick: () -> Unit,
+    onNextClick: () -> Unit,
     onCloseClick: () -> Unit,
 ) {
     Box(
@@ -71,6 +79,8 @@ internal fun CharacterReaderScreen(
             .fillMaxSize()
             .background(Color.Black),
     ) {
+        // Deliberately not passed the page state: page turns must not recompose the AR scene,
+        // because the placed anchor lives in its remembered state.
         CharacterReaderArScene(
             state = state,
             modelAssetFileName = modelAssetFileName,
@@ -80,6 +90,8 @@ internal fun CharacterReaderScreen(
         Overlay(
             state = state,
             onReadClick = onReadClick,
+            onPreviousClick = onPreviousClick,
+            onNextClick = onNextClick,
             onCloseClick = onCloseClick,
         )
     }
@@ -203,6 +215,8 @@ private fun CharacterReaderArScene(
 private fun Overlay(
     state: ReaderUiState,
     onReadClick: () -> Unit,
+    onPreviousClick: () -> Unit,
+    onNextClick: () -> Unit,
     onCloseClick: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -226,21 +240,59 @@ private fun Overlay(
         )
 
         if (state.controlsVisible) {
-            Row(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (state.speaking) {
-                    SpeakingBadge()
+                if (state.pageLabel.isNotEmpty()) {
+                    BasicText(
+                        text = state.pageLabel,
+                        style = TextStyle(color = Color.White, fontSize = 15.sp),
+                        modifier = Modifier
+                            .padding(bottom = 10.dp)
+                            .background(
+                                Color.Black.copy(alpha = 0.65f),
+                                RoundedCornerShape(10.dp),
+                            )
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                    )
                 }
-                OverlayButton(
-                    label = state.readLabel,
-                    onClick = onReadClick,
-                    modifier = Modifier.defaultMinSize(minWidth = 148.dp, minHeight = 56.dp),
-                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    if (state.speaking) {
+                        SpeakingBadge()
+                    }
+                    if (state.pageLabel.isNotEmpty()) {
+                        OverlayButton(
+                            label = "Back",
+                            onClick = onPreviousClick,
+                            enabled = state.canGoPrevious,
+                            modifier = Modifier
+                                .padding(end = 10.dp)
+                                .defaultMinSize(minWidth = 96.dp, minHeight = 56.dp),
+                        )
+                    }
+                    OverlayButton(
+                        label = state.readLabel,
+                        onClick = onReadClick,
+                        modifier = Modifier.defaultMinSize(minWidth = 148.dp, minHeight = 56.dp),
+                    )
+                    if (state.pageLabel.isNotEmpty()) {
+                        OverlayButton(
+                            label = "Next",
+                            onClick = onNextClick,
+                            enabled = state.canGoNext,
+                            modifier = Modifier
+                                .padding(start = 10.dp)
+                                .defaultMinSize(minWidth = 96.dp, minHeight = 56.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -251,17 +303,24 @@ private fun OverlayButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier = modifier
-            .background(Color(0xFF3F51B5), RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .background(
+                if (enabled) Color(0xFF3F51B5) else Color(0xFF3F51B5).copy(alpha = 0.35f),
+                RoundedCornerShape(14.dp),
+            )
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         BasicText(
             text = label,
-            style = TextStyle(color = Color.White, fontSize = 16.sp),
+            style = TextStyle(
+                color = if (enabled) Color.White else Color.White.copy(alpha = 0.55f),
+                fontSize = 16.sp,
+            ),
         )
     }
 }

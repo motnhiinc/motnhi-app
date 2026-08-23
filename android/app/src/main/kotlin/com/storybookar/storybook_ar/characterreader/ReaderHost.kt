@@ -11,6 +11,12 @@ interface ReaderHost {
 
     /** Returns false if the reader could not be started, which the bridge maps to `ar_failed`. */
     fun launchReader(audioPath: String): Boolean
+
+    /**
+     * Starts the reader on a whole story. Serialisation lives in the implementation so the
+     * bridge stays free of Android types and reachable from a JVM unit test.
+     */
+    fun launchStoryReader(pages: List<StoryReaderPage>, initialPageIndex: Int): Boolean
 }
 
 class ActivityReaderHost(
@@ -27,6 +33,23 @@ class ActivityReaderHost(
         try {
             val intent = Intent(activity, CharacterReaderActivity::class.java)
                 .putExtra(CharacterReaderActivity.EXTRA_AUDIO_FILE_PATH, audioPath)
+            activity.startActivityForResult(intent, readerRequestCode)
+            true
+        } catch (_: RuntimeException) {
+            false
+        }
+
+    override fun launchStoryReader(
+        pages: List<StoryReaderPage>,
+        initialPageIndex: Int,
+    ): Boolean =
+        try {
+            val intent = Intent(activity, CharacterReaderActivity::class.java)
+                .putExtra(
+                    CharacterReaderActivity.EXTRA_PAGES_JSON,
+                    StoryReaderPageCodec.encode(pages),
+                )
+                .putExtra(CharacterReaderActivity.EXTRA_INITIAL_PAGE_INDEX, initialPageIndex)
             activity.startActivityForResult(intent, readerRequestCode)
             true
         } catch (_: RuntimeException) {

@@ -235,6 +235,199 @@ class CharacterReaderBridgeTest {
         assertEquals(200L, scheduler.lastDelayMs)
     }
 
+    // ---- story reader ----
+
+    /** Two clips on one page, which is the shape curated multi-segment pages produce. */
+    private fun storyArguments(
+        vararg clips: String,
+        initialPageIndex: Int = 0,
+    ): Map<String, Any> = mapOf(
+        "pages" to listOf(
+            mapOf(
+                "pageId" to "p1",
+                "pageNumber" to 1,
+                "audioFilePaths" to clips.toList(),
+            ),
+        ),
+        "initialPageIndex" to initialPageIndex,
+    )
+
+    private fun storyClip(name: String): String =
+        File(cacheDir, name).apply { writeBytes(byteArrayOf(1)) }.path
+
+    @Test
+    fun openStoryReaderLaunchesWithEveryValidatedClip() {
+        val first = storyClip("ar_story1_p1_s0.mp3")
+        val second = storyClip("ar_story1_p1_s1.mp3")
+
+        bridge().handle(MethodCall("openStoryReader", storyArguments(first, second)), result)
+
+        assertEquals(1, host.storyLaunches.size)
+        val (pages, initialIndex) = host.storyLaunches.single()
+        assertEquals(1, pages.size)
+        assertEquals("p1", pages.single().pageId)
+        assertEquals(
+            listOf(File(first).canonicalPath, File(second).canonicalPath),
+            pages.single().audioFilePaths,
+        )
+        assertEquals(0, initialIndex)
+        assertEquals(0, result.replies)
+    }
+
+    @Test
+    fun openStoryReaderRejectsAPlaylistContainingOneBadPath() {
+        val good = storyClip("ar_story1_p1_s0.mp3")
+        val outside = File(root, "ar_story1_p1_s1.mp3").apply { writeBytes(byteArrayOf(1)) }
+
+        bridge().handle(
+            MethodCall("openStoryReader", storyArguments(good, outside.path)),
+            result,
+        )
+
+        assertTrue(host.storyLaunches.isEmpty())
+        assertEquals(1, result.replies)
+        assertEquals("audio_missing", result.errorCode)
+    }
+
+    @Test
+    fun openStoryReaderClampsAnOutOfRangeInitialIndex() {
+        val clip = storyClip("ar_story1_p1_s0.mp3")
+
+        bridge().handle(
+            MethodCall("openStoryReader", storyArguments(clip, initialPageIndex = 9)),
+            result,
+        )
+
+        assertEquals(0, host.storyLaunches.single().second)
+    }
+
+    @Test
+    fun openStoryReaderSharesTheSingleFlightGateWithTheCharacterReader() {
+        val bridge = bridge()
+        bridge.open()
+        val second = RecordingResult()
+
+        bridge.handle(
+            MethodCall("openStoryReader", storyArguments(storyClip("ar_story1_p1_s0.mp3"))),
+            second,
+        )
+
+        assertEquals(1, second.replies)
+        assertEquals("reader_in_progress", second.errorCode)
+    }
+
+    @Test
+    fun cancellingTheStoryReaderStillRepliesWithProgressOnTheSuccessChannel() {
+        val bridge = bridge()
+        bridge.handle(
+            MethodCall("openStoryReader", storyArguments(storyClip("ar_story1_p1_s0.mp3"))),
+            result,
+        )
+
+        bridge.finishStoryTerminal(
+            code = CharacterReaderResultMapper.CANCELLED,
+            lastPageId = "p3",
+            pagesRead = listOf("p1", "p2", "p3"),
+        )
+
+        assertEquals(1, result.replies)
+        assertNull(result.errorCode)
+        val payload = result.successValue as Map<*, *>
+        assertEquals("cancelled", payload["terminalCode"])
+        assertEquals("p3", payload["lastPageId"])
+        assertEquals(listOf("p1", "p2", "p3"), payload["pagesRead"])
+    }
+
+    @Test
+    fun completingTheStoryReaderRepliesOnTheSuccessChannel() {
+        val bridge = bridge()
+        bridge.handle(
+            MethodCall("openStoryReader", storyArguments(storyClip("ar_story1_p1_s0.mp3"))),
+            result,
+        )
+
+        bridge.finishStoryTerminal(
+            code = CharacterReaderResultMapper.COMPLETED,
+            lastPageId = "p2",
+            pagesRead = listOf("p1", "p2"),
+        )
+
+        val payload = result.successValue as Map<*, *>
+        assertEquals("completed", payload["terminalCode"])
+        assertEquals("p2", payload["lastPageId"])
+    }
+
+    @Test
+    fun aRealStoryReaderFailureStillUsesTheErrorChannel() {
+        val bridge = bridge()
+        bridge.handle(
+            MethodCall("openStoryReader", storyArguments(storyClip("ar_story1_p1_s0.mp3"))),
+            result,
+        )
+
+        bridge.finishStoryTerminal(code = "model_missing", lastPageId = null, pagesRead = emptyList())
+
+        assertEquals(1, result.replies)
+        assertEquals("model_missing", result.errorCode)
+        assertNull(result.successValue)
+    }
+
+    @Test
+    fun theStoryReaderReleasesTheGateSoAnotherReaderCanOpen() {
+        val bridge = bridge()
+        bridge.handle(
+            MethodCall("openStoryReader", storyArguments(storyClip("ar_story1_p1_s0.mp3"))),
+            result,
+        )
+        bridge.finishStoryTerminal(
+            code = CharacterReaderResultMapper.CANCELLED,
+            lastPageId = "p1",
+            pagesRead = listOf("p1"),
+        )
+
+        val second = RecordingResult()
+        bridge.handle(MethodCall("openCharacterReader", mapOf("audioFilePath" to audioPath)), second)
+
+        assertEquals(0, second.replies)
+        assertEquals(listOf(launchedPath), host.launches)
+    }
+
+    // ---- capability probe ----
+
+    @Test
+    fun isStoryReaderSupportedAnswersWithoutTakingTheGate() {
+        val bridge = bridge()
+
+        bridge.handle(MethodCall("isStoryReaderSupported", null), result)
+
+        assertEquals(1, result.replies)
+        assertEquals(true, result.successValue)
+
+        // The probe must not have consumed the single-flight gate.
+        val second = RecordingResult()
+        bridge.handle(MethodCall("openCharacterReader", mapOf("audioFilePath" to audioPath)), second)
+        assertEquals(0, second.replies)
+    }
+
+    @Test
+    fun isStoryReaderSupportedIsFalseOnlyWhenArCoreIsUnsupported() {
+        arCore.availability = ArCoreAvailabilityDecision.Unsupported
+        bridge().handle(MethodCall("isStoryReaderSupported", null), result)
+        assertEquals(false, result.successValue)
+
+        val transient = RecordingResult()
+        arCore.availability = ArCoreAvailabilityDecision.Retry
+        bridge().handle(MethodCall("isStoryReaderSupported", null), transient)
+        assertEquals(true, transient.successValue)
+    }
+
+    @Test
+    fun unknownMethodsAreNotImplemented() {
+        bridge().handle(MethodCall("somethingElse", null), result)
+
+        assertTrue(result.notImplementedCalls > 0)
+    }
+
     private companion object {
         const val READER_REQUEST_CODE = 0x51A2
     }
@@ -258,11 +451,20 @@ private class FakeReaderHost : ReaderHost {
     var presentable = true
     var launchSucceeds = true
     val launches = mutableListOf<String>()
+    val storyLaunches = mutableListOf<Pair<List<StoryReaderPage>, Int>>()
 
     override fun isPresentable() = presentable
 
     override fun launchReader(audioPath: String): Boolean {
         launches += audioPath
+        return launchSucceeds
+    }
+
+    override fun launchStoryReader(
+        pages: List<StoryReaderPage>,
+        initialPageIndex: Int,
+    ): Boolean {
+        storyLaunches += pages to initialPageIndex
         return launchSucceeds
     }
 }
@@ -287,6 +489,7 @@ private class RecordingResult : MethodChannel.Result {
     var replies = 0
     var successValue: Any? = null
     var errorCode: String? = null
+    var notImplementedCalls = 0
 
     override fun success(result: Any?) {
         replies++
@@ -300,5 +503,6 @@ private class RecordingResult : MethodChannel.Result {
 
     override fun notImplemented() {
         replies++
+        notImplementedCalls++
     }
 }

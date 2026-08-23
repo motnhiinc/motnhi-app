@@ -30,6 +30,11 @@ class CharacterReaderBridge internal constructor(
     private var installAttempts = 0
     private var awaitingInstallResume = false
 
+    /** True while the pending call came from `openStoryReader` rather than `openCharacterReader`. */
+    private var pendingIsStoryReader = false
+    private var pendingPages: List<StoryReaderPage>? = null
+    private var pendingInitialPageIndex = 0
+
     internal fun attachTo(messenger: BinaryMessenger) {
         channel = MethodChannel(messenger, CHANNEL_NAME).apply {
             setMethodCallHandler(::handle)
@@ -38,36 +43,89 @@ class CharacterReaderBridge internal constructor(
 
     internal fun handle(call: MethodCall, result: MethodChannel.Result) {
         scheduler.runOnMain {
-            if (call.method != "openCharacterReader") {
-                result.notImplemented()
-                return@runOnMain
-            }
-            if (!inProgressGate.tryStart()) {
-                result.error("reader_in_progress", null, null)
-                return@runOnMain
-            }
+            when (call.method) {
+                // Deliberately outside the gate: a capability probe presents nothing, and the
+                // player asks it once on open so an unsupported device never shows the AR button
+                // and then fails after a long preparation. Retry is transient, so only an
+                // outright Unsupported answers false.
+                "isStoryReaderSupported" ->
+                    result.success(
+                        arCore.checkAvailability() != ArCoreAvailabilityDecision.Unsupported,
+                    )
 
-            val path = (call.arguments as? Map<*, *>)?.get("audioFilePath") as? String
-            val audioFile = audioPathValidator.validate(path)
-            if (audioFile == null) {
+                "openCharacterReader" -> start(call, result, storyMode = false)
+                "openStoryReader" -> start(call, result, storyMode = true)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    /**
+     * Shared entry for both readers. They share [inProgressGate] on purpose: they are the same
+     * channel and the same activity, so two readers must never be presentable at once.
+     */
+    private fun start(call: MethodCall, result: MethodChannel.Result, storyMode: Boolean) {
+        if (!inProgressGate.tryStart()) {
+            result.error("reader_in_progress", null, null)
+            return
+        }
+
+        val arguments = call.arguments as? Map<*, *>
+        if (storyMode) {
+            val pages = StoryReaderPages.parse(arguments?.get("pages"))
+                ?.let(::validatePages)
+            if (pages == null) {
                 inProgressGate.finish()
                 result.error("audio_missing", null, null)
-                return@runOnMain
+                return
             }
             if (!host.isPresentable()) {
                 inProgressGate.finish()
                 result.error("ar_failed", null, null)
-                return@runOnMain
+                return
             }
-
-            pendingResult = result
-            replyGate = OneShotGate()
+            pendingPages = pages
+            pendingInitialPageIndex = StoryReaderPages.clampIndex(
+                (arguments?.get("initialPageIndex") as? Number)?.toInt() ?: 0,
+                pages.size,
+            )
+            pendingAudioPath = null
+        } else {
+            val audioFile = audioPathValidator
+                .validate(arguments?.get("audioFilePath") as? String)
+            if (audioFile == null) {
+                inProgressGate.finish()
+                result.error("audio_missing", null, null)
+                return
+            }
+            if (!host.isPresentable()) {
+                inProgressGate.finish()
+                result.error("ar_failed", null, null)
+                return
+            }
             pendingAudioPath = audioFile.path
-            installAttempts = 0
-            awaitingInstallResume = false
-            checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
+            pendingPages = null
         }
+
+        pendingIsStoryReader = storyMode
+        pendingResult = result
+        replyGate = OneShotGate()
+        installAttempts = 0
+        awaitingInstallResume = false
+        checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
     }
+
+    /**
+     * Every clip in the playlist must validate; one bad path fails the whole request. A partial
+     * playlist would leave the character silent partway through a page with no way to say why.
+     */
+    private fun validatePages(pages: List<StoryReaderPage>): List<StoryReaderPage>? =
+        pages.map { page ->
+            val validated = page.audioFilePaths.map { path ->
+                audioPathValidator.validate(path)?.path ?: return null
+            }
+            page.copy(audioFilePaths = validated)
+        }
 
     private fun checkArAvailability(remainingTransientPolls: Int) {
         when (arCore.checkAvailability()) {
@@ -123,10 +181,6 @@ class CharacterReaderBridge internal constructor(
     }
 
     private fun launchReader() {
-        val audioPath = pendingAudioPath ?: run {
-            finishError("audio_missing")
-            return
-        }
         // A transient-availability poll or an install resume can land after the app has left
         // the foreground. startActivityForResult is silently dropped from the background on
         // Android 10+ without throwing, so re-check here rather than leave the call pending.
@@ -134,9 +188,22 @@ class CharacterReaderBridge internal constructor(
             finishError("ar_failed")
             return
         }
-        if (!host.launchReader(audioPath)) {
-            finishError("ar_failed")
+
+        val launched = if (pendingIsStoryReader) {
+            val pages = pendingPages ?: run {
+                finishError("audio_missing")
+                return
+            }
+            host.launchStoryReader(pages, pendingInitialPageIndex)
+        } else {
+            val audioPath = pendingAudioPath ?: run {
+                finishError("audio_missing")
+                return
+            }
+            host.launchReader(audioPath)
         }
+
+        if (!launched) finishError("ar_failed")
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
@@ -145,11 +212,68 @@ class CharacterReaderBridge internal constructor(
 
         val terminalCodeExtra =
             data?.getStringExtra(CharacterReaderResultMapper.EXTRA_TERMINAL_CODE)
-        when (val code = CharacterReaderResultMapper.terminalCode(resultCode, terminalCodeExtra)) {
+        val code = CharacterReaderResultMapper.terminalCode(resultCode, terminalCodeExtra)
+
+        if (pendingIsStoryReader) {
+            return finishStoryTerminal(
+                code = code,
+                lastPageId = data?.getStringExtra(CharacterReaderResultMapper.EXTRA_LAST_PAGE_ID),
+                pagesRead = data
+                    ?.getStringArrayListExtra(CharacterReaderResultMapper.EXTRA_PAGES_READ)
+                    ?: emptyList(),
+            )
+        }
+
+        when (code) {
             CharacterReaderResultMapper.COMPLETED -> finishSuccess("completed")
             else -> finishError(code)
         }
         return true
+    }
+
+    /**
+     * Takes primitives rather than the [Intent] so JVM tests can drive it, mirroring
+     * [CharacterReaderResultMapper.terminalCode]. Intent unwrapping belongs to the caller.
+     *
+     * Both `completed` and `cancelled` go down the *success* channel, unlike
+     * `openCharacterReader` which sends everything but `completed` to `result.error`. Cancel is
+     * the normal way to leave AR, and it still carries the page the child reached — routing it
+     * as an error would throw that away and strand the book on the page AR started from.
+     * `result.error` stays reserved for failures where nothing was ever presented.
+     */
+    internal fun finishStoryTerminal(
+        code: String,
+        lastPageId: String?,
+        pagesRead: List<String>,
+    ): Boolean {
+        if (code == CharacterReaderResultMapper.COMPLETED ||
+            code == CharacterReaderResultMapper.CANCELLED
+        ) {
+            finishStory(code, lastPageId, pagesRead)
+        } else {
+            finishError(code)
+        }
+        return true
+    }
+
+    private fun finishStory(
+        terminalCode: String,
+        lastPageId: String?,
+        pagesRead: List<String>,
+    ) {
+        val result = pendingResult ?: return
+        val gate = replyGate ?: return
+        if (!gate.claim()) return
+        clearPending()
+        scheduler.runOnMain {
+            result.success(
+                mapOf(
+                    "terminalCode" to terminalCode,
+                    "lastPageId" to lastPageId,
+                    "pagesRead" to pagesRead,
+                ),
+            )
+        }
     }
 
     private fun finishSuccess(value: Any?) {
@@ -172,6 +296,9 @@ class CharacterReaderBridge internal constructor(
         pendingResult = null
         replyGate = null
         pendingAudioPath = null
+        pendingIsStoryReader = false
+        pendingPages = null
+        pendingInitialPageIndex = 0
         installAttempts = 0
         awaitingInstallResume = false
         inProgressGate.finish()
