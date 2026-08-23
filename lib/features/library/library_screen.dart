@@ -225,20 +225,14 @@ class _StoryCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // AR is reached from inside the player now, not from here: the
+            // reader needs the story's narration prepared first.
             ListTile(
               leading: const Icon(Icons.menu_book_rounded),
               title: const Text('Read'),
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 context.go(AppRoutes.story(story.id));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.document_scanner_rounded),
-              title: const Text('Scan the book'),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                context.push(AppRoutes.scan(story.id));
               },
             ),
           ],
