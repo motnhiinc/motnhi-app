@@ -73,6 +73,81 @@ final class CharacterReaderTests: XCTestCase {
     XCTAssertNil(result)
   }
 
+  func testAcceptsStorySegmentFileName() throws {
+    let audioURL = allowedDirectory.appendingPathComponent("ar_abc123_p1_s0.mp3")
+    try Data([0x01, 0x02, 0x03]).write(to: audioURL)
+
+    let result = CharacterReaderAudioPathValidator(
+      temporaryDirectory: allowedDirectory
+    ).validate(path: audioURL.path)
+
+    XCTAssertEqual(result, audioURL.resolvingSymlinksInPath().standardizedFileURL)
+  }
+
+  func testAcceptsEveryAllowedStorySegmentExtension() throws {
+    let validator = CharacterReaderAudioPathValidator(temporaryDirectory: allowedDirectory)
+
+    for fileExtension in ["mp3", "wav", "caf", "m4a"] {
+      let audioURL = allowedDirectory.appendingPathComponent("ar_abc123_p2_s1.\(fileExtension)")
+      try Data([0x01]).write(to: audioURL)
+
+      XCTAssertNotNil(
+        validator.validate(path: audioURL.path),
+        "extension \(fileExtension) should be allowed"
+      )
+    }
+  }
+
+  func testRejectsDisallowedStorySegmentExtension() throws {
+    let audioURL = allowedDirectory.appendingPathComponent("ar_abc123_p1_s0.exe")
+    try Data([0x01]).write(to: audioURL)
+
+    let result = CharacterReaderAudioPathValidator(
+      temporaryDirectory: allowedDirectory
+    ).validate(path: audioURL.path)
+
+    XCTAssertNil(result)
+  }
+
+  func testRejectsStorySegmentNameThatIsOnlyASuffixMatch() throws {
+    let audioURL = allowedDirectory.appendingPathComponent("evil_ar_abc123_p1_s0.mp3")
+    try Data([0x01]).write(to: audioURL)
+
+    let result = CharacterReaderAudioPathValidator(
+      temporaryDirectory: allowedDirectory
+    ).validate(path: audioURL.path)
+
+    XCTAssertNil(result)
+  }
+
+  func testRejectsStorySegmentNameOutsideTemporaryDirectory() throws {
+    let outsideDirectory = rootDirectory.appendingPathComponent("outside-story", isDirectory: true)
+    try fileManager.createDirectory(at: outsideDirectory, withIntermediateDirectories: true)
+    let audioURL = outsideDirectory.appendingPathComponent("ar_abc123_p1_s0.mp3")
+    try Data([0x01]).write(to: audioURL)
+
+    let result = CharacterReaderAudioPathValidator(
+      temporaryDirectory: allowedDirectory
+    ).validate(path: audioURL.path)
+
+    XCTAssertNil(result)
+  }
+
+  func testRejectsSymlinkWithStorySegmentNameThatEscapesTemporaryDirectory() throws {
+    let outsideDirectory = rootDirectory.appendingPathComponent("outside-link", isDirectory: true)
+    try fileManager.createDirectory(at: outsideDirectory, withIntermediateDirectories: true)
+    let outsideAudio = outsideDirectory.appendingPathComponent("ar_abc123_p1_s0.mp3")
+    try Data([0x01]).write(to: outsideAudio)
+    let link = allowedDirectory.appendingPathComponent("ar_abc123_p1_s0.mp3")
+    try fileManager.createSymbolicLink(at: link, withDestinationURL: outsideAudio)
+
+    let result = CharacterReaderAudioPathValidator(
+      temporaryDirectory: allowedDirectory
+    ).validate(path: link.path)
+
+    XCTAssertNil(result)
+  }
+
   func testPlayingPlaybackPausesForInterruption() {
     var state = CharacterReaderPlaybackState.playing
 
