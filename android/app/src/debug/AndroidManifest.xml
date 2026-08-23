@@ -4,18 +4,12 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-feature android:name="android.hardware.camera.ar" android:required="false"/>
     <!-- Debug-only: allow plain HTTP so a device/emulator can reach the local
          backend (http://<mac-lan-ip>:8000). targetSdk >= 28 denies cleartext by
          default. This overlay is NOT merged into release builds, where
-         resolveApiBaseUrl() already requires an HTTPS, non-loopback host. -->
-    <application android:usesCleartextTraffic="true">
-        <meta-data android:name="com.google.ar.core" android:value="optional"/>
-        <activity
-            android:name=".characterreader.CharacterReaderActivity"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
-            android:exported="false"
-            android:hardwareAccelerated="true"
-            android:theme="@android:style/Theme.Material.NoActionBar"/>
-    </application>
+         resolveApiBaseUrl() already requires an HTTPS, non-loopback host.
+
+         The ARCore metadata and CharacterReaderActivity that used to live here
+         moved to src/main when the reader was promoted to release builds. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

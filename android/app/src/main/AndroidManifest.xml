@@ -1,11 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Camera-preview AR scenes (§7.1.4) + optional voice answers (§7.1.5).
-         Camera is marked not-required so devices without one can still install.
-         Debug-only ARCore metadata/features live in src/debug. -->
+    <!-- AR character reader (§7.1.4) + optional voice answers (§7.1.5).
+         Camera and AR are both marked not-required so devices without them can
+         still install; the client probes support before offering AR. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false"/>
     <application
         android:label="storybook_ar"
         android:name="${applicationName}"
@@ -32,6 +33,15 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- AR is optional, not required: the listing stays available to non-AR
+             devices, and the client probes support before offering the reader. -->
+        <meta-data android:name="com.google.ar.core" android:value="optional"/>
+        <activity
+            android:name=".characterreader.CharacterReaderActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:theme="@android:style/Theme.Material.NoActionBar"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
