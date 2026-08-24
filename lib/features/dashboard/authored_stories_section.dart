@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/di.dart';
 import '../../data/repositories/authored_story_repository.dart';
+import '../../l10n/app_localizations.dart';
 import '../library/library_providers.dart';
 
 /// Grown-ups-only management of stories captured in the app.
@@ -14,6 +15,7 @@ class AuthoredStoriesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = AppLocalizations.of(context)!;
     final library = ref.watch(libraryProvider);
     return library.when(
       loading: () => const SizedBox.shrink(),
@@ -25,16 +27,16 @@ class AuthoredStoriesSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 24),
-            Text('Stories you made',
+            Text(s.storiesYouMade,
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final story in authored)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(story.title),
-                subtitle: Text('Ages ${story.ageRangeLabel} · captured in the app'),
+                subtitle: Text(s.authoredStorySubtitle(story.ageRangeLabel)),
                 trailing: IconButton(
-                  tooltip: 'Delete story',
+                  tooltip: s.deleteStoryTooltip,
                   icon: const Icon(Icons.delete_outline),
                   onPressed: () =>
                       _confirmDelete(context, ref, story.id, story.title),
@@ -52,20 +54,21 @@ class AuthoredStoriesSection extends ConsumerWidget {
     String storyId,
     String title,
   ) async {
+    final s = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Delete "$title"?'),
-        content: const Text('This cannot be undone.'),
+        title: Text(s.deleteStoryTitle(title)),
+        content: Text(s.deleteStoryBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(s.cancelLabel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
+            child: Text(s.deleteLabel),
           ),
         ],
       ),
@@ -77,7 +80,7 @@ class AuthoredStoriesSection extends ConsumerWidget {
       ref.invalidate(libraryProvider);
     } on AuthoredStoryFailure {
       messenger.showSnackBar(
-        const SnackBar(content: Text("We couldn't delete that story.")),
+        SnackBar(content: Text(s.deleteStoryFailed)),
       );
     }
   }

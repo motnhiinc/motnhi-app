@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../../core/di.dart';
 import '../../core/router/app_router.dart';
 import '../../data/models/models.dart';
+import '../../l10n/app_localizations.dart';
+import '../../shared/widgets/storybook/storybook.dart';
 import '../profile/profile_providers.dart';
 
 /// Parent onboarding (§7.2.1). Creates a data-minimized child profile and
@@ -55,10 +57,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not finish setup. Check your connection and try again.',
-            ),
+          SnackBar(
+            content:
+                Text(AppLocalizations.of(context)!.setupError),
           ),
         );
       }
@@ -69,93 +70,210 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final s = AppLocalizations.of(context)!;
+    final t = context.stitch;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Welcome, grown-ups')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
           children: [
-            Text('Set up a safe space to read',
-                style: theme.textTheme.headlineSmall),
+            EyebrowLabel(s.onboardingEyebrow),
+            Text(
+              s.onboardingTitle,
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: 8),
             Text(
-              'We collect only what we need: an age range and language. '
-              'No real name, no birthday, no photo. The microphone stays off '
-              'unless you turn it on.',
-              style: theme.textTheme.bodyMedium,
+              s.onboardingIntro,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: t.inkMuted),
             ),
-            const SizedBox(height: 24),
-            Text("Child's nickname (optional)",
-                style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nickname,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Little Star',
-                border: OutlineInputBorder(),
+            const SizedBox(height: 22),
+
+            // Nickname.
+            PaperCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.nicknameLabel,
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _nickname,
+                    textCapitalization: TextCapitalization.words,
+                    decoration:
+                        InputDecoration(hintText: s.nicknameHint),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            Text('Age range', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            SegmentedButton<AgeBand>(
-              segments: [
-                for (final band in AgeBand.values)
-                  ButtonSegment(value: band, label: Text(band.label)),
-              ],
-              selected: {_ageBand},
-              onSelectionChanged: (s) => setState(() => _ageBand = s.first),
+
+            // Age range pills.
+            PaperCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.ageBandLabel,
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final band in AgeBand.values)
+                        _SelectPill(
+                          label: s.yearsPill(band.min, band.max),
+                          selected: _ageBand == band,
+                          onTap: () => setState(() => _ageBand = band),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            Text('Story language', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _language,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-              items: const [
-                DropdownMenuItem(value: 'en', child: Text('English')),
-                DropdownMenuItem(value: 'vi', child: Text('Tiếng Việt')),
-              ],
-              onChanged: (v) => setState(() => _language = v ?? 'en'),
+
+            // Story language pills.
+            PaperCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.storyLanguageLabel,
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _SelectPill(
+                        label: 'English',
+                        selected: _language == 'en',
+                        onTap: () => setState(() => _language = 'en'),
+                      ),
+                      _SelectPill(
+                        label: 'Tiếng Việt',
+                        selected: _language == 'vi',
+                        onTap: () => setState(() => _language = 'vi'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              value: _arEnabled,
-              onChanged: (v) => setState(() => _arEnabled = v),
-              title: const Text('Allow AR camera scenes'),
-              subtitle: const Text(
-                  'Characters appear over the page. You can change this later.'),
+
+            // Permissions.
+            PaperCard(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _arEnabled,
+                onChanged: (v) => setState(() => _arEnabled = v),
+                title: Text(s.arToggleOnboarding,
+                    style: Theme.of(context).textTheme.titleSmall),
+                subtitle: Text(s.arToggleOnboardingSub,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
             ),
-            SwitchListTile(
-              value: _microphoneEnabled,
-              onChanged: (v) => setState(() => _microphoneEnabled = v),
-              title: const Text('Allow microphone'),
-              subtitle:
-                  const Text('Off by default. Only needed for voice answers.'),
+            PaperCard(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _microphoneEnabled,
+                onChanged: (v) => setState(() => _microphoneEnabled = v),
+                title: Text(s.micTitle,
+                    style: Theme.of(context).textTheme.titleSmall),
+                subtitle: Text(s.micSub,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
             ),
-            const Divider(height: 32),
-            CheckboxListTile(
-              value: _consented,
-              onChanged: (v) => setState(() => _consented = v ?? false),
-              controlAffinity: ListTileControlAffinity.leading,
-              title: const Text('I am the parent or guardian and I consent'),
-              subtitle: const Text(
-                  'I consent to creating this child profile and storing reading '
-                  'progress on this device.'),
+
+            // Consent.
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: GestureDetector(
+                onTap: () => setState(() => _consented = !_consented),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      margin: const EdgeInsets.only(top: 2),
+                      decoration: BoxDecoration(
+                        color: _consented ? t.coral : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: t.line, width: 1.5),
+                      ),
+                      child: _consented
+                          ? const Icon(Icons.check_rounded,
+                              size: 17, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s.consentTitle,
+                              style:
+                                  Theme.of(context).textTheme.titleSmall),
+                          const SizedBox(height: 3),
+                          Text(s.consentBody,
+                              style:
+                                  Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _consented && !_saving ? _finish : null,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Start reading'),
-            ),
+
+            const SizedBox(height: 20),
+            _saving
+                ? const Center(child: CircularProgressIndicator())
+                : PressablePillButton(
+                    label: s.startReading,
+                    onPressed: _consented ? _finish : null,
+                  ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectPill extends StatelessWidget {
+  const _SelectPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.stitch;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? t.coral : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: selected ? t.coral : t.line),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: AppTheme.sansFamily,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: selected ? Colors.white : t.inkMuted,
+          ),
         ),
       ),
     );

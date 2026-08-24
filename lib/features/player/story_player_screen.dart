@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/di.dart';
 import '../../core/router/app_router.dart';
 import '../../data/models/models.dart';
+import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/async_views.dart';
 import '../../shared/widgets/big_play_button.dart';
+import '../../shared/widgets/storybook/storybook.dart';
 import '../ar/ar_character.dart';
 import '../ar/ar_character_providers.dart';
 import '../ar/ar_preparing_dialog.dart';
@@ -31,17 +33,21 @@ class StoryPlayerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = AppLocalizations.of(context)!;
     final detail = ref.watch(storyDetailProvider(storyId));
     return Scaffold(
-      body: detail.when(
-        loading: () => const LoadingView(message: 'Opening the book…'),
-        error: (_, _) => ErrorView(
-          message: "We couldn't open this story.",
-          onRetry: () => ref.invalidate(storyDetailProvider(storyId)),
+      body: SafeArea(
+        bottom: false,
+        child: detail.when(
+          loading: () => LoadingView(message: s.openingBook),
+          error: (_, _) => ErrorView(
+            message: s.couldNotOpenStory,
+            onRetry: () => ref.invalidate(storyDetailProvider(storyId)),
+          ),
+          data: (d) => d == null
+              ? ErrorView(message: s.storyNotFound)
+              : _PlayerBody(detail: d),
         ),
-        data: (d) => d == null
-            ? const ErrorView(message: 'Story not found.')
-            : _PlayerBody(detail: d),
       ),
     );
   }
@@ -174,10 +180,19 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     );
   }
 
+  void _exitToSafety() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go(AppRoutes.home);
+    }
+  }
+
   /// Lets the reader pick which character joins them in AR. Dismissing the
   /// sheet without a choice means "no AR": we return quietly with the player
   /// still paused, and no error dialog for what is simply a change of mind.
   Future<ArCharacter?> _chooseArCharacter() {
+    final s = AppLocalizations.of(context)!;
     final selected = ref.read(selectedArCharacterProvider);
     return showModalBottomSheet<ArCharacter>(
       context: context,
@@ -192,7 +207,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: Text(
-                'Choose your AR friend',
+                s.chooseArFriend,
                 style: Theme.of(sheetContext).textTheme.titleMedium,
               ),
             ),
@@ -299,15 +314,16 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     // A reader is already open — never a child-facing condition.
     if (code == 'reader_in_progress') return;
 
+    final s = AppLocalizations.of(context)!;
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('AR is not ready'),
-        content: Text(_arFailureMessage(code)),
+        title: Text(s.arNotReadyTitle),
+        content: Text(_arFailureMessage(s, code)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Keep reading'),
+            child: Text(s.keepReading),
           ),
           if (code != 'ar_unsupported')
             FilledButton(
@@ -315,34 +331,30 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                 Navigator.of(dialogContext).pop();
                 _openArReader();
               },
-              child: const Text('Try again'),
+              child: Text(s.retry),
             ),
         ],
       ),
     );
   }
 
-  static String _arFailureMessage(String code) {
+  static String _arFailureMessage(AppLocalizations s, String code) {
     switch (code) {
       case 'narration_unavailable':
-        return "We couldn't get this story's voice ready for AR. You can keep "
-            'reading here and try again later.';
+        return s.arErrNarration;
       case 'ar_unsupported':
-        return 'This device cannot show the character in AR, but the story '
-            'still reads here.';
+        return s.arErrUnsupported;
       case 'ar_unavailable':
       case 'ar_failed':
-        return "We couldn't start AR this time. Your story is still here.";
+        return s.arErrStart;
       case 'model_missing':
       case 'model_load_failed':
-        return "The character couldn't load. Your story is still here.";
+        return s.arErrModel;
       case 'audio_missing':
       case 'audio_failed':
-        return "The character couldn't play this story's voice. You can keep "
-            'reading here.';
+        return s.arErrAudio;
       default:
-        return "We couldn't open the character reader. Your story is still "
-            'here.';
+        return s.arErrGeneric;
     }
   }
 
@@ -361,6 +373,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       await ref.read(sessionRepositoryProvider).completeSession(sid);
     }
     if (!mounted) return;
+    final s = AppLocalizations.of(context)!;
     // Ask the story's questions, then a calm "well done" (no autoplay onward).
     await showStoryQuestions(
       context,
@@ -371,13 +384,17 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     if (!mounted) return;
     await showDialog<void>(
       context: context,
+      // Barrier-locked: a scrim tap would otherwise dismiss the ending and drop
+      // the child back on the last page of a story they just finished, with no
+      // way onward but the back arrow.
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text('The End 🌟'),
-        content: const Text('What a lovely story!'),
+        title: Text(s.theEndTitle),
+        content: Text(s.whatALovelyStory),
         actions: [
           FilledButton(
             onPressed: () => context.go(AppRoutes.home),
-            child: const Text('Back to library'),
+            child: Text(s.backToHome),
           ),
         ],
       ),
@@ -394,6 +411,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppLocalizations.of(context)!;
+    final t = context.stitch;
     final page = _pages[_pageIndex];
     final profile = ref.watch(childProfileProvider).value;
     // No longer gated on an ar_scenes row: every story opens the native reader,
@@ -403,54 +422,122 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     final hasQuestions = widget.detail.questionsForPage(page.id).isNotEmpty;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_story.title),
-        leading: IconButton(
-          icon: const Icon(Icons.home_rounded),
-          onPressed: () => context.go(AppRoutes.home),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            ValueListenableBuilder<bool>(
-              valueListenable: _player.usingTtsFallback,
-              builder: (_, usingTts, _) =>
-                  usingTts ? const _TtsFallbackBanner() : const SizedBox.shrink(),
-            ),
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: _onPageChanged,
-                itemCount: _pages.length,
-                itemBuilder: (_, i) => _StoryPageView(
-                  page: _pages[i],
-                  detail: widget.detail,
-                  player: _player,
-                  isActive: i == _pageIndex,
-                  onTapSegment: (segIndex) => _player.seekToSegment(segIndex),
-                ),
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: _exitToSafety,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: t.paper,
+                        border: Border.all(color: t.line),
+                      ),
+                      child:
+                          Icon(Icons.arrow_back_rounded, size: 20, color: t.ink),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          _story.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          s.pageTitle(
+                            page.pageNumber,
+                            _pages.last.pageNumber,
+                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () =>
+                        ref.read(bedtimeModeProvider.notifier).toggle(),
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: t.paper,
+                        border: Border.all(color: t.line),
+                      ),
+                      child: Icon(Icons.dark_mode_rounded,
+                          size: 19, color: t.lavender),
+                    ),
+                  ),
+                ],
               ),
             ),
-            _PlayerControls(
-              player: _player,
-              pageIndex: _pageIndex,
-              pageCount: _pages.length,
-              arAvailable: arAvailable,
-              hasQuestions: hasQuestions,
-              onPrev: () => _goToPage(_pageIndex - 1),
-              onNext: () => _goToPage(_pageIndex + 1),
-              onAr: _openArReader,
-              onQuestions: () => showPageQuestions(
-                context,
-                ref,
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: _player.usingTtsFallback,
+            builder: (_, usingTts, _) => usingTts
+                ? Material(
+                    color: t.gold.withValues(alpha: .3),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 4, horizontal: 12),
+                      child: Text(
+                        s.ttsFallbackBanner,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              onPageChanged: _onPageChanged,
+              itemCount: _pages.length,
+              itemBuilder: (_, i) => _StoryPageView(
+                page: _pages[i],
                 detail: widget.detail,
-                pageId: page.id,
-                sessionId: _sessionId,
+                player: _player,
+                isActive: i == _pageIndex,
+                arAvailable: arAvailable,
+                onTapSegment: (segIndex) => _player.seekToSegment(segIndex),
               ),
             ),
-          ],
-        ),
+          ),
+          _PlayerControls(
+            player: _player,
+            pageIndex: _pageIndex,
+            pageCount: _pages.length,
+            arAvailable: arAvailable,
+            hasQuestions: hasQuestions,
+            onPrev: () => _goToPage(_pageIndex - 1),
+            onNext: () => _goToPage(_pageIndex + 1),
+            onAr: _openArReader,
+            onQuestions: () => showPageQuestions(
+              context,
+              ref,
+              detail: widget.detail,
+              pageId: page.id,
+              sessionId: _sessionId,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -462,6 +549,7 @@ class _StoryPageView extends StatelessWidget {
     required this.detail,
     required this.player,
     required this.isActive,
+    required this.arAvailable,
     required this.onTapSegment,
   });
 
@@ -469,11 +557,16 @@ class _StoryPageView extends StatelessWidget {
   final StoryDetail detail;
   final NarrationPlayer player;
   final bool isActive;
+  final bool arAvailable;
   final ValueChanged<int> onTapSegment;
 
   @override
   Widget build(BuildContext context) {
+    final s = AppLocalizations.of(context)!;
+    final t = context.stitch;
     final segments = detail.segmentsForPage(page.id);
+    final hasArSurprise = arAvailable && detail.arSceneForPage(page.id) != null;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -481,11 +574,43 @@ class _StoryPageView extends StatelessWidget {
           AspectRatio(
             aspectRatio: 4 / 3,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(AppTheme.cardRadius),
               child: _PageIllustration(page: page),
             ),
           ),
-          const SizedBox(height: 20),
+          if (hasArSurprise)
+            Container(
+              margin: const EdgeInsets.only(top: 14),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: t.gold.withValues(alpha: .32),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('✦',
+                      style: TextStyle(
+                          fontSize: 13, color: t.coralDeep)),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      s.arSurpriseBanner,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: AppTheme.sansFamily,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: t.ink,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 18),
           PageTextView(
             segments: segments,
             player: player,
@@ -506,28 +631,31 @@ class _PageIllustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final asset = page.pageImageAssetId;
-    final scheme = Theme.of(context).colorScheme;
+    final t = context.stitch;
     if (asset != null && asset.isNotEmpty) {
       return Image.asset(
         asset,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _placeholder(scheme),
+        errorBuilder: (_, _, _) => _placeholder(t),
       );
     }
-    return _placeholder(scheme);
+    return _placeholder(t);
   }
 
-  Widget _placeholder(ColorScheme scheme) => DecoratedBox(
+  Widget _placeholder(StitchTokens t) => DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [scheme.secondaryContainer, scheme.surface],
+            colors: [
+              t.lavenderContainer.withValues(alpha: .45),
+              t.paper,
+            ],
           ),
         ),
         child: Center(
-          child: Text('Page ${page.pageNumber}',
-              style: TextStyle(color: scheme.onSecondaryContainer)),
+          child: Text('✦',
+              style: TextStyle(fontSize: 44, color: t.lavender)),
         ),
       );
 }
@@ -557,103 +685,96 @@ class _PlayerControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-      child: Column(
-        children: [
-          // Page dots.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 0; i < pageCount; i++)
-                Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i == pageIndex
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                iconSize: 36,
-                icon: const Icon(Icons.skip_previous_rounded),
-                onPressed: pageIndex > 0 ? onPrev : null,
-              ),
-              IconButton(
-                iconSize: 36,
-                tooltip: 'Replay page',
-                icon: const Icon(Icons.replay_rounded),
-                onPressed: player.replay,
-              ),
-              ValueListenableBuilder<bool>(
-                valueListenable: player.isLoading,
-                builder: (_, loading, _) => ValueListenableBuilder<bool>(
-                  valueListenable: player.isPlaying,
-                  builder: (_, playing, _) => BigPlayButton(
-                    isPlaying: playing,
-                    // Disabled while a clip is being fetched: a tap here would
-                    // otherwise start device TTS a moment before it lands.
-                    onPressed: loading
-                        ? null
-                        : () => playing ? player.pause() : player.play(),
-                  ),
-                ),
-              ),
-              if (arAvailable)
-                IconButton(
-                  iconSize: 36,
-                  tooltip: 'See in AR',
-                  icon: const Icon(Icons.view_in_ar_rounded),
-                  onPressed: onAr,
-                )
-              else
-                IconButton(
-                  iconSize: 36,
-                  tooltip: hasQuestions ? 'Question' : null,
-                  icon: const Icon(Icons.quiz_outlined),
-                  onPressed: hasQuestions ? onQuestions : null,
-                ),
-              IconButton(
-                iconSize: 36,
-                icon: const Icon(Icons.skip_next_rounded),
-                onPressed: pageIndex < pageCount - 1 ? onNext : null,
-              ),
-            ],
-          ),
-          if (arAvailable && hasQuestions)
-            TextButton.icon(
-              onPressed: onQuestions,
-              icon: const Icon(Icons.quiz_outlined),
-              label: const Text('Question'),
+    final s = AppLocalizations.of(context)!;
+    final t = context.stitch;
+
+    Widget circle({
+      required IconData icon,
+      required String tooltip,
+      VoidCallback? onTap,
+    }) {
+      return IconButton(
+        tooltip: tooltip,
+        onPressed: onTap,
+        style: IconButton.styleFrom(
+          backgroundColor: t.paper,
+          side: BorderSide(color: t.line),
+        ),
+        iconSize: 22,
+        icon: Icon(icon, color: onTap == null ? t.inkMuted : t.ink),
+      );
+    }
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+        child: Column(
+          children: [
+            ProgressBeads(
+              count: pageCount,
+              currentIndex: pageIndex,
+              alignment: WrapAlignment.center,
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TtsFallbackBanner extends StatelessWidget {
-  const _TtsFallbackBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: Theme.of(context).colorScheme.tertiaryContainer,
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-      child: Text(
-        'Dev preview voice — final stories use reviewed narration.',
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.labelSmall,
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                circle(
+                  icon: Icons.replay_rounded,
+                  tooltip: s.replayPage,
+                  onTap: player.replay,
+                ),
+                circle(
+                  icon: Icons.chevron_left_rounded,
+                  tooltip: '',
+                  onTap: pageIndex > 0 ? onPrev : null,
+                ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: player.isLoading,
+                  builder: (_, loading, _) => ValueListenableBuilder<bool>(
+                    valueListenable: player.isPlaying,
+                    builder: (_, playing, _) => BigPlayButton(
+                      isPlaying: playing,
+                      // Disabled while a clip is being fetched: a tap here would
+                      // otherwise start device TTS a moment before it lands.
+                      onPressed: loading
+                          ? null
+                          : () => playing ? player.pause() : player.play(),
+                    ),
+                  ),
+                ),
+                circle(
+                  icon: Icons.chevron_right_rounded,
+                  tooltip: '',
+                  onTap: pageIndex < pageCount - 1 ? onNext : null,
+                ),
+                if (arAvailable)
+                  circle(
+                    icon: Icons.view_in_ar_rounded,
+                    tooltip: s.seeInAr,
+                    onTap: onAr,
+                  )
+                else
+                  circle(
+                    icon: Icons.quiz_outlined,
+                    tooltip: hasQuestions ? s.questionLabel : '',
+                    onTap: hasQuestions ? onQuestions : null,
+                  ),
+              ],
+            ),
+            if (arAvailable) ...[
+              const SizedBox(height: 12),
+              PressablePillButton(
+                label: s.magicSpark,
+                icon: Icons.auto_awesome_rounded,
+                height: 46,
+                variant: PillVariant.secondary,
+                onPressed: onAr,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

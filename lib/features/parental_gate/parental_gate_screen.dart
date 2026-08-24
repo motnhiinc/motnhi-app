@@ -3,6 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
+import '../../l10n/app_localizations.dart';
+import '../../shared/widgets/storybook/storybook.dart';
 import 'parental_gate_providers.dart';
 
 /// A simple adult-verification gate (§7.2.3). A two-number addition challenge
@@ -22,7 +25,6 @@ class _ParentalGateScreenState extends ConsumerState<ParentalGateScreen> {
   late int _a;
   late int _b;
   final _controller = TextEditingController();
-  bool _wrong = false;
 
   @override
   void initState() {
@@ -39,15 +41,16 @@ class _ParentalGateScreenState extends ConsumerState<ParentalGateScreen> {
   }
 
   void _submit() {
+    final s = AppLocalizations.of(context)!;
     final answer = int.tryParse(_controller.text.trim());
     if (answer == _a + _b) {
       ref.read(parentalGateUnlockedProvider.notifier).unlock();
       context.go(widget.redirectTo);
     } else {
-      setState(() {
-        _wrong = true;
-        _newChallenge();
-      });
+      setState(_newChallenge);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(s.gateWrong)));
     }
   }
 
@@ -59,48 +62,114 @@ class _ParentalGateScreenState extends ConsumerState<ParentalGateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final s = AppLocalizations.of(context)!;
+    final t = context.stitch;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Grown-ups only'),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => context.go('/home'),
-        ),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lock_outline_rounded, size: 48),
-                const SizedBox(height: 16),
-                Text('Ask a grown-up to continue',
-                    style: theme.textTheme.titleMedium,
-                    textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                Text('What is  $_a + $_b ?',
-                    style: theme.textTheme.headlineSmall),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _controller,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  textAlign: TextAlign.center,
-                  autofocus: true,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    errorText: _wrong ? 'Not quite — try again' : null,
+      backgroundColor: t.canvas,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => context.go(AppRoutes.home),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: t.paper,
+                    border: Border.all(color: t.line),
+                  ),
+                  child:
+                      Icon(Icons.close_rounded, size: 20, color: t.ink),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 360),
+                    child: PaperCard(
+                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 26),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: t.gold.withValues(alpha: .35),
+                            ),
+                            child: Icon(Icons.lock_outline_rounded,
+                                size: 24, color: t.coralDeep),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            s.gateAsk,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 20),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: t.inputFill,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: t.line),
+                            ),
+                            child: Text(
+                              s.gateQuestion(_a, _b),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(fontSize: 30),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _controller,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            textAlign: TextAlign.center,
+                            autofocus: true,
+                            onSubmitted: (_) => _submit(),
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 18),
+                          PressablePillButton(
+                            label: s.gateContinue,
+                            onPressed: _submit,
+                          ),
+                          const SizedBox(height: 14),
+                          GestureDetector(
+                            onTap: () => setState(_newChallenge),
+                            behavior: HitTestBehavior.opaque,
+                            child: Text(
+                              s.gateAnother,
+                              style: TextStyle(
+                                fontFamily: AppTheme.sansFamily,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: t.inkMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                FilledButton(onPressed: _submit, child: const Text('Continue')),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

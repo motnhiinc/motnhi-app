@@ -117,8 +117,9 @@ class NarrationPlayer {
           .where((s) => s.hasAudioAsset)
           .map((s) => s.audioAssetId!)
           .toList();
-      final urls = (_resolver != null && ids.isNotEmpty)
-          ? await _resolver!.resolve(ids)
+      final resolver = _resolver;
+      final urls = (resolver != null && ids.isNotEmpty)
+          ? await resolver.resolve(ids)
           : <String, String>{};
       if (generation != _loadGeneration) return;
 

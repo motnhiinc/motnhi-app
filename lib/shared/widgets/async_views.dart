@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
+
 /// Calm full-screen loading indicator.
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key, this.message});
@@ -32,6 +34,8 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final retryLabel =
+        AppLocalizations.of(context)?.retry ?? 'Try again';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -47,7 +51,7 @@ class ErrorView extends StatelessWidget {
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
-              FilledButton(onPressed: onRetry, child: const Text('Try again')),
+              FilledButton(onPressed: onRetry, child: Text(retryLabel)),
             ],
           ],
         ),
