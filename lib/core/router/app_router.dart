@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/dashboard/parent_dashboard_screen.dart';
-import '../../features/ar/scan_story_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
-import '../../features/ar/ar_story_screen.dart';
 import '../../features/parental_gate/parental_gate_screen.dart';
 import '../../features/player/story_player_screen.dart';
 import '../../features/profile/profile_providers.dart';
@@ -26,10 +24,9 @@ abstract final class AppRoutes {
   static const scanAnyPage = '/scan-any-page';
   static const createStory = '/create-story';
 
+  // AR is no longer a route: it is a native screen the player opens directly
+  // through the character_reader channel.
   static String story(String id) => '/story/$id';
-  static String scan(String storyId) => '/story/$storyId/scan';
-  static String ar(String storyId, String pageId) =>
-      '/story/$storyId/ar/$pageId';
 }
 
 final goRouterProvider = Provider<GoRouter>((ref) {
@@ -81,18 +78,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/story/:storyId',
         builder: (_, state) =>
             StoryPlayerScreen(storyId: state.pathParameters['storyId']!),
-      ),
-      GoRoute(
-        path: '/story/:storyId/ar/:pageId',
-        builder: (_, state) => ArStoryScreen(
-          storyId: state.pathParameters['storyId']!,
-          pageId: state.pathParameters['pageId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/story/:storyId/scan',
-        builder: (_, state) =>
-            ScanStoryScreen(storyId: state.pathParameters['storyId']!),
       ),
       GoRoute(
         path: AppRoutes.gate,

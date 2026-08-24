@@ -1,0 +1,47 @@
+{
+  // Flutter run configurations for storybook_ar.
+  // Pick the target device with the device selector in the VS Code status bar.
+  //
+  // API_BASE_URL notes:
+  //   - All three configs point at the deployed backend,
+  //     https://api.workbuddylite.space.
+  //   - To run against a local backend instead, change the define to
+  //     http://localhost:8000 (simulator only) or http://<this-Mac-LAN-IP>:8000
+  //     for a physical Pixel/iPad -- "localhost" on a device means the DEVICE.
+  //   - Release REQUIRES an explicit HTTPS, non-loopback URL or the app throws
+  //     a StateError at startup (see lib/core/api_config.dart), so a local
+  //     http:// URL only works in debug/profile.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "storybook_ar (debug)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "debug",
+      "args": [
+        "--dart-define=API_BASE_URL=https://api.workbuddylite.space"
+      ]
+    },
+    {
+      "name": "storybook_ar (profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "profile",
+      "args": [
+        "--dart-define=API_BASE_URL=https://api.workbuddylite.space"
+      ]
+    },
+    {
+      "name": "storybook_ar (release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": [
+        "--dart-define=API_BASE_URL=https://api.workbuddylite.space"
+      ]
+    }
+  ]
+}

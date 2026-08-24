@@ -1,0 +1,28 @@
+{
+  // Dart/Flutter editor prefs. Deliberately machine-independent: no absolute
+  // SDK paths, so this file is safe to commit.
+  "[dart]": {
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "editor.rulers": [80],
+    "editor.selectionHighlight": false,
+    "editor.suggestSelection": "first",
+    "editor.tabCompletion": "onlySnippets",
+    "editor.wordBasedSuggestions": "off"
+  },
+  "dart.lineLength": 80,
+  "dart.previewFlutterUiGuides": true,
+  "dart.openDevTools": "flutter",
+  "search.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true,
+    "**/ios/Pods": true,
+    "**/backend/.venv": true
+  },
+  "files.watcherExclude": {
+    "**/.dart_tool/**": true,
+    "**/build/**": true,
+    "**/ios/Pods/**": true,
+    "**/backend/.venv/**": true
+  }
+}

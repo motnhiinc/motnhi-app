@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,10 @@ import '../../core/router/app_router.dart';
 import '../../data/models/models.dart';
 import '../../shared/widgets/async_views.dart';
 import '../../shared/widgets/big_play_button.dart';
+import '../ar/ar_preparing_dialog.dart';
+import '../ar/ar_reader_controller.dart';
+import '../ar/native_story_reader.dart';
+import '../player/narration_audio_fetcher.dart';
 import '../profile/profile_providers.dart';
 import '../questions/question_sheet.dart';
 import '../settings/settings_providers.dart';
@@ -50,11 +56,21 @@ class _PlayerBody extends ConsumerStatefulWidget {
 
 class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   late final NarrationPlayer _player;
+
+  /// Held rather than re-read: narrationAudioFetcherProvider is autoDispose and
+  /// is read without a listener, so it is torn down after the first frame. A
+  /// fresh read in the AR handler would build an empty-cache fetcher and
+  /// re-issue a TTS request for every page.
+  NarrationAudioFetcher? _fetcher;
+
   final PageController _pageController = PageController();
   int _pageIndex = 0;
   int _loadGeneration = 0;
   String? _sessionId;
   bool _storyCompleted = false;
+  bool _storyReaderSupported = false;
+  bool _arBusy = false;
+  bool _suppressNextAutoplay = false;
 
   List<StoryPage> get _pages => widget.detail.orderedPages;
   Story get _story => widget.detail.story;
@@ -62,21 +78,31 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   @override
   void initState() {
     super.initState();
+    // Curated stories play registered clips or the device-TTS fallback; only
+    // authored stories generate narration per read. Without this gate, an
+    // environment where register_assets.py never ran would silently turn
+    // every curated page into an OpenAI call.
+    _fetcher = _story.isAuthored
+        ? ref.read(narrationAudioFetcherProvider(_story.id))
+        : null;
     _player = NarrationPlayer(
       resolver: ref.read(assetUrlResolverProvider),
-      // Curated stories play registered clips or the device-TTS fallback; only
-      // authored stories generate narration per read. Without this gate, an
-      // environment where register_assets.py never ran would silently turn
-      // every curated page into an OpenAI call.
-      fetcher: _story.isAuthored
-          ? ref.read(narrationAudioFetcherProvider(_story.id))
-          : null,
+      fetcher: _fetcher,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startSession();
       _loadPage(0, autoplay: false);
       _player.isComplete.addListener(_onMaybeComplete);
+      _resolveArSupport();
     });
+  }
+
+  /// Asked once, before any AR button is shown, so an unsupported device never
+  /// offers AR and then fails after a multi-second narration preparation.
+  Future<void> _resolveArSupport() async {
+    final supported = await ref.read(storyReaderProvider).isSupported();
+    if (!mounted || supported == _storyReaderSupported) return;
+    setState(() => _storyReaderSupported = supported);
   }
 
   Future<void> _startSession() async {
@@ -130,7 +156,11 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
 
   void _onPageChanged(int index) {
     setState(() => _pageIndex = index);
-    _loadPage(index, autoplay: true);
+    // Suppressed for exactly one turn when returning from AR, so the app does
+    // not immediately re-narrate the page the character just finished reading.
+    final autoplay = !_suppressNextAutoplay;
+    _suppressNextAutoplay = false;
+    _loadPage(index, autoplay: autoplay);
   }
 
   void _goToPage(int index) {
@@ -140,6 +170,124 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
     );
+  }
+
+  Future<void> _openArReader() async {
+    if (_arBusy) return;
+    _arBusy = true;
+    try {
+      await _player.pause();
+      if (!mounted) return;
+
+      final controller = ArReaderController(
+        detail: widget.detail,
+        reader: ref.read(storyReaderProvider),
+        resolver: ref.read(assetUrlResolverProvider),
+        fetcher: _fetcher,
+        tts: ref.read(ttsFileSynthesizerProvider),
+        downloader: ref.read(arAudioDownloaderProvider),
+        // Android's Directory.systemTemp is the app's code_cache dir, which is a
+        // *sibling* of the cacheDir the native AudioPathValidator allows, so every
+        // clip written there fails containment and AR returns audio_missing. This is
+        // the same platform split main.dart already applies to TTS; on iOS the
+        // provider is null and systemTemp (NSTemporaryDirectory) is correct.
+        directory:
+            ref.read(ttsTemporaryDirectoryProvider)?.call() ?? Directory.systemTemp,
+        initialPageIndex: _pageIndex,
+      );
+
+      final result = await showArPreparingDialog(context, controller: controller);
+      if (!mounted) return;
+
+      if (result == null) {
+        await _showArFailure(controller.value.failureCode ?? 'ar_failed');
+        return;
+      }
+      await _onArReturned(result);
+    } finally {
+      _arBusy = false;
+    }
+  }
+
+  Future<void> _onArReturned(StoryReaderResult result) async {
+    // Pages read inside AR never pass through _loadPage, so without this the
+    // session and the parent dashboard would undercount them.
+    final sessionId = _sessionId;
+    if (sessionId != null && result.pagesRead.isNotEmpty) {
+      final repository = ref.read(sessionRepositoryProvider);
+      for (final pageId in result.pagesRead) {
+        final page = _pages.where((p) => p.id == pageId).firstOrNull;
+        if (page == null) continue;
+        await repository.recordEvent(
+          sessionId: sessionId,
+          eventType: 'page_viewed',
+          pageId: page.id,
+          payload: {'page_number': page.pageNumber, 'mode': 'ar'},
+        );
+        if (!mounted) return;
+      }
+    }
+
+    final lastPageId = result.lastPageId;
+    if (lastPageId == null) return;
+    final index = _pages.indexWhere((p) => p.id == lastPageId);
+    if (index < 0 || index == _pageIndex) return;
+
+    _suppressNextAutoplay = true;
+    _goToPage(index);
+  }
+
+  /// AR is an enhancement; losing it must never block reading, so every branch
+  /// keeps the child in the book.
+  Future<void> _showArFailure(String code) async {
+    // A reader is already open — never a child-facing condition.
+    if (code == 'reader_in_progress') return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('AR is not ready'),
+        content: Text(_arFailureMessage(code)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Keep reading'),
+          ),
+          if (code != 'ar_unsupported')
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _openArReader();
+              },
+              child: const Text('Try again'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _arFailureMessage(String code) {
+    switch (code) {
+      case 'narration_unavailable':
+        return "We couldn't get this story's voice ready for AR. You can keep "
+            'reading here and try again later.';
+      case 'ar_unsupported':
+        return 'This device cannot show the character in AR, but the story '
+            'still reads here.';
+      case 'ar_unavailable':
+      case 'ar_failed':
+        return "We couldn't start AR this time. Your story is still here.";
+      case 'model_missing':
+      case 'model_load_failed':
+        return "The character couldn't load. Your story is still here.";
+      case 'audio_missing':
+      case 'audio_failed':
+        return "The character couldn't play this story's voice. You can keep "
+            'reading here.';
+      default:
+        return "We couldn't open the character reader. Your story is still "
+            'here.';
+    }
   }
 
   void _onMaybeComplete() {
@@ -191,9 +339,11 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   @override
   Widget build(BuildContext context) {
     final page = _pages[_pageIndex];
-    final arScene = widget.detail.arSceneForPage(page.id);
     final profile = ref.watch(childProfileProvider).value;
-    final arAvailable = arScene != null && (profile?.arEnabled ?? true);
+    // No longer gated on an ar_scenes row: every story opens the native reader,
+    // so the only questions are whether the parent allows AR and the device can
+    // actually do it.
+    final arAvailable = (profile?.arEnabled ?? true) && _storyReaderSupported;
     final hasQuestions = widget.detail.questionsForPage(page.id).isNotEmpty;
 
     return Scaffold(
@@ -234,12 +384,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
               hasQuestions: hasQuestions,
               onPrev: () => _goToPage(_pageIndex - 1),
               onNext: () => _goToPage(_pageIndex + 1),
-              onAr: () async {
-                await _player.pause();
-                if (context.mounted) {
-                  context.push(AppRoutes.ar(_story.id, page.id));
-                }
-              },
+              onAr: _openArReader,
               onQuestions: () => showPageQuestions(
                 context,
                 ref,
