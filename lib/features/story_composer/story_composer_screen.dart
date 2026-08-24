@@ -10,10 +10,14 @@ import '../library/library_providers.dart';
 import '../profile/profile_providers.dart';
 import 'story_composer_controller.dart';
 
-/// Capture several pages and save them as a new story. Reached from the
-/// library app bar. Not gated on kDebugMode and not behind the parental gate —
-/// the premise is a child pointing the tablet at their own book. Deleting a
-/// story is gated instead, on the parent dashboard.
+/// Capture several pages and save them as a new story.
+///
+/// The `/create-story` route is registered and this screen builds, but nothing
+/// in the UI navigates to it yet — an entry point still has to be placed.
+///
+/// Not gated on kDebugMode and not behind the parental gate — the premise is a
+/// child pointing the tablet at their own book. Deleting a story is gated
+/// instead, on the parent dashboard.
 class StoryComposerScreen extends ConsumerWidget {
   const StoryComposerScreen({super.key});
 

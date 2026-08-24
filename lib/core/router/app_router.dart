@@ -30,9 +30,6 @@ abstract final class AppRoutes {
   /// Story detail precedes the reader; the reader lives one hop deeper.
   static String storyDetail(String id) => '/story/$id/detail';
   static String storyRead(String id) => '/story/$id/read';
-
-  @Deprecated('Use storyDetail/storyRead — the player is no longer this route.')
-  static String story(String id) => storyRead(id);
 }
 
 final goRouterProvider = Provider<GoRouter>((ref) {

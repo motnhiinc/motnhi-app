@@ -225,7 +225,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         Align(
           alignment: Alignment.centerRight,
           child: Text(
-            'English + Vietnamese',
+            s.scanLanguages,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: colors.primary,
                 ),
@@ -237,29 +237,29 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
-        const Text('Tap in the text to correct recognition mistakes.'),
+        Text(s.reviewTextBody),
         const SizedBox(height: 20),
         TextField(
           controller: _textController,
           minLines: 8,
           maxLines: null,
           autofocus: _manualEntry,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Enter the words on the page',
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText: s.reviewTextHint,
             alignLabelWithHint: true,
           ),
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 8),
         Text(
-          '$count / 4,000 characters',
+          s.charCounter(count),
           textAlign: TextAlign.right,
           style: TextStyle(color: overLimit ? colors.error : null),
         ),
         if (overLimit)
           Text(
-            'Shorten the text to 4,000 characters or fewer.',
+            s.charTooLong,
             style: TextStyle(color: colors.error),
           ),
         const SizedBox(height: 20),
@@ -267,12 +267,12 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
           onPressed: empty || overLimit
               ? null
               : () => controller.confirmText(_textController.text),
-          child: const Text('Use this text'),
+          child: Text(s.useThisText),
         ),
         const SizedBox(height: 10),
         OutlinedButton(
           onPressed: () => _startScan(controller),
-          child: const Text('Scan again'),
+          child: Text(s.scanAgain),
         ),
       ],
     );
@@ -296,20 +296,20 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 12),
-        const Text(
-          'Find a table or another flat surface, then place your reader.',
+        Text(
+          s.readyForArBody,
           textAlign: TextAlign.center,
         ),
         const Spacer(),
         FilledButton.icon(
           onPressed: controller.openCharacterReader,
           icon: const Icon(Icons.view_in_ar_rounded),
-          label: const Text('Place character'),
+          label: Text(s.placeCharacter),
         ),
         const SizedBox(height: 10),
         OutlinedButton(
           onPressed: controller.reset,
-          child: const Text('Scan another page'),
+          child: Text(s.scanAnotherPage),
         ),
       ],
     );
@@ -327,15 +327,15 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       return _ttsFailure(code.substring(4), state, controller);
     }
     if (code == 'tts:invalid_text') {
+      final s = AppLocalizations.of(context)!;
       return _FailureState(
         key: const ValueKey('textFailure'),
         icon: Icons.text_fields_rounded,
-        title: 'Check the text length',
-        message:
-            'Enter between 1 and 4,000 characters before creating the voice.',
-        primaryLabel: 'Edit text',
+        title: s.textLengthTitle,
+        message: s.textLengthBody,
+        primaryLabel: s.editText,
         onPrimary: () => setState(() => _manualEntry = true),
-        secondaryLabel: 'Scan another page',
+        secondaryLabel: s.scanAnotherPage,
         onSecondary: controller.reset,
       );
     }
@@ -349,6 +349,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     ScanAnyPageState state,
     ScanAnyPageController controller,
   ) {
+    final s = AppLocalizations.of(context)!;
     late final IconData icon;
     late final String title;
     late final String message;
@@ -357,55 +358,46 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     switch (code) {
       case 'camera_denied':
         icon = Icons.no_photography_rounded;
-        title = 'Camera access is off';
-        message = 'Camera access is required to scan a page. Allow camera '
-            'access in device settings, then return and try again.';
-        primaryLabel = 'Try camera again';
+        title = s.scanErrCameraDeniedTitle;
+        message = s.scanErrCameraDeniedBody;
+        primaryLabel = s.tryCameraAgain;
       case 'camera_unavailable':
         icon = Icons.tablet_mac_rounded;
-        title = 'The scanner is not available';
-        message = 'This demo requires a supported physical device with an '
-            'available camera.';
-        primaryLabel = 'Try scanner again';
+        title = s.scanErrCameraUnavailableTitle;
+        message = s.scanErrCameraUnavailableBody;
+        primaryLabel = s.tryScannerAgain;
       case 'page_not_found':
       case 'rectangle_not_found':
       case 'unstable_page':
         icon = Icons.crop_free_rounded;
-        title = "We couldn't find one clear page";
-        message =
-            'Place one flat page in good light, avoid glare, and keep all '
-            'four corners visible.';
-        primaryLabel = 'Scan again';
+        title = s.scanErrNoPageTitle;
+        message = s.scanErrNoPageBody;
+        primaryLabel = s.scanAgain;
       case 'capture_failed':
         icon = Icons.camera_alt_outlined;
-        title = "We couldn't capture the page";
-        message = 'Hold this device steady over one well-lit page and keep all '
-            'four corners in view.';
-        primaryLabel = 'Scan again';
+        title = s.scanErrCaptureTitle;
+        message = s.scanErrCaptureBody;
+        primaryLabel = s.scanAgain;
       case 'correction_failed':
         icon = Icons.crop_rotate_rounded;
-        title = "We couldn't straighten the page";
-        message = 'Lay the page flat, reduce glare, and scan with all four '
-            'corners clearly visible.';
-        primaryLabel = 'Scan again';
+        title = s.scanErrCorrectionTitle;
+        message = s.scanErrCorrectionBody;
+        primaryLabel = s.scanAgain;
       case 'ocr_failed':
         icon = Icons.text_snippet_outlined;
-        title = "We couldn't recognize the words";
-        message = 'Try a flat, well-lit page with large, clear English or '
-            'Vietnamese text.';
-        primaryLabel = 'Scan again';
+        title = s.scanErrOcrTitle;
+        message = s.scanErrOcrBody;
+        primaryLabel = s.scanAgain;
       case 'no_text':
         icon = Icons.text_fields_rounded;
-        title = "We couldn't read enough text";
-        message = 'Try a page with large, clear English or Vietnamese text, or '
-            'enter the words yourself.';
-        primaryLabel = 'Scan again';
+        title = s.scanErrNoTextTitle;
+        message = s.scanErrNoTextBody;
+        primaryLabel = s.scanAgain;
       default:
         icon = Icons.error_outline_rounded;
-        title = 'Scanning stopped';
-        message = 'The scanner could not finish this page. Try again or enter '
-            'the words yourself.';
-        primaryLabel = 'Try scanner again';
+        title = s.scanErrGenericTitle;
+        message = s.scanErrGenericBody;
+        primaryLabel = s.tryScannerAgain;
     }
 
     return _FailureState(
@@ -415,7 +407,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       message: message,
       primaryLabel: primaryLabel,
       onPrimary: () => _startScan(controller),
-      secondaryLabel: 'Enter text manually',
+      secondaryLabel: s.enterTextManually,
       onSecondary: () {
         _textController.text = state.confirmedText;
         setState(() => _manualEntry = true);
@@ -428,6 +420,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     ScanAnyPageState state,
     ScanAnyPageController controller,
   ) {
+    final s = AppLocalizations.of(context)!;
     final count = _textController.text.runes.length;
     final overLimit = count > _maximumTextLength;
     final canRetry = _textController.text.trim().isNotEmpty && !overLimit;
@@ -441,40 +434,34 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       case 'network':
       case 'connection_error':
         icon = Icons.wifi_off_rounded;
-        title = "We couldn't reach the narration service";
-        message = 'Make sure the backend is running and your computer and this '
-            'device are on the same Wi-Fi, then try again.';
+        title = s.ttsErrNetworkTitle;
+        message = s.ttsErrNetworkBody;
       case 'auth':
       case 'auth_failed':
       case 'authentication':
       case 'authentication_failed':
       case 'unauthorized':
         icon = Icons.lock_outline_rounded;
-        title = "We couldn't verify this device";
-        message = 'The app could not renew access to the narration service. '
-            'Your text is still here; try again.';
+        title = s.ttsErrAuthTitle;
+        message = s.ttsErrAuthBody;
       case 'rate_limit':
       case 'rate_limited':
         icon = Icons.hourglass_top_rounded;
-        title = 'The narration service is busy';
-        message = 'Wait a moment before trying again. Your text is still here '
-            'and can be edited.';
+        title = s.ttsErrRateTitle;
+        message = s.ttsErrRateBody;
       case 'timeout':
       case 'timed_out':
         icon = Icons.timer_outlined;
-        title = 'The voice took too long to create';
-        message = 'The narration request timed out. Your text is still here; '
-            'try again when the connection is stable.';
+        title = s.ttsErrTimeoutTitle;
+        message = s.ttsErrTimeoutBody;
       case 'invalid_audio':
         icon = Icons.audio_file_outlined;
-        title = "We couldn't use the voice response";
-        message = 'The narration service did not return usable audio. No audio '
-            'was saved; your text is still here.';
+        title = s.ttsErrInvalidAudioTitle;
+        message = s.ttsErrInvalidAudioBody;
       default:
         icon = Icons.record_voice_over_outlined;
-        title = "We couldn't create the voice";
-        message = 'The narration service could not finish this request. Your '
-            'text is still here and can be edited before trying again.';
+        title = s.ttsErrGenericTitle;
+        message = s.ttsErrGenericBody;
     }
 
     return _PageContent(
@@ -506,13 +493,13 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          '$count / 4,000 characters',
+          s.charCounter(count),
           textAlign: TextAlign.right,
           style: TextStyle(color: overLimit ? colors.error : null),
         ),
         if (overLimit)
           Text(
-            'Shorten the text to 4,000 characters or fewer.',
+            s.charTooLong,
             style: TextStyle(color: colors.error),
           ),
         const SizedBox(height: 20),
@@ -527,12 +514,12 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                   }
                 }
               : null,
-          child: const Text('Try narration again'),
+          child: Text(s.tryNarrationAgain),
         ),
         const SizedBox(height: 10),
         OutlinedButton(
           onPressed: controller.reset,
-          child: const Text('Scan another page'),
+          child: Text(s.scanAnotherPage),
         ),
       ],
     );
@@ -543,82 +530,72 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     ScanAnyPageState state,
     ScanAnyPageController controller,
   ) {
+    final s = AppLocalizations.of(context)!;
     late final IconData icon;
     late final String title;
     late final String message;
-    var primaryLabel = 'Try AR again';
+    var primaryLabel = s.tryArAgain;
     VoidCallback onPrimary = controller.openCharacterReader;
-    var secondaryLabel = 'Scan another page';
+    var secondaryLabel = s.scanAnotherPage;
     VoidCallback onSecondary = controller.reset;
 
     switch (code) {
       case 'ar_unsupported':
         icon = Icons.tablet_mac_rounded;
-        title = 'AR is not available';
-        message =
-            'The character reader requires a physical device that supports '
-            'AR world tracking.';
-        primaryLabel = 'Scan another page';
+        title = s.scanArErrUnsupportedTitle;
+        message = s.scanArErrUnsupportedBody;
+        primaryLabel = s.scanAnotherPage;
         onPrimary = controller.reset;
-        secondaryLabel = 'Close';
+        secondaryLabel = s.closeLabel;
         onSecondary = () => Navigator.of(context).maybePop();
       case 'ar_unavailable':
         icon = Icons.tablet_mac_rounded;
-        title = "We couldn't start AR";
-        message = 'The character reader could not start this time. Your '
-            'generated voice is still available.';
+        title = s.scanArErrUnavailableTitle;
+        message = s.scanArErrUnavailableBody;
       case 'ar_failed':
         icon = Icons.view_in_ar_outlined;
-        title = 'The AR session stopped';
-        message = 'Tracking stopped unexpectedly. Your generated voice is '
-            'still available, so you can try AR again.';
+        title = s.scanArErrFailedTitle;
+        message = s.scanArErrFailedBody;
       case 'surface_not_found':
       case 'plane_not_found':
         icon = Icons.table_restaurant_outlined;
-        title = "We couldn't find a flat surface";
-        message =
-            'Use a well-lit table or floor and move this device slowly while '
-            'the character reader looks for a surface.';
+        title = s.scanArErrSurfaceTitle;
+        message = s.scanArErrSurfaceBody;
       case 'model_missing':
         icon = Icons.smart_toy_outlined;
-        title = 'The character is missing';
-        message = 'The bundled character file is not available. Your generated '
-            'voice is still saved for this flow.';
-        primaryLabel = 'Scan another page';
+        title = s.scanArErrModelMissingTitle;
+        message = s.scanArErrModelMissingBody;
+        primaryLabel = s.scanAnotherPage;
         onPrimary = controller.reset;
-        secondaryLabel = 'Close';
+        secondaryLabel = s.closeLabel;
         onSecondary = () => Navigator.of(context).maybePop();
       case 'model_load_failed':
         icon = Icons.smart_toy_outlined;
-        title = "The character couldn't load";
-        message = 'The bundled character could not be opened. Your generated '
-            'voice is still saved for this flow.';
-        primaryLabel = 'Scan another page';
+        title = s.scanArErrModelLoadTitle;
+        message = s.scanArErrModelLoadBody;
+        primaryLabel = s.scanAnotherPage;
         onPrimary = controller.reset;
-        secondaryLabel = 'Close';
+        secondaryLabel = s.closeLabel;
         onSecondary = () => Navigator.of(context).maybePop();
       case 'audio_missing':
       case 'missing_audio':
         icon = Icons.audio_file_outlined;
-        title = 'The generated voice is missing';
-        message = 'The temporary narration file is no longer available. Create '
-            'the voice again before opening the character reader.';
-        primaryLabel = 'Create voice again';
+        title = s.scanArErrAudioMissingTitle;
+        message = s.scanArErrAudioMissingBody;
+        primaryLabel = s.createVoiceAgain;
         onPrimary = () => controller.confirmText(state.confirmedText);
       case 'audio_failed':
         icon = Icons.volume_off_outlined;
-        title = "The character couldn't play the voice";
-        message = 'Playback must be retried inside the character reader to '
-            'preserve placement. From here, scan another page or close.';
-        primaryLabel = 'Scan another page';
+        title = s.scanArErrAudioFailedTitle;
+        message = s.scanArErrAudioFailedBody;
+        primaryLabel = s.scanAnotherPage;
         onPrimary = controller.reset;
-        secondaryLabel = 'Close';
+        secondaryLabel = s.closeLabel;
         onSecondary = () => Navigator.of(context).maybePop();
       default:
         icon = Icons.view_in_ar_outlined;
-        title = "We couldn't open the character reader";
-        message = 'The character reader stopped before it could finish. Your '
-            'generated voice is still available.';
+        title = s.scanArErrGenericTitle;
+        message = s.scanArErrGenericBody;
     }
 
     return _FailureState(

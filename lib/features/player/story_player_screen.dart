@@ -384,6 +384,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     if (!mounted) return;
     await showDialog<void>(
       context: context,
+      // Barrier-locked: a scrim tap would otherwise dismiss the ending and drop
+      // the child back on the last page of a story they just finished, with no
+      // way onward but the back arrow.
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: Text(s.theEndTitle),
         content: Text(s.whatALovelyStory),

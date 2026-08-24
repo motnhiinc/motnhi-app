@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
 import 'ar_reader_controller.dart';
 import 'native_story_reader.dart';
 
@@ -51,6 +52,7 @@ class _ArPreparingDialogState extends State<_ArPreparingDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppLocalizations.of(context)!;
     return PopScope(
       canPop: false,
       child: AlertDialog(
@@ -68,7 +70,7 @@ class _ArPreparingDialogState extends State<_ArPreparingDialog> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  _titleFor(state),
+                  _titleFor(s, state),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
@@ -76,7 +78,7 @@ class _ArPreparingDialogState extends State<_ArPreparingDialog> {
                 LinearProgressIndicator(value: _progressFor(state)),
                 const SizedBox(height: 12),
                 Text(
-                  _messageFor(state),
+                  _messageFor(s, state),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
@@ -88,30 +90,30 @@ class _ArPreparingDialogState extends State<_ArPreparingDialog> {
     );
   }
 
-  static String _titleFor(ArReaderState state) {
+  static String _titleFor(AppLocalizations s, ArReaderState state) {
     switch (state.phase) {
       case ArReaderPhase.checkingSupport:
-        return 'Getting AR ready…';
+        return s.arPrepGettingReady;
       case ArReaderPhase.preparing:
-        return 'Giving your character the story…';
+        return s.arPrepGivingStory;
       case ArReaderPhase.opening:
       case ArReaderPhase.reading:
-        return 'Opening the character reader…';
+        return s.arPrepOpening;
       case ArReaderPhase.idle:
       case ArReaderPhase.failure:
-        return 'One moment…';
+        return s.arPrepOneMoment;
     }
   }
 
-  static String _messageFor(ArReaderState state) {
+  static String _messageFor(AppLocalizations s, ArReaderState state) {
     if (state.phase == ArReaderPhase.opening ||
         state.phase == ArReaderPhase.reading) {
-      return 'Find a table or another flat surface.';
+      return s.arPrepFindSurface;
     }
     if (state.total > 0) {
-      return 'Page ${state.prepared} of ${state.total}';
+      return s.pageTitle(state.prepared, state.total);
     }
-    return 'This takes a moment the first time.';
+    return s.arPrepFirstTime;
   }
 
   /// Null while the total is unknown, which renders an indeterminate bar rather

@@ -120,13 +120,10 @@ class _Body extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 24),
+        // Stories completed is not repeated here: it is already the headline
+        // figure in the summary card above.
         Row(
           children: [
-            _StatTile(
-              value: '${summary.storiesCompleted}',
-              label: s.statStoriesCompleted,
-            ),
-            const SizedBox(width: 12),
             _StatTile(
               value: '${summary.questionsAnswered}',
               label: s.statQuestionsAnswered,
