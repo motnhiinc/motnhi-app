@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/di.dart';
+import '../../l10n/app_localizations.dart';
+import '../../shared/widgets/storybook/storybook.dart';
 import 'scan_any_page_controller.dart';
 
 class ScanAnyPageScreen extends ConsumerStatefulWidget {
@@ -49,8 +51,9 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     });
 
     final controller = ref.read(provider.notifier);
+    final s = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan any page')),
+      appBar: AppBar(title: Text(s.scanTitle)),
       body: SafeArea(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
@@ -64,6 +67,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     ScanAnyPageState state,
     ScanAnyPageController controller,
   ) {
+    final s = AppLocalizations.of(context)!;
     if (_manualEntry || state.phase == ScanAnyPagePhase.reviewingText) {
       return _review(controller);
     }
@@ -72,29 +76,27 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       case ScanAnyPagePhase.idle:
         return _entry(controller);
       case ScanAnyPagePhase.scanning:
-        return const _ProgressState(
-          key: ValueKey('scanning'),
+        return _ProgressState(
+          key: const ValueKey('scanning'),
           icon: Icons.document_scanner_rounded,
-          title: 'Scanning your page…',
-          message: 'Hold over one page and keep all four corners visible.',
+          title: s.scanningTitle,
+          message: s.scanningBody,
         );
       case ScanAnyPagePhase.generatingAudio:
-        return const _ProgressState(
-          key: ValueKey('generatingAudio'),
+        return _ProgressState(
+          key: const ValueKey('generatingAudio'),
           icon: Icons.graphic_eq_rounded,
-          title: 'Giving your character a voice…',
-          message:
-              'Keep your computer and this device on the same Wi-Fi. The OpenAI key '
-              'stays on the backend and is never stored in this app.',
+          title: s.generatingAudioTitle,
+          message: s.generatingAudioBody,
         );
       case ScanAnyPagePhase.readyForAr:
         return _readyForAr(controller);
       case ScanAnyPagePhase.openingAr:
-        return const _ProgressState(
-          key: ValueKey('openingAr'),
+        return _ProgressState(
+          key: const ValueKey('openingAr'),
           icon: Icons.view_in_ar_rounded,
-          title: 'Opening character reader…',
-          message: 'Move this device slowly to find a flat surface.',
+          title: s.openingArTitle,
+          message: s.openingArBody,
         );
       case ScanAnyPagePhase.failure:
         return _failure(state, controller);
@@ -104,38 +106,114 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   }
 
   Widget _entry(ScanAnyPageController controller) {
+    final s = AppLocalizations.of(context)!;
+    final t = context.stitch;
+
+    Widget step({required String label, required bool active}) => Column(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active ? t.coral : t.line,
+              ),
+            ),
+            const SizedBox(height: 6),
+            EyebrowLabel(
+              label,
+              color: active ? t.coralDeep : t.inkMuted,
+            ),
+          ],
+        );
+
     return _PageContent(
       key: const ValueKey('entry'),
       children: [
         const Spacer(),
-        Icon(
-          Icons.auto_stories_rounded,
-          size: 112,
-          color: Theme.of(context).colorScheme.primary,
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 210,
+              height: 210,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    t.lavender.withValues(alpha: .18),
+                    t.sageContainer.withValues(alpha: .25),
+                    Colors.transparent,
+                  ],
+                  stops: const [0, .6, 1],
+                ),
+              ),
+            ),
+            Container(
+              width: 176,
+              height: 176,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: t.line, width: 2),
+              ),
+              alignment: Alignment.center,
+              child: Icon(Icons.auto_stories_rounded,
+                  size: 84, color: t.lavender),
+            ),
+          ],
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 30),
         Text(
-          'Bring any story page to life',
+          s.scanHeroTitle,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 12),
-        const Text(
-          'Scan one page with large, clear text. A character will read it '
-          'aloud from your table.',
+        Text(
+          s.scanHeroBody,
           textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: t.inkMuted),
+        ),
+        const SizedBox(height: 26),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            step(label: s.stepScan, active: true),
+            _StepLink(active: true),
+            step(label: s.stepVoice, active: false),
+            _StepLink(active: false),
+            step(label: s.stepCharacter, active: false),
+          ],
         ),
         const Spacer(),
-        FilledButton.icon(
+        PressablePillButton(
+          label: s.scanPrimaryCta,
+          icon: Icons.document_scanner_rounded,
           onPressed: () => _startScan(controller),
-          icon: const Icon(Icons.document_scanner_rounded),
-          label: const Text('Scan a page'),
+        ),
+        const SizedBox(height: 10),
+        PressablePillButton(
+          label: s.scanManualCta,
+          variant: PillVariant.secondary,
+          height: 46,
+          onPressed: () => setState(() => _manualEntry = true),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          s.scanOfflineNote,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
     );
   }
 
   Widget _review(ScanAnyPageController controller) {
+    final s = AppLocalizations.of(context)!;
     final count = _textController.text.runes.length;
     final overLimit = count > _maximumTextLength;
     final empty = _textController.text.trim().isEmpty;
@@ -155,7 +233,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          'Check the words before reading',
+          s.reviewTextTitle,
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 8),
@@ -201,6 +279,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   }
 
   Widget _readyForAr(ScanAnyPageController controller) {
+    final s = AppLocalizations.of(context)!;
     return _PageContent(
       key: const ValueKey('readyForAr'),
       children: [
@@ -212,7 +291,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         ),
         const SizedBox(height: 32),
         Text(
-          'Your character is ready',
+          s.readyForArTitle,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineMedium,
         ),
@@ -557,6 +636,23 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   void _startScan(ScanAnyPageController controller) {
     setState(() => _manualEntry = false);
     controller.startScan();
+  }
+}
+
+/// Dotted-line connector between the scan → voice → character stepper beads.
+class _StepLink extends StatelessWidget {
+  const _StepLink({required this.active});
+
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 2,
+      margin: const EdgeInsets.only(top: 4),
+      color: active ? context.stitch.coral : context.stitch.line,
+    );
   }
 }
 

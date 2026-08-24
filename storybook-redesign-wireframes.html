@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en" data-mode="day">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Mọt Nhí · Storybook AR — Redesign Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Nunito+Sans:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --canvas:#f2eae0; --surface:#fff8f5; --paper:#fffaf4;
+  --ink:#201a18; --muted:#746b66; --line:#dbd0c4;
+  --coral:#dc704b; --coral-deep:#9b3f1e; --pressed:#b95639;
+  --lavender:#63539e; --lavender-c:#bfadff; --lavender-t:rgba(99,83,158,.15);
+  --sage:#3b644c; --sage-c:#bfedcd; --sage-t:rgba(59,100,76,.15);
+  --gold:#f2d493; --gold-t:rgba(242,212,147,.25);
+  --shadow:0 18px 40px rgba(76,57,43,.15);
+  --glass:rgba(255,250,244,.95);
+  --nav-ink:#56423c;
+}
+html[data-mode="moon"]{
+  --canvas:#140f2a; --surface:#27223e; --paper:#332c4c;
+  --ink:#f5f5f7; --muted:#c9c2e0; --line:#5a527a;
+  --coral:#e38a6a; --coral-deep:#de724d; --pressed:#8a3c22;
+  --lavender:#ccbeff; --lavender-c:#4d3d87; --lavender-t:rgba(204,190,255,.16);
+  --sage:#a4d1b3; --sage-c:#365a42; --sage-t:rgba(164,209,179,.14);
+  --gold:#f2d493; --gold-t:rgba(242,212,147,.18);
+  --shadow:0 18px 40px rgba(0,0,0,.35);
+  --glass:rgba(39,34,62,.92);
+  --nav-ink:#dcd6f7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html[data-lang="en"] .vi{display:none}
+html[data-lang="vi"] .en{display:none}
+body{background:var(--canvas);font-family:"Nunito Sans",sans-serif;color:var(--ink);padding-bottom:80px;transition:background .3s,color .3s}
+.bar{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;padding:18px 32px;background:var(--glass);backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+.bar h1{font-family:"Source Serif 4",serif;font-size:22px;font-weight:600}
+.bar p{font-size:12px;color:var(--muted);margin-top:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--paper)}
+.seg button{border:0;background:transparent;color:var(--muted);font:800 12px "Nunito Sans";padding:9px 16px;cursor:pointer;letter-spacing:.04em}
+.seg button.on{background:var(--coral);color:#fff}
+.controls{display:flex;gap:10px;align-items:center}
+.board{max-width:1560px;margin:0 auto;padding:36px 32px}
+.flow{margin-bottom:64px}
+.flow>h2{font-family:"Source Serif 4",serif;font-size:26px;font-weight:600;margin-bottom:6px}
+.flow>.note{color:var(--muted);font-size:13px;margin-bottom:24px}
+.grid{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}
+.device{width:330px;flex:0 0 auto;background:var(--canvas);border:1px solid var(--line);border-radius:44px;padding:10px;box-shadow:var(--shadow)}
+.screen{background:var(--surface);border-radius:36px;overflow:hidden;position:relative;min-height:560px;display:flex;flex-direction:column}
+.tag{display:inline-block;margin:0 0 10px 6px;font:800 11px "Nunito Sans";letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pad{padding:24px 24px 28px}
+.grow{flex:1}
+.eyebrow{font:800 11px "Nunito Sans";letter-spacing:.09em;text-transform:uppercase;color:var(--coral-deep)}
+html[data-mode="moon"] .eyebrow{color:var(--coral)}
+.serif{font-family:"Source Serif 4",serif}
+.h1{font-size:26px;line-height:1.2;font-weight:600;margin-top:8px}
+.h2{font-size:18px;line-height:1.3;font-weight:600}
+.body{font-size:13.5px;line-height:1.55;color:var(--muted);margin-top:8px}
+.card{background:var(--paper);border-radius:22px;box-shadow:var(--shadow);padding:18px;margin-top:16px}
+.card .lbl{font:800 13px "Nunito Sans";margin-bottom:10px;display:block}
+.input{height:46px;border:1px solid var(--line);border-radius:14px;background:var(--surface);display:flex;align-items:center;padding:0 14px;color:var(--muted);font-size:13px}
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 18px;border-radius:999px;border:1px solid var(--line);font:800 12px "Nunito Sans";color:var(--ink);background:transparent}
+.pill.sel{background:var(--coral);border-color:var(--coral);color:#fff}
+.chip{display:inline-flex;align-items:center;height:30px;padding:0 13px;border-radius:999px;border:1px solid var(--line);font:700 11px "Nunito Sans";color:var(--muted)}
+.chip.sel{background:var(--lavender-c);border-color:transparent;color:#2c2452}
+html[data-mode="moon"] .chip.sel{color:#ece5ff}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:52px;border-radius:999px;background:var(--coral);color:#fff;font:800 14px "Nunito Sans";box-shadow:0 4px 0 var(--pressed);margin-top:16px}
+.btn.sec{background:transparent;color:var(--ink);box-shadow:none;border:1.5px solid var(--line)}
+.row{display:flex;align-items:center;gap:12px}
+.spread{display:flex;align-items:center;justify-content:space-between}
+.switch{width:44px;height:26px;border-radius:999px;background:var(--sage-c);position:relative;flex:0 0 auto}
+.switch::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch.off{background:var(--line)}
+.switch.off::after{right:auto;left:3px}
+.check{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px}
+.check.on{background:var(--coral);border-color:var(--coral)}
+.beads{display:flex;gap:6px;align-items:center}
+.bead{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.bead.on{background:var(--coral)}
+.nav{position:absolute;left:16px;right:16px;bottom:14px;display:flex;justify-content:space-around;background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--line);border-radius:999px;padding:10px 8px;box-shadow:var(--shadow)}
+.nav .it{display:flex;flex-direction:column;align-items:center;gap:3px;font:800 9.5px "Nunito Sans";color:var(--muted);min-width:70px}
+.nav .it.on{color:var(--coral)}
+.ico{width:20px;height:20px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.cover{background:linear-gradient(145deg,var(--lavender-t),var(--gold-t)),var(--lavender-t);position:relative;overflow:hidden}
+.cover::after{content:"✦";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;color:var(--lavender);opacity:.75}
+.cover.sage{background:linear-gradient(145deg,var(--sage-t),var(--gold-t))}
+.cover.gold{background:linear-gradient(145deg,var(--gold-t),var(--lavender-t))}
+.r-asym{border-radius:42px 42px 22px 22px}
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 6px}
+.appbar .tt{font-family:"Source Serif 4",serif;font-weight:600;font-size:17px}
+.circ{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;background:var(--paper)}
+.stat{flex:1;background:var(--paper);border-radius:22px;box-shadow:var(--shadow);padding:16px;text-align:center}
+.stat .n{font-family:"Source Serif 4",serif;font-size:24px;font-weight:600;color:var(--coral-deep)}
+html[data-mode="moon"] .stat .n{color:var(--coral)}
+.stat .t{font:700 11px "Nunito Sans";color:var(--muted);margin-top:2px}
+.list-row{display:flex;align-items:center;gap:12px;background:var(--paper);border-radius:22px;box-shadow:var(--shadow);padding:16px;margin-top:12px}
+.dashed{border:2px dashed var(--line);border-radius:22px;padding:18px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--muted);font:700 13px "Nunito Sans";margin-top:12px}
+.legend{max-width:1560px;margin:0 auto;padding:0 32px 40px;display:flex;gap:14px;flex-wrap:wrap}
+.legend span{font:700 11px "Nunito Sans";color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:var(--paper)}
+.sw{width:12px;height:12px;border-radius:4px;display:inline-block;vertical-align:-1px;margin-right:6px}
+@media(max-width:760px){.board{padding:24px 14px}.grid{justify-content:center}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div>
+    <h1>Mọt Nhí · Storybook AR — Expected Redesign Wireframes</h1>
+    <p>All 10 screens · EN/VI toggle · Day/Moon toggle · Tokens per docs/superpowers/specs/2026-08-24-storybook-ar-redesign-design.md</p>
+  </div>
+  <div class="controls">
+    <div class="seg" id="langSeg">
+      <button data-l="en" class="on">ENGLISH</button>
+      <button data-l="vi">TIẾNG VIỆT</button>
+    </div>
+    <div class="seg" id="modeSeg">
+      <button data-m="day" class="on">☀ DAY</button>
+      <button data-m="moon">☾ MOON</button>
+    </div>
+  </div>
+</header>
+
+<main class="board">
+
+<section class="flow">
+  <h2><span class="en">Child journey</span><span class="vi">Hành trình của bé</span></h2>
+  <p class="note"><span class="en">Onboarding → Child Home → Story Detail → Reading Experience. Bottom nav switches Stories / My books / Moon mode.</span><span class="vi">Onboarding → Trang chủ → Chi tiết truyện → Trải nghiệm đọc. Thanh điều hướng: Truyện / Sách của tôi / Mặt trăng.</span></p>
+  <div class="grid">
+
+    <div>
+      <span class="tag"><span class="en">1 · Onboarding</span><span class="vi">1 · Onboarding</span></span>
+      <div class="device"><div class="screen"><div class="pad grow">
+        <div class="eyebrow"><span class="en">Parent setup</span><span class="vi">Thiết lập cho phụ huynh</span></div>
+        <div class="serif h1"><span class="en">Welcome, grown-ups</span><span class="vi">Chào mừng, phụ huynh</span></div>
+        <p class="body"><span class="en">Set up a safe space to read. We collect only what we need — an age range and a language. No real name, no birthday, no photo.</span><span class="vi">Thiết lập không gian đọc an toàn cho bé. Chúng tôi chỉ thu thập những gì cần thiết — độ tuổi và ngôn ngữ. Không tên thật, không ngày sinh, không ảnh.</span></p>
+        <div class="card"><span class="lbl"><span class="en">Child’s nickname (optional)</span><span class="vi">Biệt danh của bé (không bắt buộc)</span></span>
+          <div class="input"><span class="en">e.g. Little Star</span><span class="vi">VD: Ngôi Sao Nhỏ</span></div></div>
+        <div class="card"><span class="lbl"><span class="en">Age range</span><span class="vi">Độ tuổi</span></span>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <span class="pill"><span class="en">3–4 yrs</span><span class="vi">3–4 tuổi</span></span>
+            <span class="pill sel"><span class="en">5–6 yrs</span><span class="vi">5–6 tuổi</span></span>
+            <span class="pill"><span class="en">7–8 yrs</span><span class="vi">7–8 tuổi</span></span>
+          </div></div>
+        <div class="card"><span class="lbl"><span class="en">Story language</span><span class="vi">Ngôn ngữ truyện</span></span>
+          <div class="row" style="gap:8px">
+            <span class="pill sel en">English</span><span class="pill vi">English</span>
+            <span class="pill en">Tiếng Việt</span><span class="pill sel vi">Tiếng Việt</span>
+          </div></div>
+        <div class="card">
+          <div class="spread"><b style="font-size:13px"><span class="en">AR camera scenes</span><span class="vi">Cảnh quay AR</span></b><span class="switch"></span></div>
+          <p class="body" style="margin-top:4px"><span class="en">Characters appear over the story page.</span><span class="vi">Nhân vật xuất hiện trên trang truyện.</span></p>
+        </div>
+        <div class="card">
+          <div class="spread"><b style="font-size:13px"><span class="en">Microphone</span><span class="vi">Micrô</span></b><span class="switch off"></span></div>
+          <p class="body" style="margin-top:4px"><span class="en">Off by default. Only needed for voice answers.</span><span class="vi">Mặc định tắt. Chỉ dùng cho câu trả lời bằng giọng nói.</span></p>
+        </div>
+        <div class="card row" style="align-items:flex-start">
+          <span class="check on">✓</span>
+          <div><b style="font-size:13px"><span class="en">I am the parent or guardian and I consent</span><span class="vi">Tôi là phụ huynh/người giám hộ và tôi đồng ý</span></b>
+          <p class="body" style="margin-top:4px"><span class="en">Creates this child profile and stores reading progress on this device only.</span><span class="vi">Tạo hồ sơ của bé và chỉ lưu tiến trình đọc trên thiết bị này.</span></p></div>
+        </div>
+        <div class="btn"><span class="en">Start reading</span><span class="vi">Bắt đầu đọc</span></div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">2 · Child Home</span><span class="vi">2 · Trang chủ</span></span>
+      <div class="device"><div class="screen"><div class="pad grow" style="padding-bottom:86px">
+        <div class="row spread">
+          <div>
+            <div class="eyebrow"><span class="en">Good afternoon</span><span class="vi">Chào buổi chiều</span></div>
+            <div class="serif" style="font-size:24px;font-weight:600">Mia</div>
+          </div>
+          <div class="circ" style="width:auto;padding:0 14px;border-radius:999px;gap:6px">
+            <svg class="ico" viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>
+            <span style="font:800 11px 'Nunito Sans'"><span class="en">Parent area</span><span class="vi">Khu vực phụ huynh</span></span>
+          </div>
+        </div>
+        <div class="card" style="padding:16px">
+          <div class="eyebrow" style="color:var(--muted)"><span class="en">Jump back in</span><span class="vi">Đọc tiếp</span></div>
+          <div class="row" style="margin-top:10px">
+            <div class="cover r-asym" style="width:64px;height:84px"></div>
+            <div style="flex:1">
+              <div style="font:700 10.5px 'Nunito Sans';color:var(--muted)"><span class="en">Page 3</span><span class="vi">Trang 3</span></div>
+              <div class="serif" style="font-size:17px;font-weight:600"><span class="en">Moonlit Bunny</span><span class="vi">Thỏ và Ánh Trăng</span></div>
+              <p class="body" style="margin-top:2px;font-size:12px"><span class="en">A magical night-time adventure.</span><span class="vi">Cuộc phiêu lưu huyền bí trong đêm.</span></p>
+            </div>
+          </div>
+          <div class="btn" style="height:44px;margin-top:12px"><svg class="ico" viewBox="0 0 24 24" style="fill:#fff;stroke:none"><path d="M8 5v14l11-7z"/></svg><span class="en">Resume reading</span><span class="vi">Đọc tiếp</span></div>
+        </div>
+        <div class="eyebrow" style="margin-top:22px"><span class="en">For you</span><span class="vi">Dành cho bé</span></div>
+        <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+          <span class="chip sel"><span class="en">Animals</span><span class="vi">Động vật</span></span>
+          <span class="chip"><span class="en">Friends</span><span class="vi">Bạn bè</span></span>
+          <span class="chip"><span class="en">Bedtime</span><span class="vi">Giấc ngủ</span></span>
+        </div>
+        <div class="spread" style="margin-top:20px">
+          <div class="eyebrow"><span class="en">Pick a story</span><span class="vi">Chọn truyện</span></div>
+          <span style="font:800 11px 'Nunito Sans';color:var(--coral)"><span class="en">See all</span><span class="vi">Xem tất cả</span></span>
+        </div>
+        <div class="row" style="gap:12px;margin-top:12px;align-items:stretch">
+          <div style="flex:1">
+            <div class="cover r-asym" style="height:120px"></div>
+            <div class="beads" style="margin-top:8px"><span class="bead on"></span><span class="bead on"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:4px"><span class="en">Age 5–6 · 5 min</span><span class="vi">5–6 tuổi · 5 phút</span></div>
+            <div class="serif" style="font-size:14px;font-weight:600;margin-top:2px"><span class="en">Moonlit Bunny</span><span class="vi">Thỏ và Ánh Trăng</span></div>
+          </div>
+          <div style="flex:1">
+            <div class="cover sage r-asym" style="height:120px"></div>
+            <div class="beads" style="margin-top:8px"><span class="bead on"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:4px"><span class="en">Age 3–4 · 6 min</span><span class="vi">3–4 tuổi · 6 phút</span></div>
+            <div class="serif" style="font-size:14px;font-weight:600;margin-top:2px"><span class="en">The Little Boat</span><span class="vi">Chiếc Thuyền Nhỏ</span></div>
+          </div>
+          <div style="flex:1">
+            <div class="cover gold r-asym" style="height:120px"></div>
+            <div class="beads" style="margin-top:8px"><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:4px"><span class="en">Age 5–6 · 7 min</span><span class="vi">5–6 tuổi · 7 phút</span></div>
+            <div class="serif" style="font-size:14px;font-weight:600;margin-top:2px"><span class="en">A New Friend</span><span class="vi">Người Bạn Mới</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="nav">
+        <span class="it on"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h9a3 3 0 013 3v11H7a3 3 0 01-3-3zM20 5v11a3 3 0 01-3 3"/></svg><span class="en">Stories</span><span class="vi">Truyện</span></span>
+        <span class="it"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h6a2 2 0 012 2v14a2 2 0 00-2-2H5zM19 4h-4a2 2 0 00-2 2v14a2 2 0 012-2h4z"/></svg><span class="en">My books</span><span class="vi">Sách của tôi</span></span>
+        <span class="it"><svg class="ico" viewBox="0 0 24 24"><path d="M20 13A8 8 0 1111 4a6.5 6.5 0 009 9z"/></svg><span class="en">Moon mode</span><span class="vi">Mặt trăng</span></span>
+      </div>
+      </div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">3 · Story Detail</span><span class="vi">3 · Chi tiết truyện</span></span>
+      <div class="device"><div class="screen"><div class="pad grow">
+        <div class="appbar" style="padding:6px 0 0">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></span>
+        </div>
+        <div class="cover r-asym" style="height:210px;margin-top:12px"></div>
+        <div class="row" style="gap:8px;margin-top:16px;flex-wrap:wrap">
+          <span class="chip sel"><span class="en">Ages 5–6</span><span class="vi">5–6 tuổi</span></span>
+          <span class="chip"><span class="en">5 minutes</span><span class="vi">5 phút</span></span>
+          <span class="chip" style="background:var(--gold-t);border-color:transparent"><span class="en">Bedtime</span><span class="vi">Giấc ngủ</span></span>
+        </div>
+        <div class="serif" style="font-size:26px;font-weight:600;margin-top:12px"><span class="en">Moonlit Bunny</span><span class="vi">Thỏ và Ánh Trăng</span></div>
+        <p class="body" style="font-size:14px"><span class="en">Bunny follows a silver trail through the garden and learns that home is never far away.</span><span class="vi">Thỏ nhỏ đi theo vệt bạc qua khu vườn và nhận ra rằng nhà luôn ở rất gần.</span></p>
+        <div class="card row">
+          <div class="circ" style="background:var(--lavender-t);border-color:transparent"><svg class="ico" viewBox="0 0 24 24" style="color:var(--lavender)"><path d="M12 3l4 4-4 4-4-4zM12 13l4 4-4 4-4-4z"/></svg></div>
+          <div><b style="font-size:13px"><span class="en">A page comes alive</span><span class="vi">Trang truyện sống dậy</span></b>
+          <p class="body" style="margin-top:2px;font-size:12px"><span class="en">Look for the AR moment while you read to see the magic unfold in your room.</span><span class="vi">Tìm khoảnh khắc AR khi đọc để thấy phép thuật xuất hiện ngay trong phòng của bé.</span></p></div>
+        </div>
+        <div class="btn"><svg class="ico" viewBox="0 0 24 24" style="stroke:#fff"><path d="M4 5h9a3 3 0 013 3v11H7a3 3 0 01-3-3z"/></svg><span class="en">Read story</span><span class="vi">Đọc truyện</span></div>
+        <div class="btn sec"><span class="en">Download for later</span><span class="vi">Tải xuống để đọc sau</span></div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">4 · Reading Experience</span><span class="vi">4 · Trải nghiệm đọc</span></span>
+      <div class="device"><div class="screen" style="background:var(--surface)"><div class="pad grow">
+        <div class="appbar" style="padding:6px 0 0">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <div style="text-align:center">
+            <div class="serif" style="font-size:15px;font-weight:600"><span class="en">Moonlit Bunny</span><span class="vi">Thỏ và Ánh Trăng</span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:2px"><span class="en">Page 3 of 12</span><span class="vi">Trang 3 / 12</span></div>
+          </div>
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M20 13A8 8 0 1111 4a6.5 6.5 0 009 9z"/></svg></span>
+        </div>
+        <div class="beads" style="justify-content:center;margin-top:14px">
+          <span class="bead on"></span><span class="bead on"></span><span class="bead on"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span>
+        </div>
+        <div style="margin:18px auto 0;width:fit-content;background:var(--gold-t);border-radius:999px;padding:8px 14px;font:800 11px 'Nunito Sans'">✦ <span class="en">This page has an AR surprise</span><span class="vi">Trang này có khoảnh khắc AR</span></div>
+        <div class="grow" style="display:flex;align-items:center;justify-content:center;padding:24px 6px">
+          <p class="serif" style="font-size:19px;line-height:1.65;text-align:center"><span class="en">Bunny followed the silver trail beneath the sleepy trees…</span><span class="vi">Thỏ nhỏ băng theo vệt bạc dưới những hàng cây đang say ngủ…</span></p>
+        </div>
+        <div class="row" style="justify-content:center;gap:14px">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9M3 12V7m0 5h5"/></svg></span>
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <span class="circ" style="width:64px;height:64px;background:var(--coral);border-color:transparent"><svg class="ico" viewBox="0 0 24 24" style="width:26px;height:26px;fill:#fff;stroke:none"><path d="M8 5v14l11-7z"/></svg></span>
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+        </div>
+        <div class="btn sec" style="margin-top:16px"><svg class="ico" viewBox="0 0 24 24" style="color:var(--lavender)"><path d="M12 3l4 4-4 4-4-4zM12 13l4 4-4 4-4-4z"/></svg><span class="en">Magic Spark</span><span class="vi">Tia phép thuật</span></div>
+      </div></div></div>
+    </div>
+
+  </div>
+</section>
+
+<section class="flow">
+  <h2><span class="en">Library &amp; parent surfaces</span><span class="vi">Thư viện &amp; phụ huynh</span></h2>
+  <p class="note"><span class="en">My Books joins the child bottom-nav; Parent Dashboard links into Settings and My Books behind the gate.</span><span class="vi">Sách của tôi nằm trên thanh điều hướng của bé; Bảng điều khiển phụ huynh dẫn tới Cài đặt và Sách của tôi (qua cổng phụ huynh).</span></p>
+  <div class="grid">
+
+    <div>
+      <span class="tag"><span class="en">5 · My Books</span><span class="vi">5 · Sách của tôi</span></span>
+      <div class="device"><div class="screen"><div class="pad grow" style="padding-bottom:86px">
+        <div class="spread">
+          <div class="serif" style="font-size:22px;font-weight:600"><span class="en">My books</span><span class="vi">Sách của tôi</span></div>
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></span>
+        </div>
+        <div class="row" style="gap:8px;margin-top:14px;flex-wrap:wrap">
+          <span class="chip sel"><span class="en">Downloaded</span><span class="vi">Sách đã tải</span></span>
+          <span class="chip"><span class="en">Favorites</span><span class="vi">Yêu thích</span></span>
+          <span class="chip"><span class="en">Reading</span><span class="vi">Đang đọc</span></span>
+        </div>
+        <div class="spread" style="margin-top:20px">
+          <div class="eyebrow"><span class="en">Recent</span><span class="vi">Gần đây</span></div>
+          <span style="font:800 11px 'Nunito Sans';color:var(--coral)"><span class="en">See all</span><span class="vi">Xem tất cả</span></span>
+        </div>
+        <div class="row" style="gap:12px;margin-top:12px">
+          <div style="flex:1">
+            <div class="cover r-asym" style="height:118px"></div>
+            <div class="beads" style="margin-top:8px"><span class="bead on"></span><span class="bead on"></span><span class="bead on"></span><span class="bead"></span><span class="bead"></span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:4px"><span class="en">60% read</span><span class="vi">Đã đọc 60%</span></div>
+            <div class="serif" style="font-size:13.5px;font-weight:600;margin-top:2px"><span class="en">The Glow Fox</span><span class="vi">Cáo Ánh Sáng</span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted)"><span class="en">Fairy tales</span><span class="vi">Truyện cổ tích</span></div>
+          </div>
+          <div style="flex:1">
+            <div class="cover sage r-asym" style="height:118px"></div>
+            <div class="beads" style="margin-top:8px"><span class="bead on"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span><span class="bead"></span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:4px"><span class="en">15% read</span><span class="vi">Đã đọc 15%</span></div>
+            <div class="serif" style="font-size:13.5px;font-weight:600;margin-top:2px"><span class="en">The Little Boat</span><span class="vi">Chiếc Thuyền Nhỏ</span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted)"><span class="en">Adventure</span><span class="vi">Phiêu lưu</span></div>
+          </div>
+          <div style="flex:1">
+            <div class="cover gold r-asym" style="height:118px"></div>
+            <div class="beads" style="margin-top:8px"><span class="bead on"></span><span class="bead on"></span><span class="bead on"></span><span class="bead on"></span><span class="bead on"></span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted);margin-top:4px"><span class="en">90% read</span><span class="vi">Đã đọc 90%</span></div>
+            <div class="serif" style="font-size:13.5px;font-weight:600;margin-top:2px"><span class="en">A New Friend</span><span class="vi">Người Bạn Mới</span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted)"><span class="en">Space</span><span class="vi">Vũ trụ</span></div>
+          </div>
+        </div>
+        <div class="card" style="text-align:left">
+          <div class="circ" style="background:var(--gold-t);border-color:transparent;margin-bottom:10px">✦</div>
+          <div class="serif h2"><span class="en">Add new books?</span><span class="vi">Thêm sách mới?</span></div>
+          <p class="body" style="font-size:12.5px"><span class="en">Discover hundreds more wonderful stories.</span><span class="vi">Khám phá thêm hàng trăm câu chuyện thú vị khác.</span></p>
+          <div class="btn" style="height:44px"><span class="en">Explore now</span><span class="vi">Khám phá ngay</span></div>
+        </div>
+      </div>
+      <div class="nav">
+        <span class="it"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h9a3 3 0 013 3v11H7a3 3 0 01-3-3zM20 5v11a3 3 0 01-3 3"/></svg><span class="en">Stories</span><span class="vi">Truyện</span></span>
+        <span class="it on"><svg class="ico" viewBox="0 0 24 24"><path d="M5 4h6a2 2 0 012 2v14a2 2 0 00-2-2H5zM19 4h-4a2 2 0 00-2 2v14a2 2 0 012-2h4z"/></svg><span class="en">My books</span><span class="vi">Sách của tôi</span></span>
+        <span class="it"><svg class="ico" viewBox="0 0 24 24"><path d="M20 13A8 8 0 1111 4a6.5 6.5 0 009 9z"/></svg><span class="en">Moon mode</span><span class="vi">Mặt trăng</span></span>
+      </div>
+      </div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">6 · Parent Dashboard</span><span class="vi">6 · Bảng điều khiển phụ huynh</span></span>
+      <div class="device"><div class="screen"><div class="pad grow">
+        <div class="appbar" style="padding:6px 0 0">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <div class="serif tt"><span class="en">Parent Dashboard</span><span class="vi">Phụ huynh</span></div>
+          <span style="width:38px"></span>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="eyebrow"><span class="en">This week</span><span class="vi">Tuần này</span></div>
+          <div class="serif" style="font-size:22px;font-weight:600;margin-top:6px"><span class="en">3 stories</span><span class="vi">3 truyện</span></div>
+          <p class="body" style="margin-top:2px;font-size:12.5px"><span class="en">34 calm minutes together</span><span class="vi">34 phút bình yên cùng nhau</span></p>
+        </div>
+        <div class="eyebrow" style="margin-top:20px"><span class="en">A gentle summary</span><span class="vi">Tổng kết nhẹ nhàng</span></div>
+        <div class="row" style="gap:12px;margin-top:10px">
+          <div class="stat"><div class="n">2</div><div class="t"><span class="en">Stories finished</span><span class="vi">Truyện hoàn thành</span></div></div>
+          <div class="stat"><div class="n">6</div><div class="t"><span class="en">Questions explored</span><span class="vi">Câu hỏi đã khám phá</span></div></div>
+        </div>
+        <div class="card row">
+          <div class="cover r-asym" style="width:48px;height:62px;border-radius:14px"></div>
+          <div style="flex:1">
+            <div class="eyebrow" style="color:var(--muted)"><span class="en">Most recently read</span><span class="vi">Đọc gần nhất</span></div>
+            <div class="serif" style="font-size:15px;font-weight:600;margin-top:2px"><span class="en">Moonlit Bunny</span><span class="vi">Thỏ và Ánh Trăng</span></div>
+            <div style="font:700 10px 'Nunito Sans';color:var(--muted)"><span class="en">Page 3 of 12</span><span class="vi">Trang 3 / 12</span></div>
+          </div>
+          <span class="circ" style="background:var(--coral);border-color:transparent"><svg class="ico" viewBox="0 0 24 24" style="fill:#fff;stroke:none;width:14px"><path d="M8 5v14l11-7z"/></svg></span>
+        </div>
+        <div class="list-row">
+          <svg class="ico" viewBox="0 0 24 24" style="color:var(--coral)"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>
+          <b style="font-size:13px;flex:1"><span class="en">Reading and safety settings</span><span class="vi">Cài đặt đọc và an toàn</span></b>
+          <svg class="ico" viewBox="0 0 24 24" style="color:var(--muted)"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+        <div class="list-row">
+          <svg class="ico" viewBox="0 0 24 24" style="color:var(--lavender)"><path d="M5 4h6a2 2 0 012 2v14a2 2 0 00-2-2H5zM19 4h-4a2 2 0 00-2 2v14a2 2 0 012-2h4z"/></svg>
+          <b style="font-size:13px;flex:1"><span class="en">My books</span><span class="vi">Sách của tôi</span></b>
+          <svg class="ico" viewBox="0 0 24 24" style="color:var(--muted)"><path d="M9 5l7 7-7 7"/></svg>
+        </div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">7 · Settings</span><span class="vi">7 · Cài đặt</span></span>
+      <div class="device"><div class="screen"><div class="pad grow">
+        <div class="appbar" style="padding:6px 0 0">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <div class="serif tt"><span class="en">Settings</span><span class="vi">Cài đặt</span></div>
+          <span style="width:38px"></span>
+        </div>
+        <div class="serif" style="font-size:21px;font-weight:600;margin-top:14px"><span class="en">Reading &amp; safety settings</span><span class="vi">Cài đặt đọc và an toàn</span></div>
+        <p class="body" style="font-size:12.5px"><span class="en">Manage your child’s experience on Mọt Nhí.</span><span class="vi">Quản lý trải nghiệm của bé trên Mọt Nhí.</span></p>
+        <div class="card">
+          <b style="font-size:13px"><span class="en">Reading time limit</span><span class="vi">Giới hạn thời gian đọc</span></b>
+          <p class="body" style="margin-top:3px;font-size:12px"><span class="en">Set the maximum time your child can use the app each day.</span><span class="vi">Thời gian tối đa bé có thể dùng ứng dụng mỗi ngày.</span></p>
+          <div class="row" style="gap:8px;margin-top:10px">
+            <span class="chip"><span class="en">15 min</span><span class="vi">15 phút</span></span>
+            <span class="chip sel"><span class="en">45 min</span><span class="vi">45 phút</span></span>
+            <span class="chip"><span class="en">120 min</span><span class="vi">120 phút</span></span>
+          </div>
+        </div>
+        <div class="card">
+          <b style="font-size:13px"><span class="en">Content filter</span><span class="vi">Chế độ lọc nội dung</span></b>
+          <p class="body" style="margin-top:3px;font-size:12px"><span class="en">Automatically suggest age-appropriate books.</span><span class="vi">Tự động đề xuất sách phù hợp với độ tuổi của bé.</span></p>
+          <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+            <span class="chip"><span class="en">Preschool 2–5</span><span class="vi">Mầm non 2–5</span></span>
+            <span class="chip sel"><span class="en">Primary 6–9</span><span class="vi">Tiểu học 6–9</span></span>
+            <span class="chip"><span class="en">Explorer 10+</span><span class="vi">Khám phá 10+</span></span>
+          </div>
+        </div>
+        <div class="card spread">
+          <div><b style="font-size:13px"><span class="en">Notifications</span><span class="vi">Thông báo</span></b>
+          <p class="body" style="font-size:12px;margin-top:2px"><span class="en">Learning reports and new book suggestions.</span><span class="vi">Báo cáo học tập và gợi ý sách mới.</span></p></div>
+          <span class="switch"></span>
+        </div>
+        <div class="card">
+          <b style="font-size:13px"><span class="en">App language</span><span class="vi">Ngôn ngữ ứng dụng</span></b>
+          <div class="row" style="gap:8px;margin-top:10px">
+            <span class="pill sel en">English</span><span class="pill vi">English</span>
+            <span class="pill en">Tiếng Việt</span><span class="pill sel vi">Tiếng Việt</span>
+          </div>
+        </div>
+        <div class="card spread">
+          <div class="row"><svg class="ico" viewBox="0 0 24 24" style="color:var(--lavender)"><path d="M20 13A8 8 0 1111 4a6.5 6.5 0 009 9z"/></svg><b style="font-size:13px"><span class="en">Bedtime mode</span><span class="vi">Chế độ ban đêm</span></b></div>
+          <span class="switch"></span>
+        </div>
+        <div class="list-row">
+          <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+          <div style="flex:1"><b style="font-size:13px"><span class="en">Account</span><span class="vi">Tài khoản</span></b>
+          <p class="body" style="font-size:11.5px;margin-top:2px"><span class="en">Manage sign-in details.</span><span class="vi">Quản lý thông tin đăng nhập.</span></p></div>
+          <span style="font:800 11px 'Nunito Sans';color:var(--coral)"><span class="en">Manage</span><span class="vi">Quản lý</span></span>
+        </div>
+        <div class="btn"><span class="en">Save changes</span><span class="vi">Lưu thay đổi</span></div>
+      </div></div></div>
+    </div>
+
+  </div>
+</section>
+
+<section class="flow">
+  <h2><span class="en">Utility flows</span><span class="vi">Tiện ích</span></h2>
+  <p class="note"><span class="en">Restyled with the same components; controllers and flows unchanged.</span><span class="vi">Tái sử dụng cùng bộ component; luồng xử lý giữ nguyên.</span></p>
+  <div class="grid">
+
+    <div>
+      <span class="tag"><span class="en">8 · Parental Gate</span><span class="vi">8 · Cổng phụ huynh</span></span>
+      <div class="device"><div class="screen" style="background:var(--canvas)"><div class="pad grow" style="display:flex;flex-direction:column">
+        <div class="circ" style="align-self:flex-start"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+        <div class="grow" style="display:flex;align-items:center">
+          <div class="card" style="width:100%;text-align:center;padding:28px 22px">
+            <div class="circ" style="margin:0 auto;background:var(--gold-t);border-color:transparent;width:52px;height:52px"><svg class="ico" viewBox="0 0 24 24" style="color:var(--coral-deep)"><rect x="5" y="11" width="14" height="9" rx="3"/><path d="M8 11V8a4 4 0 018 0v3"/></svg></div>
+            <div class="eyebrow" style="margin-top:12px"><span class="en">Grown-ups only</span><span class="vi">Chỉ dành cho người lớn</span></div>
+            <div class="serif" style="font-size:19px;font-weight:600;margin-top:6px"><span class="en">Ask a grown-up to continue</span><span class="vi">Mời người lớn tiếp tục</span></div>
+            <div class="serif" style="font-size:30px;font-weight:600;margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px">13 + 7 = ?</div>
+            <div class="input" style="justify-content:center;margin-top:14px;height:52px;font-size:18px;letter-spacing:.2em">•••</div>
+            <div class="btn"><span class="en">Continue</span><span class="vi">Tiếp tục</span></div>
+            <div style="font:700 12px 'Nunito Sans';color:var(--muted);margin-top:14px"><span class="en">Try a different question</span><span class="vi">Thử câu hỏi khác</span></div>
+          </div>
+        </div>
+      </div></div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">9 · Scan any page</span><span class="vi">9 · Quét trang truyện</span></span>
+      <div class="device"><div class="screen"><div class="pad grow" style="display:flex;flex-direction:column;text-align:center">
+        <div class="appbar" style="padding:6px 0 0;text-align:left">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <div class="serif tt"><span class="en">Scan any page</span><span class="vi">Quét trang truyện</span></div>
+          <span style="width:38px"></span>
+        </div>
+        <div style="position:relative;margin:26px auto 0;width:190px;height:190px">
+          <div style="position:absolute;inset:-18px;background:radial-gradient(circle at 30% 30%,var(--lavender-t),transparent 60%),radial-gradient(circle at 70% 65%,var(--sage-t),transparent 55%),radial-gradient(circle at 60% 20%,var(--gold-t),transparent 50%)"></div>
+          <div style="position:absolute;inset:0;border:2px dashed var(--line);border-radius:50%"></div>
+          <div class="cover" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:104px;height:132px;border-radius:14px 22px 22px 14px"></div>
+        </div>
+        <div class="serif h1" style="margin-top:24px"><span class="en">Bring any page to life</span><span class="vi">Đưa bất kỳ trang nào sống dậy</span></div>
+        <p class="body"><span class="en">Point at a page from any printed story. Mọt Nhí reads it aloud and wakes up its characters.</span><span class="vi">Hướng camera vào một trang truyện in. Mọt Nhí sẽ đọc to và đánh thức các nhân vật.</span></p>
+        <div class="grow"></div>
+        <div class="row" style="justify-content:center;gap:0;margin-bottom:18px">
+          <div style="text-align:center"><span class="bead on" style="display:block;margin:0 auto;width:10px;height:10px"></span><div class="eyebrow" style="margin-top:6px"><span class="en">Scan</span><span class="vi">Quét</span></div></div>
+          <span style="width:34px;border-top:2px dotted var(--line);margin:5px 6px 0"></span>
+          <div style="text-align:center"><span class="bead" style="display:block;margin:0 auto;width:10px;height:10px"></span><div class="eyebrow" style="margin-top:6px;color:var(--muted)"><span class="en">Voice</span><span class="vi">Giọng nói</span></div></div>
+          <span style="width:34px;border-top:2px dotted var(--line);margin:5px 6px 0"></span>
+          <div style="text-align:center"><span class="bead" style="display:block;margin:0 auto;width:10px;height:10px"></span><div class="eyebrow" style="margin-top:6px;color:var(--muted)"><span class="en">Character</span><span class="vi">Nhân vật</span></div></div>
+        </div>
+        <div class="btn"><span class="en">Scan a page</span><span class="vi">Quét một trang</span></div>
+        <div class="btn sec"><span class="en">Type the text instead</span><span class="vi">Gõ văn bản thay thế</span></div>
+        <p class="body" style="font-size:11px;margin-top:12px"><span class="en">Saved pages also work offline.</span><span class="vi">Trang đã lưu dùng được cả khi offline.</span></p>
+      </div></div></div>
+    </div>
+
+    <div>
+      <span class="tag"><span class="en">10 · Story Composer</span><span class="vi">10 · Tạo truyện mới</span></span>
+      <div class="device"><div class="screen"><div class="pad grow" style="padding-bottom:96px">
+        <div class="appbar" style="padding:6px 0 0">
+          <span class="circ"><svg class="ico" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+          <div class="serif tt"><span class="en">Create a story</span><span class="vi">Tạo truyện mới</span></div>
+          <span style="width:38px"></span>
+        </div>
+        <div class="card" style="margin-top:14px"><span class="lbl"><span class="en">Story name</span><span class="vi">Tên truyện</span></span>
+          <div class="input"><span class="en">e.g. The Paper Dragon</span><span class="vi">VD: Rồng Giấy</span></div></div>
+        <div class="eyebrow" style="margin-top:20px"><span class="en">Pages · 2 captured</span><span class="vi">Trang · đã chụp 2</span></div>
+        <div class="list-row">
+          <div class="cover" style="width:54px;height:54px;border-radius:14px"></div>
+          <span class="bead on" style="width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:#fff;font:800 10px 'Nunito Sans'">1</span>
+          <p class="body" style="flex:1;font-size:12px;margin:0"><span class="en">Once upon a time, a small dragon made of paper…</span><span class="vi">Ngày xửa ngày xưa, có một chú rồng giấy nhỏ…</span></p>
+          <svg class="ico" viewBox="0 0 24 24" style="color:var(--muted)"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+        </div>
+        <div class="list-row">
+          <div class="cover sage" style="width:54px;height:54px;border-radius:14px"></div>
+          <span class="bead on" style="width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:#fff;font:800 10px 'Nunito Sans'">2</span>
+          <p class="body" style="flex:1;font-size:12px;margin:0"><span class="en">It folded itself into the wind and flew…</span><span class="vi">Chú gập mình theo gió và bay lên…</span></p>
+          <svg class="ico" viewBox="0 0 24 24" style="color:var(--muted)"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
+        </div>
+        <div class="dashed"><svg class="ico" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="en">Add another page</span><span class="vi">Thêm trang khác</span></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 24px 20px;background:var(--glass);backdrop-filter:blur(20px)">
+          <div class="btn" style="margin-top:0"><span class="en">Save story</span><span class="vi">Lưu truyện</span></div>
+          <p class="body" style="font-size:10.5px;text-align:center;margin-top:8px"><span class="en">Pages stay on this device only.</span><span class="vi">Các trang chỉ lưu trên thiết bị này.</span></p>
+        </div>
+      </div></div></div>
+    </div>
+
+  </div>
+</section>
+
+</main>
+
+<div class="legend">
+  <span><i class="sw" style="background:#dc704b"></i>coral action</span>
+  <span><i class="sw" style="background:#b95639"></i>coral-pressed underside</span>
+  <span><i class="sw" style="background:#fffaf4;border:1px solid #dbd0c4"></i>paper cards</span>
+  <span><i class="sw" style="background:#f2eae0"></i>canvas</span>
+  <span><i class="sw" style="background:#63539e"></i>lavender</span>
+  <span><i class="sw" style="background:#3b644c"></i>sage</span>
+  <span><i class="sw" style="background:#f2d493"></i>gold (magic moments)</span>
+  <span><i class="sw" style="background:#27223e"></i>night (moon mode)</span>
+  <span>Serif = Source Serif 4 · Sans = Nunito Sans</span>
+</div>
+
+<script>
+const root=document.documentElement;
+document.querySelectorAll('#langSeg button').forEach(b=>b.onclick=()=>{
+  root.dataset.lang=b.dataset.l;
+  document.querySelectorAll('#langSeg button').forEach(x=>x.classList.toggle('on',x===b));
+});
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{
+  root.dataset.mode=b.dataset.m;
+  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b));
+});
+</script>
+</body>
+</html>

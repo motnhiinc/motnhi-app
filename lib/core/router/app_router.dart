@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/dashboard/parent_dashboard_screen.dart';
-import '../../features/library/library_screen.dart';
+import '../../features/library/child_home_screen.dart';
+import '../../features/library/my_books_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
 import '../../features/parental_gate/parental_gate_screen.dart';
@@ -12,21 +13,26 @@ import '../../features/profile/profile_providers.dart';
 import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/story_composer/story_composer_screen.dart';
+import '../../features/story_detail/story_detail_screen.dart';
 
 /// Route paths. `/gate` is deliberately NOT under `/parent` so guarding
 /// `/parent*` never traps the gate itself in a redirect loop.
 abstract final class AppRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
+  static const myBooks = '/my-books';
   static const gate = '/gate';
   static const parent = '/parent';
   static const settings = '/parent/settings';
   static const scanAnyPage = '/scan-any-page';
   static const createStory = '/create-story';
 
-  // AR is no longer a route: it is a native screen the player opens directly
-  // through the character_reader channel.
-  static String story(String id) => '/story/$id';
+  /// Story detail precedes the reader; the reader lives one hop deeper.
+  static String storyDetail(String id) => '/story/$id/detail';
+  static String storyRead(String id) => '/story/$id/read';
+
+  @Deprecated('Use storyDetail/storyRead — the player is no longer this route.')
+  static String story(String id) => storyRead(id);
 }
 
 final goRouterProvider = Provider<GoRouter>((ref) {
@@ -62,7 +68,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.home,
-        builder: (_, _) => const LibraryScreen(),
+        builder: (_, _) => const ChildHomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.myBooks,
+        builder: (_, _) => const MyBooksScreen(),
       ),
       if (kDebugMode)
         GoRoute(
@@ -75,7 +85,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const StoryComposerScreen(),
       ),
       GoRoute(
-        path: '/story/:storyId',
+        path: '/story/:storyId/detail',
+        builder: (_, state) =>
+            StoryDetailScreen(storyId: state.pathParameters['storyId']!),
+      ),
+      GoRoute(
+        path: '/story/:storyId/read',
         builder: (_, state) =>
             StoryPlayerScreen(storyId: state.pathParameters['storyId']!),
       ),

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/di.dart';
 import '../../core/router/app_router.dart';
+import '../../l10n/app_localizations.dart';
+import '../../shared/widgets/storybook/storybook.dart';
 import '../library/library_providers.dart';
 import '../profile/profile_providers.dart';
 import 'story_composer_controller.dart';
@@ -17,6 +19,7 @@ class StoryComposerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = AppLocalizations.of(context)!;
     // Default to the child's language: list_published filters on language_code,
     // so saving in another language would make the story invisible afterwards
     // and a successful save would look like a failure.
@@ -37,7 +40,7 @@ class StoryComposerScreen extends ConsumerWidget {
       }
       ref.invalidate(libraryProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Story saved.')),
+        SnackBar(content: Text(s.composerSavedToast)),
       );
       context.go(AppRoutes.home);
     });
@@ -46,16 +49,16 @@ class StoryComposerScreen extends ConsumerWidget {
         state.phase == StoryComposerPhase.saving;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create a story')),
+      appBar: AppBar(title: Text(s.composerTitle)),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Story name',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: s.composerNameLabel,
+                  hintText: s.composerNameHint,
                 ),
                 maxLength: 120,
                 onChanged: notifier.setTitle,
@@ -65,13 +68,13 @@ class StoryComposerScreen extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: Text(
-                  _messageFor(state.failureCode!),
+                  _messageFor(s, state.failureCode!),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             Expanded(
               child: state.draft.pages.isEmpty
-                  ? const Center(child: Text('Scan a page to start your story.'))
+                  ? Center(child: Text(s.composerEmpty))
                   : ListView.builder(
                       padding: const EdgeInsets.all(16),
                       itemCount: state.draft.pages.length,
@@ -126,19 +129,20 @@ class StoryComposerScreen extends ConsumerWidget {
                       onPressed: busy ? null : notifier.addPage,
                       icon: const Icon(Icons.document_scanner_rounded),
                       label: Text(state.phase == StoryComposerPhase.scanning
-                          ? 'Scanning…'
-                          : 'Add page'),
+                          ? '…'
+                          : s.composerAddPage),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton.icon(
+                    child: PressablePillButton(
+                      label: state.phase == StoryComposerPhase.saving
+                          ? '…'
+                          : s.composerSave,
+                      icon: Icons.save_rounded,
+                      height: 48,
                       onPressed:
                           (busy || !state.draft.isSaveable) ? null : notifier.save,
-                      icon: const Icon(Icons.save_rounded),
-                      label: Text(state.phase == StoryComposerPhase.saving
-                          ? 'Saving…'
-                          : 'Save story'),
                     ),
                   ),
                 ],
@@ -151,19 +155,18 @@ class StoryComposerScreen extends ConsumerWidget {
   }
 }
 
-String _messageFor(String failureCode) {
+String _messageFor(AppLocalizations s, String failureCode) {
   if (failureCode == 'scan:no_text') {
-    return "We couldn't read any words on that page. Try again with more light.";
+    return s.composerScanFailed;
   }
   if (failureCode.startsWith('scan:')) {
-    return "The scan didn't work. Please try again.";
+    return s.composerScanFailed;
   }
   if (failureCode == 'save:quota_reached') {
-    return 'You have reached the limit for saved stories. Delete one first.';
+    return s.composerTooManyPages;
   }
-  if (failureCode == 'save:backend_unreachable' ||
-      failureCode == 'save:timeout') {
-    return "We couldn't reach the story service. Check the connection and try again.";
+  if (failureCode == 'save:backend_unreachable' || failureCode == 'save:timeout') {
+    return s.composerOfflineError;
   }
-  return "We couldn't save the story. Please try again.";
+  return s.composerOfflineError;
 }

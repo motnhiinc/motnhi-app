@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/di.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/session_repository.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Show the questions attached to a single page.
 Future<void> showPageQuestions(
@@ -103,6 +104,7 @@ class _QuestionFlowSheetState extends State<_QuestionFlowSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final isLast = _index == widget.questions.length - 1;
     return Padding(
@@ -117,7 +119,7 @@ class _QuestionFlowSheetState extends State<_QuestionFlowSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Question ${_index + 1} of ${widget.questions.length}',
+            s.questionCounter(_index + 1, widget.questions.length),
             style: theme.textTheme.labelMedium,
             textAlign: TextAlign.center,
           ),
@@ -146,7 +148,7 @@ class _QuestionFlowSheetState extends State<_QuestionFlowSheet> {
           if (_answered)
             FilledButton(
               onPressed: _next,
-              child: Text(isLast ? 'Done' : 'Next'),
+              child: Text(isLast ? s.doneLabel : s.nextLabel),
             ),
         ],
       ),
