@@ -127,8 +127,7 @@ void main() {
             'pagesRead': ['p1', 'p2'],
           });
 
-      final result =
-          await NativeStoryReader()
+      final result = await NativeStoryReader()
           .open(pages: pages, initialPageIndex: 0, character: character);
 
       expect(result.terminalCode, 'completed');
@@ -144,8 +143,7 @@ void main() {
             'pagesRead': ['p1'],
           });
 
-      final result =
-          await NativeStoryReader()
+      final result = await NativeStoryReader()
           .open(pages: pages, initialPageIndex: 0, character: character);
 
       expect(result.terminalCode, 'cancelled');
@@ -156,8 +154,7 @@ void main() {
     test('tolerates a null lastPageId and a missing pagesRead', () async {
       stub((_) async => {'terminalCode': 'cancelled', 'lastPageId': null});
 
-      final result =
-          await NativeStoryReader()
+      final result = await NativeStoryReader()
           .open(pages: pages, initialPageIndex: 0, character: character);
 
       expect(result.lastPageId, isNull);
