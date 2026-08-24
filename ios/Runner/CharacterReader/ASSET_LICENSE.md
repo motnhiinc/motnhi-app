@@ -1,8 +1,23 @@
-# toy_drummer.usdz
+# scan_any_page_character.usdz
 
-- Source: Apple AR Quick Look Gallery
-- Source URL: https://developer.apple.com/quick-look-gallery/models/drummertoy/toy_drummer.usdz
-- Retrieved: 2026-08-14
-- Intended use: local physical-device prototype only
-- Distribution status: not approved for TestFlight, App Store, public download, or redistribution until the applicable Apple terms are reviewed
-- Required action before external distribution: replace this file or document explicit redistribution permission
+- Source: Quaternius — Ultimate Animated Animal Pack ("Fox")
+- Source URL: https://quaternius.com/packs/ultimateanimatedanimals.html
+- License: CC0 1.0 Universal (public domain dedication)
+- License URL: https://creativecommons.org/publicdomain/zero/1.0/
+- Retrieved: 2026-08-22
+- Distribution status: approved for TestFlight, App Store and redistribution.
+  CC0 requires no attribution; this file records provenance only.
+
+## Modifications
+
+Converted from the pack's `glTF/Fox.gltf` with the macOS system USD tools:
+`usdcat` (glTF -> .usdc) then `usdzip` (-> .usdz). `usdchecker --arkit` passes.
+
+Before conversion the `Idle` clip was moved from index 5 to index 0. USD bakes a
+single timeline, and the converter takes glTF animation index 0 — the pack ships
+`Attack` at index 0 and `Death` at index 1. The resulting timeline is 3.333 s,
+matching the `Idle` clip exactly. Android renders the same clip from
+`android/app/src/debug/assets/scan_any_page_character.glb`.
+
+This file replaced `toy_drummer.usdz`, an Apple AR Quick Look sample that was
+prototype-only and could not be distributed.
