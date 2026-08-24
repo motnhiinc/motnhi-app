@@ -10,6 +10,7 @@ import '../../data/models/models.dart';
 import '../../shared/widgets/async_views.dart';
 import '../../shared/widgets/big_play_button.dart';
 import '../ar/ar_character.dart';
+import '../ar/ar_character_providers.dart';
 import '../ar/ar_preparing_dialog.dart';
 import '../ar/ar_reader_controller.dart';
 import '../ar/native_story_reader.dart';
@@ -173,6 +174,40 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     );
   }
 
+  /// Lets the reader pick which character joins them in AR. Dismissing the
+  /// sheet without a choice means "no AR": we return quietly with the player
+  /// still paused, and no error dialog for what is simply a change of mind.
+  Future<ArCharacter?> _chooseArCharacter() {
+    final selected = ref.read(selectedArCharacterProvider);
+    return showModalBottomSheet<ArCharacter>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: Text(
+                'Choose your AR friend',
+                style: Theme.of(sheetContext).textTheme.titleMedium,
+              ),
+            ),
+            for (final character in arCharacters)
+              ListTile(
+                leading: const Icon(Icons.toys_rounded),
+                title: Text(character.displayName),
+                trailing: character.id == selected.id
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.of(sheetContext).pop(character),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openArReader() async {
     if (_arBusy) return;
     _arBusy = true;
@@ -180,10 +215,19 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       await _player.pause();
       if (!mounted) return;
 
+      final character = await _chooseArCharacter();
+      if (!mounted || character == null) return;
+
+      // Persisted before AR opens on purpose: an attempt that later fails must
+      // not throw away the reader's choice — the same friend is preselected
+      // next time.
+      await ref.read(selectedArCharacterProvider.notifier).select(character);
+      if (!mounted) return;
+
       final controller = ArReaderController(
         detail: widget.detail,
         reader: ref.read(storyReaderProvider),
-        character: arCharacters.first,
+        character: character,
         resolver: ref.read(assetUrlResolverProvider),
         fetcher: _fetcher,
         tts: ref.read(ttsFileSynthesizerProvider),
