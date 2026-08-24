@@ -40,9 +40,11 @@ abstract interface class StoryReader {
   Future<bool> isSupported();
 
   /// Opens the native AR reader on [pages], starting at [initialPageIndex].
-  /// [character] is the doll the child picked: its [ArCharacter.assetBaseName]
-  /// names the bundled `.glb`/`.usdz` model the native side loads, and
-  /// [ArCharacter.id] travels along so native logs can attribute a session.
+  /// [character] is the doll the child picked: [ArCharacter.assetBaseName]
+  /// names the bundled `.glb`/`.usdz` model the native side loads, while
+  /// [ArCharacter.id] rides along as stable diagnostics metadata — native
+  /// bridges currently ignore it, but it keeps the wire self-describing for
+  /// future logging without another contract change.
   Future<StoryReaderResult> open({
     required List<ArNarrationPage> pages,
     required int initialPageIndex,

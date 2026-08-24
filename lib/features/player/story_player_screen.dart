@@ -183,6 +183,9 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
+        // shrinkWrap + Flexible: the list takes its natural height when there
+        // is room, and scrolls instead of overflowing on short/landscape
+        // screens where seven rows cannot fit.
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -193,15 +196,22 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                 style: Theme.of(sheetContext).textTheme.titleMedium,
               ),
             ),
-            for (final character in arCharacters)
-              ListTile(
-                leading: const Icon(Icons.toys_rounded),
-                title: Text(character.displayName),
-                trailing: character.id == selected.id
-                    ? const Icon(Icons.check_rounded)
-                    : null,
-                onTap: () => Navigator.of(sheetContext).pop(character),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final character in arCharacters)
+                    ListTile(
+                      leading: const Icon(Icons.toys_rounded),
+                      title: Text(character.displayName),
+                      trailing: character.id == selected.id
+                          ? const Icon(Icons.check_rounded)
+                          : null,
+                      onTap: () => Navigator.of(sheetContext).pop(character),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),
