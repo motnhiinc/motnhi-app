@@ -1,0 +1,1939 @@
+<!doctype html>
+<html lang="en" data-mode="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mọt Nhí · Storybook AR — Screen Wireframes (as built)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;700;800&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   Tokens mirrored 1:1 from lib/core/theme/app_theme.dart (StitchTokens).
+   Frames re-theme via [data-mode="day"|"moon"] on <html>.
+   ========================================================================== */
+:root[data-mode="day"]{
+  --background:#FFF8F5; --canvas:#F2EAE0; --paper:#FFFAF4; --input-fill:#FEF1EC;
+  --ink:#201A18; --ink-muted:#746B66; --line:#DBD0C4;
+  --coral:#DC704B; --coral-pressed:#B95639; --coral-deep:#9B3F1E;
+  --lavender:#63539E; --lavender-c:#BFADFF; --sage:#3B644C; --sage-c:#BFEDCD;
+  --gold:#F2D493; --glass:rgba(255,250,244,.95); --shadow:rgba(76,57,43,.15);
+  --on-lav-c:#FFFFFF; --err:#BA1A1A;
+}
+:root[data-mode="moon"]{
+  --background:#27223E; --canvas:#140F2A; --paper:#332C4C; --input-fill:#211C37;
+  --ink:#F5F5F7; --ink-muted:#C9C2E0; --line:#5A527A;
+  --coral:#E38A6A; --coral-pressed:#8A3C22; --coral-deep:#DE724D;
+  --lavender:#CCBEFF; --lavender-c:#4D3D87; --sage:#A4D1B3; --sage-c:#365A42;
+  --gold:#F2D493; --glass:rgba(39,34,62,.90); --shadow:rgba(0,0,0,.35);
+  --on-lav-c:#FFFFFF; --err:#BA1A1A;
+}
+/* Document shell — deliberately theme-independent so both app themes read well on it. */
+:root{
+  --doc-bg:#17161C; --doc-panel:#201F27; --doc-line:#33313D;
+  --doc-text:#E9E7F0; --doc-dim:#9B96AB; --doc-accent:#DC704B; --doc-accent2:#BFADFF;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"Nunito Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--doc-bg); color:var(--doc-text);
+  font-family:var(--sans); font-size:14px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--doc-accent2)}
+
+/* ---------- document chrome ---------- */
+.wrap{max-width:1640px;margin:0 auto;padding:0 28px 120px}
+.masthead{
+  position:sticky; top:0; z-index:50;
+  background:rgba(23,22,28,.94); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--doc-line);
+  padding:16px 28px;
+  display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between;
+}
+.masthead h1{
+  font-family:var(--serif); font-weight:600; font-size:19px;
+  margin:0; letter-spacing:-.2px;
+}
+.masthead h1 small{display:block;font-family:var(--sans);font-size:11.5px;font-weight:700;color:var(--doc-dim);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--doc-line);border-radius:999px;padding:3px;background:var(--doc-panel)}
+.seg button{
+  font:inherit;font-weight:800;font-size:12px;color:var(--doc-dim);
+  background:none;border:0;border-radius:999px;padding:6px 15px;cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--doc-accent);color:#fff}
+.hint{font-size:11.5px;color:var(--doc-dim)}
+
+.intro{padding:34px 0 8px;max-width:820px}
+.intro p{color:var(--doc-dim);margin:.5em 0}
+.intro code{font-family:var(--mono);font-size:12.5px;color:var(--doc-accent2)}
+
+.toc{
+  display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 10px;padding:14px 0;
+  border-top:1px solid var(--doc-line);border-bottom:1px solid var(--doc-line);
+}
+.toc a{
+  font-size:12px;font-weight:800;text-decoration:none;color:var(--doc-dim);
+  border:1px solid var(--doc-line);border-radius:999px;padding:5px 13px;
+}
+.toc a:hover{color:var(--doc-text);border-color:var(--doc-accent)}
+
+h2.section{
+  font-family:var(--serif);font-weight:600;font-size:26px;letter-spacing:-.3px;
+  margin:64px 0 4px;padding-top:14px;scroll-margin-top:88px;
+}
+h2.section .num{color:var(--doc-accent);font-family:var(--mono);font-size:15px;margin-right:10px;vertical-align:3px}
+.section-sub{color:var(--doc-dim);max-width:780px;margin:0 0 26px}
+
+.grid{display:flex;flex-wrap:wrap;gap:34px 30px;align-items:flex-start}
+
+/* ---------- frame shell ---------- */
+.frame{width:375px;margin:0}
+.frame-head{display:flex;flex-direction:column;gap:3px;margin:0 0 10px 2px}
+.frame-head .route{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--doc-accent2)}
+.frame-head .name{font-family:var(--serif);font-size:16px;font-weight:600;color:var(--doc-text)}
+.frame-head .file{font-family:var(--mono);font-size:10.5px;color:var(--doc-dim);word-break:break-all}
+.badge{
+  display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:1px;
+  border:1px solid var(--doc-line);color:var(--doc-dim);
+}
+.badge.dbg{border-color:#6d5a2a;color:#e0b959;background:rgba(224,185,89,.09)}
+.badge.gate{border-color:#7a3a26;color:#e08a6a;background:rgba(224,138,106,.09)}
+.badge.overlay{border-color:#4a3d78;color:#bfadff;background:rgba(191,173,255,.09)}
+.badge.state{border-color:#2f5a45;color:#8fd0ac;background:rgba(143,208,172,.09)}
+.badge.mock{border-color:#6a4a70;color:#d9a8e0;background:rgba(217,168,224,.09)}
+
+.phone{
+  width:375px;border-radius:34px;padding:9px;
+  background:#0E0D12;border:1px solid #35333F;
+  box-shadow:0 22px 44px rgba(0,0,0,.45);
+}
+.screen{
+  position:relative;height:706px;border-radius:26px;overflow:hidden;
+  background:var(--background);color:var(--ink);
+  display:flex;flex-direction:column;
+}
+.screen.canvas{background:var(--canvas)}
+.scrollarea{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin}
+.scrollarea::-webkit-scrollbar{width:6px}
+.scrollarea::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+.scroll-tag{
+  position:absolute;right:10px;top:34px;z-index:9;
+  font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+  background:var(--ink);color:var(--background);border-radius:999px;padding:2px 8px;opacity:.45;
+}
+.statusbar{
+  flex:0 0 auto;height:26px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;font-size:11px;font-weight:800;color:var(--ink);opacity:.75;
+}
+.notes{
+  margin-top:12px;font-size:12px;line-height:1.6;color:var(--doc-dim);
+  border-left:2px solid var(--doc-line);padding-left:12px;
+}
+.notes b{color:var(--doc-text);font-weight:800}
+.notes code{font-family:var(--mono);font-size:11px;color:var(--doc-accent2)}
+.notes ul{margin:6px 0 0;padding-left:16px}
+.notes li{margin:3px 0}
+
+/* ==========================================================================
+   In-frame component kit — mirrors lib/shared/widgets/storybook/*
+   ========================================================================== */
+.pad{padding:20px 24px 24px}
+.pad-t12{padding-top:12px}
+.body{font-size:14px;line-height:1.55}
+.small{font-size:12.5px;line-height:1.45;color:var(--ink-muted)}
+.muted{color:var(--ink-muted)}
+.center{text-align:center}
+.row{display:flex;align-items:center;gap:12px}
+.row.between{justify-content:space-between}
+.row.top{align-items:flex-start}
+.col{display:flex;flex-direction:column}
+.sp{flex:1}
+.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}
+.mt4{margin-top:4px}.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}
+.mt12{margin-top:12px}.mt14{margin-top:14px}.mt16{margin-top:16px}.mt18{margin-top:18px}
+.mt22{margin-top:22px}.mt26{margin-top:26px}.mt28{margin-top:28px}
+
+/* type — sizes taken from AppTheme._build's textTheme */
+.h-display{font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.2;letter-spacing:-.2px}
+.h-26{font-family:var(--serif);font-weight:600;font-size:26px;line-height:1.2}
+.h-small{font-family:var(--serif);font-weight:600;font-size:20px;line-height:1.3}
+.title-m{font-family:var(--serif);font-weight:600;font-size:17px;line-height:1.3}
+.title-l{font-family:var(--serif);font-weight:600;font-size:22px;line-height:1.25}
+.title-s{font-weight:700;font-size:14px;line-height:1.35}
+.label-m{font-weight:700;font-size:12px}
+.eyebrow{font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--coral-deep)}
+.eyebrow.ink{color:var(--ink)}
+
+/* PaperCard */
+.card{
+  background:var(--paper);border-radius:22px;padding:18px;
+  box-shadow:0 6px 18px var(--shadow);
+}
+.card.tight{padding:15px 16px}
+.card.pad16{padding:16px}
+
+/* PressablePillButton */
+.pill{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  height:52px;border-radius:999px;font-weight:800;font-size:14px;
+  background:var(--coral);color:#fff;box-shadow:0 4px 0 var(--coral-pressed);
+}
+.pill.h44{height:44px}.pill.h46{height:46px}.pill.h48{height:48px}
+.pill.sec{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.pill.off{opacity:.45;box-shadow:none}
+.pill .i{font-size:16px;line-height:1}
+
+/* filter / select chips */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips.nowrap{flex-wrap:nowrap;overflow:hidden}
+.chip{
+  height:30px;display:inline-flex;align-items:center;padding:0 13px;border-radius:999px;
+  font-size:11.5px;font-weight:700;color:var(--ink-muted);border:1px solid var(--line);
+  white-space:nowrap;
+}
+.chip.on{background:var(--lavender-c);color:var(--on-lav-c);border-color:transparent}
+.chip.gold{background:color-mix(in srgb,var(--gold) 35%,transparent);border-color:transparent;color:var(--ink-muted)}
+.spill{
+  height:38px;display:inline-flex;align-items:center;padding:0 16px;border-radius:999px;
+  font-size:12.5px;font-weight:800;color:var(--ink-muted);border:1px solid var(--line);white-space:nowrap;
+}
+.spill.on{background:var(--coral);border-color:var(--coral);color:#fff}
+.spill.sm{height:34px;font-size:12px;padding:0 14px}
+
+/* inputs */
+.field{
+  background:var(--input-fill);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;font-size:14px;color:var(--ink-muted);
+}
+.field.tall{min-height:150px}
+.field.focus{border-color:var(--coral);border-width:1.6px;color:var(--ink)}
+.flbl{font-size:11.5px;font-weight:700;color:var(--ink-muted);display:block;margin-bottom:4px}
+.counter{font-size:11.5px;color:var(--ink-muted);text-align:right}
+
+/* round icon button (38px, paper + line) */
+.rnd{
+  width:38px;height:38px;flex:0 0 38px;border-radius:999px;background:var(--paper);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:18px;color:var(--ink);
+}
+.rnd.lav{color:var(--lavender)}
+.rnd.off{color:var(--ink-muted);opacity:.55}
+.rnd.big{width:44px;height:44px;flex-basis:44px;font-size:20px}
+
+/* BigPlayButton (72px) */
+.bigplay{
+  width:72px;height:72px;border-radius:999px;background:var(--coral);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:38px;
+  box-shadow:0 2px 6px var(--shadow);
+}
+
+/* BookCoverFrame + StoryCover placeholder */
+.cover{
+  border-radius:42px 42px 22px 22px;overflow:hidden;position:relative;
+  display:flex;align-items:center;justify-content:center;font-size:56px;
+}
+.cover.sm{border-radius:26px 26px 12px 12px;font-size:26px}
+.cover.xs{border-radius:20px 20px 9px 9px;font-size:20px}
+.g1{background:linear-gradient(135deg,#FFC988,#EF7E54)}
+.g2{background:linear-gradient(135deg,#B5E8C9,#6FB8A0)}
+.g3{background:linear-gradient(135deg,#CDBDF2,#8B6FD6)}
+.g4{background:linear-gradient(135deg,#FFB3C1,#E26D8A)}
+.g5{background:linear-gradient(135deg,#A7D8F0,#5C9FD6)}
+.cover .tag{
+  position:absolute;top:8px;right:8px;background:color-mix(in srgb,var(--paper) 92%,transparent);
+  color:var(--ink);border-radius:999px;padding:3px 8px;font-size:9.5px;font-weight:800;
+}
+.cover .tag.left{left:8px;right:auto;background:var(--lavender-c);color:#2C2452}
+.cover .dl{
+  position:absolute;bottom:8px;right:8px;width:26px;height:26px;border-radius:999px;
+  background:var(--paper);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.cover .lockveil{
+  position:absolute;inset:0;background:rgba(0,0,0,.34);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:32px;
+}
+.shelf{display:grid;grid-template-columns:1fr 1fr;gap:18px 14px}
+.shelf .item .t{font-size:14px;font-weight:700;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shelf .cover{height:170px}
+.hstrip{display:flex;gap:14px;overflow:hidden}
+
+/* FloatingNavBar (glass) */
+.navbar{
+  position:absolute;left:16px;right:16px;bottom:14px;
+  background:var(--glass);border:1px solid var(--line);border-radius:999px;
+  box-shadow:0 8px 24px var(--shadow);
+  display:flex;justify-content:space-around;padding:8px 10px;
+}
+.navbar .it{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ink-muted);padding:0 12px}
+.navbar .it.on{color:var(--coral)}
+.navbar .it .ic{font-size:21px;line-height:1}
+.navbar .it .lb{font-size:10px;font-weight:800}
+
+/* ProgressBeads */
+.beads{display:flex;gap:6px;justify-content:center}
+.beads i{width:8px;height:8px;border-radius:999px;background:var(--line);display:block}
+.beads i.on{background:var(--coral)}
+
+/* Switch */
+.sw{width:46px;height:26px;flex:0 0 46px;border-radius:999px;background:var(--line);position:relative}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:999px;background:#fff;transition:none}
+.sw.on{background:var(--sage-c)}
+.sw.on::after{left:23px}
+.sw.dim{opacity:.5}
+
+/* Slider */
+.sld{padding:12px 0 4px}
+.sld .trk{height:4px;border-radius:99px;background:var(--line);position:relative}
+.sld .fil{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--coral)}
+.sld .thb{position:absolute;top:-6px;width:16px;height:16px;border-radius:99px;background:var(--coral);transform:translateX(-8px)}
+
+/* checkbox */
+.cbx{width:24px;height:24px;flex:0 0 24px;border-radius:8px;border:1.5px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;margin-top:2px}
+.cbx.on{background:var(--coral);border-color:var(--coral)}
+
+/* misc in-frame */
+.banner{
+  background:color-mix(in srgb,var(--gold) 30%,transparent);
+  padding:5px 12px;text-align:center;font-size:11px;font-weight:800;
+  letter-spacing:.08em;color:var(--ink-muted);
+}
+.arpill{
+  display:inline-flex;align-items:center;gap:6px;align-self:center;
+  background:color-mix(in srgb,var(--gold) 32%,transparent);
+  border-radius:999px;padding:7px 14px;font-size:11.5px;font-weight:800;color:var(--ink);
+}
+.illus{
+  aspect-ratio:4/3;border-radius:22px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--lavender-c) 45%,transparent),var(--paper));
+  display:flex;align-items:center;justify-content:center;font-size:44px;color:var(--lavender);
+}
+.pagescroll{
+  flex:1;min-height:0;overflow-y:auto;padding:20px;scrollbar-width:thin;
+  -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 34px),transparent 100%);
+          mask-image:linear-gradient(180deg,#000 calc(100% - 34px),transparent 100%);
+}
+.pagescroll::-webkit-scrollbar{width:5px}
+.pagescroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
+.pagetext{font-family:var(--serif);font-weight:600;font-size:20px;line-height:1.4;text-align:center}
+.pagetext .hl{
+  color:var(--coral);font-weight:700;
+  background:color-mix(in srgb,var(--coral) 12%,transparent);
+}
+.circ-icon{
+  width:42px;height:42px;flex:0 0 42px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:20px;
+}
+.circ-icon.lav{background:color-mix(in srgb,var(--lavender) 16%,transparent);color:var(--lavender)}
+.circ-icon.gold{background:color-mix(in srgb,var(--gold) 35%,transparent);color:var(--coral-deep)}
+.circ-icon.g54{width:54px;height:54px;flex-basis:54px;font-size:24px}
+.circ-icon.g44{width:44px;height:44px;flex-basis:44px;font-size:18px}
+.stat{flex:1;background:var(--paper);border-radius:22px;box-shadow:0 6px 18px var(--shadow);padding:14px 8px;text-align:center}
+.stat .v{font-family:var(--serif);font-weight:600;font-size:20px;color:var(--coral-deep)}
+.stat .l{font-size:11px;color:var(--ink-muted);line-height:1.3;margin-top:2px}
+.listrow{display:flex;align-items:center;gap:12px;padding:15px 16px;background:var(--paper);
+  border-radius:22px;box-shadow:0 6px 18px var(--shadow)}
+.hero-ring{
+  width:210px;height:210px;border-radius:999px;margin:0 auto;position:relative;
+  background:radial-gradient(circle,color-mix(in srgb,var(--lavender) 18%,transparent) 0%,
+    color-mix(in srgb,var(--sage-c) 25%,transparent) 60%,transparent 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.hero-ring .inner{
+  width:176px;height:176px;border-radius:999px;border:2px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:84px;color:var(--lavender);
+}
+.stepper{display:flex;align-items:flex-start;justify-content:center}
+.stepper .st{display:flex;flex-direction:column;align-items:center;gap:6px;width:64px}
+.stepper .dot{width:10px;height:10px;border-radius:999px;background:var(--line)}
+.stepper .dot.on{background:var(--coral)}
+.stepper .lk{width:30px;height:2px;background:var(--line);margin-top:4px}
+.stepper .lk.on{background:var(--coral)}
+.spinner{
+  width:36px;height:36px;border-radius:999px;margin:0 auto;
+  border:3.5px solid var(--line);border-top-color:var(--coral);
+}
+.linbar{height:4px;border-radius:99px;background:var(--line);position:relative;overflow:hidden}
+.linbar i{position:absolute;left:0;top:0;bottom:0;background:var(--coral);border-radius:99px}
+.bigicon{font-size:84px;text-align:center;line-height:1;color:var(--coral)}
+.bigicon.lav{color:var(--lavender)}
+.bigicon.err{color:var(--err)}
+
+/* scrim + sheet + dialog overlays */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);z-index:5}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--paper);
+  border-radius:28px 28px 0 0;padding:8px 20px 24px;box-shadow:0 -8px 30px var(--shadow);
+}
+.sheet .handle{width:32px;height:4px;border-radius:99px;background:var(--line);margin:0 auto 10px}
+.dialog{
+  position:absolute;left:26px;right:26px;top:50%;transform:translateY(-50%);z-index:6;
+  background:var(--paper);border-radius:22px;padding:22px 24px;box-shadow:0 18px 44px var(--shadow);
+}
+.dialog .dt{font-family:var(--serif);font-weight:600;font-size:20px}
+.dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.tbtn{font-size:13px;font-weight:800;color:var(--coral-deep);padding:8px 12px}
+.fbtn{font-size:13px;font-weight:800;color:#fff;background:var(--coral);border-radius:999px;padding:9px 18px}
+.qgrid{display:grid;gap:12px}
+.qgrid.c2{grid-template-columns:1fr 1fr}
+.qgrid.c3{grid-template-columns:1fr 1fr 1fr}
+.qtile{
+  aspect-ratio:1;border-radius:20px;border:2px solid var(--line);
+  background:color-mix(in srgb,var(--ink) 5%,var(--paper));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+}
+.qtile .em{font-size:40px;line-height:1}
+.qtile .lb{font-family:var(--serif);font-weight:600;font-size:16px}
+.qtile.ok{border-color:#4CAF50;background:rgba(76,175,80,.12)}
+.qtile.bad{border-color:var(--err);background:color-mix(in srgb,var(--err) 18%,transparent)}
+.tile-list .tl{display:flex;align-items:center;gap:14px;padding:12px 4px;font-size:15px}
+.tile-list .tl .ck{margin-left:auto;color:var(--coral)}
+.appbar{
+  flex:0 0 auto;height:52px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-weight:600;font-size:18px;position:relative;
+}
+.appbar .back{position:absolute;left:14px;font-size:20px}
+.snackbar{
+  position:absolute;left:16px;right:16px;bottom:18px;z-index:7;
+  background:var(--ink);color:var(--background);border-radius:999px;
+  padding:12px 20px;font-size:13px;font-weight:700;box-shadow:0 8px 22px var(--shadow);
+}
+
+/* ---------- route map ---------- */
+.mapwrap{
+  background:var(--doc-panel);border:1px solid var(--doc-line);border-radius:18px;
+  padding:20px;overflow-x:auto;
+}
+.mapwrap svg{display:block;min-width:900px}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:16px;font-size:11.5px;color:var(--doc-dim)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:22px;height:2px;background:var(--doc-dim);display:block}
+.legend i.acc{background:var(--doc-accent)}
+.legend i.dash{background:repeating-linear-gradient(90deg,var(--doc-dim) 0 5px,transparent 5px 9px)}
+
+/* ---------- tables ---------- */
+table.codes{
+  width:100%;max-width:960px;border-collapse:collapse;margin-top:14px;font-size:12.5px;
+  background:var(--doc-panel);border:1px solid var(--doc-line);border-radius:12px;overflow:hidden;
+}
+table.codes th,table.codes td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--doc-line);vertical-align:top}
+table.codes th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--doc-dim);font-weight:800}
+table.codes tr:last-child td{border-bottom:0}
+table.codes code{font-family:var(--mono);font-size:11.5px;color:var(--doc-accent2)}
+.footnote{margin-top:80px;padding-top:22px;border-top:1px solid var(--doc-line);color:var(--doc-dim);font-size:12px;max-width:860px}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <h1>Mọt Nhí · Storybook AR<small>Screen wireframes — drawn from the code, not the spec</small></h1>
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="App theme">
+      <button id="btn-day" aria-pressed="true">☀ Day</button>
+      <button id="btn-moon" aria-pressed="false">🌙 Moon mode</button>
+    </div>
+    <span class="hint">Toggles every frame through <code>AppTheme.day()</code> / <code>AppTheme.bedtime()</code></span>
+  </div>
+</div>
+
+<div class="wrap">
+
+<div class="intro">
+  <p>Every frame below is reconstructed from the current working tree — routes from <code>lib/core/router/app_router.dart</code>, layout from each screen's <code>build()</code>, colour and type from <code>StitchTokens</code>, copy from <code>lib/l10n/app_en.arb</code>, and story content from <code>assets/data/*.json</code>. Frames are 375&nbsp;pt wide, the same logical width the widgets lay out against, so spacing and type sizes are 1:1 with the Flutter values.</p>
+  <p>Long screens scroll inside their frame, exactly as the underlying <code>ListView</code> does.</p>
+</div>
+
+<div class="toc">
+  <a href="#flow">Route map</a>
+  <a href="#entry">1 · Entry &amp; gates</a>
+  <a href="#child">2 · Child surfaces</a>
+  <a href="#reader">3 · Reader overlays</a>
+  <a href="#parent">4 · Parent surfaces</a>
+  <a href="#create">5 · Create &amp; scan</a>
+  <a href="#states">6 · Shared states</a>
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="flow"><span class="num">00</span>Route map &amp; guards</h2>
+<p class="section-sub">Two redirects in <code>goRouterProvider</code> control everything: nothing is reachable until a consented profile exists, and any location under <code>/parent</code> bounces to <code>/gate</code> with the target in a <code>redirect</code> query parameter.</p>
+
+<div class="mapwrap">
+<svg viewBox="0 0 950 420" width="100%" height="420" role="img" aria-label="Route map of the application">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b8698"/>
+    </marker>
+    <marker id="ahc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#DC704B"/>
+    </marker>
+    <style>
+      .n rect{fill:#2A2833;stroke:#43404F;stroke-width:1;rx:11}
+      .n.hub rect{fill:#332C4C;stroke:#5A527A}
+      .n.gated rect{stroke:#8A4A31;fill:#33241F}
+      .n text{fill:#E9E7F0;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;font-weight:600}
+      .n .sub{fill:#9B96AB;font-family:"Nunito Sans",sans-serif;font-size:10px;font-weight:700}
+      .e{stroke:#8b8698;stroke-width:1.4;fill:none;marker-end:url(#ah)}
+      .e.acc{stroke:#DC704B;marker-end:url(#ahc)}
+      .e.dash{stroke-dasharray:5 4}
+      .el{fill:#9B96AB;font-family:"Nunito Sans",sans-serif;font-size:10px;font-weight:700}
+      .el.acc{fill:#DC704B}
+    </style>
+  </defs>
+
+  <!-- edges painted first so node fills cover the endpoints cleanly -->
+  <path class="e" d="M90 74 V 112"/>
+  <text class="el" x="100" y="100">consent + profile saved</text>
+
+  <path class="e" d="M180 140 H 214 V 46 H 242"/>
+  <path class="e" d="M180 140 H 242"/>
+  <path class="e dash" d="M180 140 H 214 V 216 H 242"/>
+  <path class="e dash" d="M180 140 H 214 V 288 H 242"/>
+  <path class="e acc" d="M180 140 H 214 V 362 H 242"/>
+  <text class="el acc" x="112" y="366">/parent* → redirect</text>
+
+  <path class="e" d="M416 140 H 496"/>
+  <text class="el" x="424" y="132">Read story</text>
+
+  <path class="e acc" d="M416 362 H 496"/>
+  <text class="el acc" x="430" y="354">a + b = ?</text>
+
+  <path class="e" d="M670 362 H 712"/>
+
+  <path class="e dash" d="M585 118 V 96 H 205 V 128 H 186"/>
+  <text class="el" x="296" y="90">“The End!” → Back to home</text>
+
+  <!-- nodes -->
+  <g class="n"><rect x="30" y="30" width="150" height="44"/>
+    <text x="44" y="50">/onboarding</text><text class="sub" x="44" y="64">first launch only</text></g>
+
+  <g class="n hub"><rect x="30" y="116" width="150" height="48"/>
+    <text x="44" y="138">/home</text><text class="sub" x="44" y="153">child home · hub</text></g>
+
+  <g class="n"><rect x="246" y="24" width="170" height="44"/>
+    <text x="260" y="44">/my-books</text><text class="sub" x="260" y="58">downloaded · made · reading</text></g>
+
+  <g class="n"><rect x="246" y="118" width="170" height="44"/>
+    <text x="260" y="138">/story/:id/detail</text><text class="sub" x="260" y="152">cover · chips · CTA</text></g>
+
+  <g class="n"><rect x="500" y="118" width="170" height="44"/>
+    <text x="514" y="138">/story/:id/read</text><text class="sub" x="514" y="152">narration · AR · quiz</text></g>
+
+  <g class="n"><rect x="246" y="194" width="170" height="44"/>
+    <text x="260" y="214">/create-story</text><text class="sub" x="260" y="228">registered · no UI entry yet</text></g>
+
+  <g class="n"><rect x="246" y="266" width="170" height="44"/>
+    <text x="260" y="286">/scan-any-page</text><text class="sub" x="260" y="300">kDebugMode only</text></g>
+
+  <g class="n gated"><rect x="246" y="340" width="170" height="44"/>
+    <text x="260" y="360">/gate</text><text class="sub" x="260" y="374">adult check</text></g>
+
+  <g class="n"><rect x="500" y="340" width="170" height="44"/>
+    <text x="514" y="360">/parent</text><text class="sub" x="514" y="374">dashboard</text></g>
+
+  <g class="n"><rect x="716" y="340" width="180" height="44"/>
+    <text x="730" y="360">/parent/settings</text><text class="sub" x="730" y="374">reading &amp; safety</text></g>
+</svg>
+<div class="legend">
+  <span><i></i> navigation</span>
+  <span><i class="acc"></i> passes through a guard</span>
+  <span><i class="dash"></i> returns / debug-only</span>
+  <span>Orange node = the gate itself, deliberately outside <code>/parent</code> so guarding <code>/parent*</code> cannot trap it in a redirect loop.</span>
+  <span>Not drawn: <code>/home</code> → <code>/story/:id/read</code> (Jump back in skips detail); <code>/my-books</code> → <code>/story/:id/detail</code>; <code>/parent</code> → <code>/my-books</code> and <code>/story/:id/detail</code>, with its back arrow re-locking the gate.</span>
+  <span><code>/create-story</code> is registered and builds, but nothing in the UI navigates to it — the composer's own doc comment ("reached from the library app bar") is stale.</span>
+</div>
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="entry"><span class="num">01</span>Entry &amp; gates</h2>
+<p class="section-sub">Both screens are addressed to the grown-up. Onboarding is data-minimised by design — age band rather than birthdate, optional nickname, no photo, microphone off by default.</p>
+
+<div class="grid">
+
+  <!-- ---------- Onboarding ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/onboarding</span>
+      <span class="name">Parent onboarding</span>
+      <span class="file">lib/features/onboarding/onboarding_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <span class="scroll-tag">scrolls</span>
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="scrollarea">
+      <div class="pad" style="padding-top:28px;padding-bottom:40px">
+        <div class="eyebrow">Parent setup</div>
+        <div class="h-display mt4">Welcome, grown-ups</div>
+        <div class="body muted mt8">Set up a safe space to read. We collect only what we need — an age range and a language. No real name, no birthday, no photo.</div>
+
+        <div class="card mt22">
+          <div class="title-s">Child's nickname (optional)</div>
+          <div class="field mt10">e.g. Little Star</div>
+        </div>
+
+        <div class="card mt14">
+          <div class="title-s">Age range</div>
+          <div class="chips mt12">
+            <span class="spill">3–4 yrs</span>
+            <span class="spill on">5–6 yrs</span>
+            <span class="spill">7–8 yrs</span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="title-s">Story language</div>
+          <div class="chips mt12">
+            <span class="spill on">English</span>
+            <span class="spill">Tiếng Việt</span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="row between">
+            <div class="col" style="flex:1">
+              <div class="title-s">AR camera scenes</div>
+              <div class="small mt4">Characters appear over the story page.</div>
+            </div>
+            <span class="sw on"></span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="row between">
+            <div class="col" style="flex:1">
+              <div class="title-s">Microphone</div>
+              <div class="small mt4">Off by default. Only needed for voice answers.</div>
+            </div>
+            <span class="sw"></span>
+          </div>
+        </div>
+
+        <div class="row top mt16" style="gap:12px">
+          <span class="cbx on">✓</span>
+          <div class="col">
+            <div class="title-s">I am the parent or guardian and I consent</div>
+            <div class="small mt4">Creates this child profile and stores reading progress on this device only.</div>
+          </div>
+        </div>
+
+        <div class="pill mt22">Start reading</div>
+      </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>One screen, no carousel.</b> A flat <code>ListView</code> of <code>PaperCard</code>s.
+      <ul>
+        <li>Age band comes from <code>AgeBand</code> (3–4 / 5–6 / 7–8) — never an exact birthdate.</li>
+        <li><b>Start reading</b> stays disabled (<code>opacity .45</code>, no press shadow) until the consent box is ticked.</li>
+        <li>On submit the button is replaced in place by a <code>CircularProgressIndicator</code>; failure shows a snackbar and restores the button.</li>
+        <li>Success writes consent + profile, which flips <code>isOnboardedProvider</code> and redirects to <code>/home</code>.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Parental gate ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/gate?redirect=…<span class="badge gate">guard</span></span>
+      <span class="name">Parental gate</span>
+      <span class="file">lib/features/parental_gate/parental_gate_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen canvas">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="pad" style="flex:1;display:flex;flex-direction:column">
+        <div class="rnd">✕</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center">
+          <div class="card" style="width:100%;max-width:360px;padding:28px 24px 26px;text-align:center">
+            <div class="circ-icon gold g54" style="margin:0 auto">🔒</div>
+            <div class="h-small mt14">Ask a grown-up to continue</div>
+            <div class="mt18" style="background:var(--input-fill);border:1px solid var(--line);border-radius:18px;padding:16px">
+              <span class="h-display" style="font-size:30px">14 + 7 = ?</span>
+            </div>
+            <div class="field focus mt16 center" style="border-radius:14px">
+              <span class="h-small">21</span>
+            </div>
+            <div class="pill mt18">Continue</div>
+            <div class="small mt14" style="font-weight:700">Try a different question</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Addition challenge a young child can't solve.</b> Background is <code>canvas</code>, one shade dimmer than the app frame, so the card reads as a modal surface.
+      <ul>
+        <li>Operands are derived from the clock: <code>a = 11..18</code>, <code>b = 4..9</code>. A wrong answer clears the field, regenerates the sum, and shows "Not quite — try again".</li>
+        <li>The number field is <code>autofocus</code> and digits-only.</li>
+        <li>On success it unlocks and <code>go</code>es to <code>redirect</code>, defaulting to <code>/parent</code>. The ✕ returns to <code>/home</code>.</li>
+        <li>No personal data, no network call.</li>
+      </ul>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="child"><span class="num">02</span>Child surfaces</h2>
+<p class="section-sub">Everything a child touches: the home hub, their own shelf, the story preview, and the reader itself. The floating glass nav bar (Stories / My books / Moon mode) is present on the two shelf screens only.</p>
+
+<div class="grid">
+
+  <!-- ---------- Child home ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/home<span class="badge mock">staged states</span></span>
+      <span class="name">Child home</span>
+      <span class="file">lib/features/library/child_home_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <span class="scroll-tag">scrolls</span>
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="scrollarea">
+      <div class="pad" style="padding-bottom:110px">
+        <div class="row between top">
+          <div class="col">
+            <div class="eyebrow">Good morning</div>
+            <div class="h-26 mt4">Little Star</div>
+          </div>
+          <div class="row" style="height:40px;padding:0 14px;border-radius:999px;background:var(--paper);border:1px solid var(--line);box-shadow:0 6px 18px var(--shadow);gap:6px">
+            <span style="font-size:14px;color:var(--coral-deep)">🛡</span>
+            <span style="font-size:11px;font-weight:800">Parent area</span>
+          </div>
+        </div>
+
+        <div class="card pad16 mt28">
+          <div class="eyebrow ink">Jump back in</div>
+          <div class="row top mt10" style="gap:12px">
+            <div class="cover g3 sm" style="width:62px;height:82px;flex:0 0 62px">🐰</div>
+            <div class="col" style="flex:1;min-width:0">
+              <div class="title-m">Bunny and the Moon</div>
+              <div class="small mt4">On a quiet night, Bunny meets a wise Owl who shares a gentle secret about the moon.</div>
+            </div>
+          </div>
+          <div class="pill h44 mt12"><span class="i">▶</span>Resume reading</div>
+        </div>
+
+        <div class="eyebrow ink mt28">For you</div>
+        <div class="chips nowrap mt10">
+          <span class="chip on">All</span><span class="chip">Animals</span>
+          <span class="chip">Bedtime</span><span class="chip">Friendship</span>
+        </div>
+
+        <div class="pill sec h44 mt10" style="height:40px;font-size:13px"><span class="i">🗎</span>Scan any page</div>
+
+        <div class="row between mt22">
+          <span class="eyebrow ink">Pick a story</span>
+          <span style="font-size:12px;font-weight:800;color:var(--coral)">See all</span>
+        </div>
+
+        <div class="shelf mt14">
+          <div class="item">
+            <div class="cover g3" style="height:186px">🐰<span class="tag">Ages 3–5 · 5 min</span><span class="dl">⤓</span></div>
+            <div class="t">Bunny and the Moon</div>
+          </div>
+          <div class="item">
+            <div class="cover g4" style="height:186px">🐰<span class="tag">Ages 5–6 · 4 min</span></div>
+            <div class="t">The Brave Little Fox</div>
+          </div>
+          <div class="item">
+            <div class="cover g3" style="height:186px">💛<span class="tag">Ages 5–6 · 3 min</span></div>
+            <div class="t">Lola Learns to Share</div>
+          </div>
+          <div class="item">
+            <div class="cover g4" style="height:186px">🔤<span class="tag left">Made by you</span>
+              <span class="tag" style="top:34px">Ages 4–6 · 3 min</span></div>
+            <div class="t">Max and the Color Garden</div>
+          </div>
+          <div class="item">
+            <div class="cover g3" style="height:186px">🌙<span class="tag">Ages 3–4 · 3 min</span>
+              <span class="lockveil">🔒</span></div>
+            <div class="t">Sleepy Little Star</div>
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="navbar">
+        <div class="it on"><span class="ic">📖</span><span class="lb">Stories</span></div>
+        <div class="it"><span class="ic">📚</span><span class="lb">My books</span></div>
+        <div class="it"><span class="ic">🌙</span><span class="lb">Moon mode</span></div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The hub.</b> Greeting swaps on the clock (morning / afternoon / evening); the headline is the child's nickname, falling back to the app title.
+      <ul>
+        <li><b>Jump back in</b> renders only when the dashboard summary has recents, and jumps straight to <code>/story/:id/read</code> — skipping detail.</li>
+        <li>Theme filter chips drive <code>libraryThemeFilterProvider</code>; <b>See all</b> clears it.</li>
+        <li>The <b>Scan any page</b> button is wrapped in <code>if (kDebugMode)</code> — absent from release builds.</li>
+        <li>Grid is <code>maxCrossAxisExtent: 200</code>, so two columns at this width. Locked stories dim under a scrim and are not tappable.</li>
+        <li><b>Staged:</b> the bundled dataset has every story unlocked, only <em>Bunny</em> downloaded, and none authored. The lock veil and the "Made by you" tag here are posed so the badge states are documented — cover glyph, gradient and duration <em>are</em> the real computed values.</li>
+        <li>Cover art is a placeholder in all of these: the glyph comes from the story's <em>first</em> theme and the gradient from a hash of its id, because the referenced cover PNGs don't exist yet.</li>
+        <li><b>Moon mode</b> in the nav bar toggles the whole app theme — flip the switch at the top of this page to see it.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- My books ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/my-books<span class="badge mock">staged states</span></span>
+      <span class="name">My books</span>
+      <span class="file">lib/features/library/my_books_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <span class="scroll-tag">scrolls</span>
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="scrollarea">
+      <div class="pad" style="padding-bottom:110px">
+        <div class="row between">
+          <div class="h-26">My books</div>
+          <span style="font-size:24px">🔍</span>
+        </div>
+
+        <div class="chips mt16">
+          <span class="chip on">Downloaded</span>
+          <span class="chip">Made by you</span>
+          <span class="chip">Reading</span>
+        </div>
+
+        <div class="eyebrow ink mt28">Recent</div>
+        <div class="hstrip mt12">
+          <div style="width:118px;flex:0 0 118px">
+            <div class="cover g3 sm" style="height:132px">🐰</div>
+            <div style="font-size:13px;font-weight:700;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bunny and the Moon</div>
+            <div class="small">Animals</div>
+          </div>
+          <div style="width:118px;flex:0 0 118px">
+            <div class="cover g4 sm" style="height:132px">🐰</div>
+            <div style="font-size:13px;font-weight:700;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">The Brave Little Fox</div>
+            <div class="small">Animals</div>
+          </div>
+          <div style="width:118px;flex:0 0 118px">
+            <div class="cover g3 sm" style="height:132px">💛</div>
+            <div style="font-size:13px;font-weight:700;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lola Learns…</div>
+            <div class="small">Emotions</div>
+          </div>
+        </div>
+
+        <div class="card mt28">
+          <div class="circ-icon gold g44">✦</div>
+          <div class="title-m mt10">Add new books?</div>
+          <div class="small mt4">Discover hundreds more wonderful stories.</div>
+          <div class="pill h44 mt14">Explore now</div>
+        </div>
+
+        <div class="shelf mt28">
+          <div class="item">
+            <div class="cover g3" style="height:158px">🐰</div>
+            <div class="t">Bunny and the Moon</div>
+          </div>
+          <div class="item">
+            <div class="cover g4" style="height:158px">🐰</div>
+            <div class="t">The Brave Little Fox</div>
+          </div>
+        </div>
+      </div>
+      </div>
+      <div class="navbar">
+        <div class="it"><span class="ic">📖</span><span class="lb">Stories</span></div>
+        <div class="it on"><span class="ic">📚</span><span class="lb">My books</span></div>
+        <div class="it"><span class="ic">🌙</span><span class="lb">Moon mode</span></div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The child's own shelf.</b> Three local filters over the same library list.
+      <ul>
+        <li><code>Downloaded</code> → <code>isDownloaded</code>; <code>Made by you</code> → <code>isAuthored</code>; <code>Reading</code> → intersect with dashboard recents.</li>
+        <li>The <b>Recent</b> strip is horizontal, capped at 6, and hidden when there are none. Its cards show the story's first theme as a caption.</li>
+        <li><b>Explore now</b> currently only fires a "More stories arrive soon." snackbar.</li>
+        <li>An empty filter shows "Nothing here yet." rather than a blank grid.</li>
+        <li>The 🔍 is decorative — no search is wired up yet.</li>
+        <li><b>Staged:</b> only <em>Bunny</em> is actually <code>is_downloaded</code> in the bundled data, so this filter really returns one card. A second is drawn to show the grid.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Story detail ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/story/:storyId/detail</span>
+      <span class="name">Story detail</span>
+      <span class="file">lib/features/story_detail/story_detail_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <span class="scroll-tag">scrolls</span>
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="scrollarea">
+      <div class="pad pad-t12" style="padding-bottom:40px">
+        <div class="rnd">←</div>
+        <div class="cover g3 mt8" style="height:250px">🌙</div>
+
+        <div class="chips mt18">
+          <span class="chip on">Ages 3–5</span>
+          <span class="chip">5 minutes</span>
+          <span class="chip gold">Bedtime</span>
+        </div>
+
+        <div class="h-display mt14">Bunny and the Moon</div>
+        <div class="body muted mt6">On a quiet night, Bunny meets a wise Owl who shares a gentle secret about the moon.</div>
+
+        <div class="card mt18">
+          <div class="row top">
+            <div class="circ-icon lav">◈</div>
+            <div class="col" style="flex:1">
+              <div class="title-s">A page comes alive</div>
+              <div class="small mt4">Look for the AR moment while you read to see the magic unfold in your room.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pill mt26"><span class="i">📖</span>Read story</div>
+        <div class="pill sec off mt12"><span class="i">⤓</span>Download for later</div>
+      </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The pause before the reader.</b> Cover hero, meta chips, synopsis, AR teaser, one clear CTA.
+      <ul>
+        <li>Chips: age range is always "selected" (lavender); the theme chip turns gold only when the theme is <em>Bedtime</em>.</li>
+        <li>The AR card is copy only — it does not check whether this story actually has an AR scene.</li>
+        <li><b>Download for later</b> is rendered but permanently disabled: offline downloads ship in a later slice, and the button exists for design parity.</li>
+        <li><b>Read story</b> uses <code>push</code>, so the reader can pop back here.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Story player ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/story/:storyId/read</span>
+      <span class="name">Story player</span>
+      <span class="file">lib/features/player/story_player_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;flex:0 0 auto">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 3 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+      </div>
+
+      <div class="banner mt10">Dev preview voice — final stories use reviewed narration.</div>
+
+      <div class="pagescroll">
+        <div class="illus">✦</div>
+        <div style="display:flex;justify-content:center;margin-top:14px">
+          <span class="arpill">✦ This page has an AR surprise</span>
+        </div>
+        <div class="pagetext mt18">
+          <span class="hl">High in a tree, a wise old Owl blinked her big eyes.</span>
+          Look up, Bunny. The moon is always there. Thank you, Owl!
+        </div>
+      </div>
+
+      <div style="flex:0 0 auto;padding:6px 16px 16px">
+        <div class="beads"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+        <div class="row mt14" style="justify-content:space-evenly">
+          <div class="rnd big">↺</div>
+          <div class="rnd big">‹</div>
+          <div class="bigplay">▮▮</div>
+          <div class="rnd big">›</div>
+          <div class="rnd big">◈</div>
+        </div>
+        <div class="pill sec h46 mt12"><span class="i">✨</span>Magic Spark</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The reading interface.</b> Fixed header and control deck, a horizontally swipeable <code>PageView</code> between them.
+      <ul>
+        <li>The page renders <em>every</em> segment as one centred <code>RichText</code> — page 3 of this story has three — with the speaking one highlighted in coral. Any segment is tappable to seek to it. The body scrolls (it is a <code>SingleChildScrollView</code>), which is why the text runs under the control deck here.</li>
+        <li>The gold strip appears only while narration has fallen back to on-device TTS (staged on here). The gold pill needs <em>both</em> conditions: the page has a published AR scene <em>and</em> AR is available — a parent switching AR off hides it even on a page that has one.</li>
+        <li>Play is disabled mid-fetch so a tap can't start device TTS a beat before the real clip lands.</li>
+        <li>The fifth control is <b>AR</b> when AR is available (parent allows it <em>and</em> the device supports it), otherwise it becomes the <b>Question</b> button, itself disabled when the page has no questions. <b>Magic Spark</b> is shown only in the AR case.</li>
+        <li>🌙 in the header toggles Moon mode; Moon mode also slows narration to 0.85×.</li>
+        <li>Finishing the last page's audio completes the session, then opens the question sheet, then the "The End!" dialog.</li>
+      </ul>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="reader"><span class="num">03</span>Reader overlays</h2>
+<p class="section-sub">Every one of these is presented over the player. The AR flow is deliberately three surfaces — pick, prepare, recover — because preparation takes seconds and must not leave the child on a dead screen.</p>
+
+<div class="grid">
+
+  <!-- ---------- AR friend picker ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">showModalBottomSheet<span class="badge overlay">overlay</span></span>
+      <span class="name">Choose your AR friend</span>
+      <span class="file">story_player_screen.dart · _chooseArCharacter()</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;opacity:.5">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 3 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px"><div class="illus">✦</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="title-m center" style="padding:4px 0 12px">Choose your AR friend</div>
+        <div class="tile-list">
+          <div class="tl"><span>🧸</span>Fox<span class="ck">✓</span></div>
+          <div class="tl"><span>🧸</span>Doll 1</div>
+          <div class="tl"><span>🧸</span>Doll 2</div>
+          <div class="tl"><span>🧸</span>Doll 3</div>
+          <div class="tl"><span>🧸</span>Doll 4</div>
+          <div class="tl"><span>🧸</span>Doll 5</div>
+          <div class="tl"><span>🧸</span>Doll 6</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Seven characters from <code>arCharacters</code>.</b> Fox is first and doubles as the fallback selection.
+      <ul>
+        <li>The list is <code>shrinkWrap</code>ped inside a <code>Flexible</code>, so it takes its natural height when there's room and scrolls on short or landscape screens instead of overflowing.</li>
+        <li>The current selection carries a trailing ✓.</li>
+        <li>Dismissing without choosing means "no AR": the player stays paused and <em>no error is shown</em> — a change of mind is not a failure.</li>
+        <li>The choice is persisted <em>before</em> AR opens, so a later failure doesn't throw it away.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- AR preparing ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">showArPreparingDialog<span class="badge overlay">overlay</span></span>
+      <span class="name">Preparing AR</span>
+      <span class="file">lib/features/ar/ar_preparing_dialog.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;opacity:.4">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 3 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px"><div class="illus">✦</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dialog center">
+        <div style="font-size:52px;color:var(--coral);line-height:1;margin-top:6px">◈</div>
+        <div class="title-m mt18">Giving your character the story…</div>
+        <div class="linbar mt16"><i style="width:60%"></i></div>
+        <div class="small mt12">Page 3 of 5</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>A barrier, not decoration.</b> <code>barrierDismissible: false</code> plus <code>PopScope(canPop: false)</code>.
+      <ul>
+        <li>Without it, a tap on play would start in-app audio that keeps sounding under the native AR screen; a swipe would send a stale page index; a pop would dispose the narration player and delete the very clips being copied.</li>
+        <li>The dialog starts the controller itself in a post-frame callback, so the barrier is guaranteed up before any work begins, and it pops with its own result.</li>
+        <li>Four titles by phase: <em>Getting AR ready…</em> → <em>Giving your character the story…</em> → <em>Opening the character reader…</em> (subtitle switches to "Find a table or another flat surface."), with <em>One moment…</em> covering idle and failure.</li>
+        <li>The page counter reuses the reader's own <code>pageTitle</code> string rather than duplicating it.</li>
+        <li>The bar is indeterminate until the page total is known, rather than sitting at zero.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- AR failure ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">AlertDialog<span class="badge overlay">overlay</span></span>
+      <span class="name">AR is not ready</span>
+      <span class="file">story_player_screen.dart · _showArFailure()</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;opacity:.4">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 3 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px"><div class="illus">✦</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dialog">
+        <div class="dt">AR is not ready</div>
+        <div class="body mt10">We couldn't get this story's voice ready for AR. You can keep reading here and try again later.</div>
+        <div class="actions">
+          <span class="tbtn">Keep reading</span>
+          <span class="fbtn">Try again</span>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>AR is an enhancement; losing it never blocks reading.</b> Every branch leaves the child in the book.
+      <ul>
+        <li><b>Try again</b> is withheld for <code>ar_unsupported</code> — retrying can't help a device that lacks world tracking.</li>
+        <li><code>reader_in_progress</code> shows nothing at all: a reader is already open, which is never a child-facing condition.</li>
+      </ul>
+      <table class="codes">
+        <tr><th>failure code</th><th>message</th></tr>
+        <tr><td><code>narration_unavailable</code></td><td>couldn't get the voice ready</td></tr>
+        <tr><td><code>ar_unsupported</code></td><td>device can't show AR, story still reads here</td></tr>
+        <tr><td><code>ar_unavailable</code> · <code>ar_failed</code></td><td>couldn't start AR this time</td></tr>
+        <tr><td><code>model_missing</code> · <code>model_load_failed</code></td><td>character couldn't load</td></tr>
+        <tr><td><code>audio_missing</code> · <code>audio_failed</code></td><td>character couldn't play the voice</td></tr>
+        <tr><td>anything else</td><td>couldn't open the character reader</td></tr>
+      </table>
+    </div>
+  </figure>
+
+  <!-- ---------- Question sheet: unanswered ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">showPageQuestions<span class="badge overlay">overlay</span></span>
+      <span class="name">Question sheet — unanswered</span>
+      <span class="file">lib/features/questions/question_sheet.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;opacity:.4">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 1 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px"><div class="illus">✦</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="label-m center muted">Question 1 of 3</div>
+        <div class="title-l center mt12">What did Bunny see in the sky?</div>
+        <div class="qgrid c3 mt18">
+          <div class="qtile"><span class="em">🌙</span><span class="lb">Moon</span></div>
+          <div class="qtile"><span class="em">☀️</span><span class="lb">Sun</span></div>
+          <div class="qtile"><span class="em">⚽</span><span class="lb">Ball</span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Bounded, tap-based — never free-form chat.</b> Grid is 2 columns for 2 choices, 3 otherwise; tiles are square.
+      <ul>
+        <li>Opened from the player's Question button for a single page, or from completion for the whole story.</li>
+        <li>Returns immediately (renders nothing) when the question list is empty.</li>
+        <li>Choices render <code>imageAsset</code> when present, falling back to the emoji, then to ❓.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Question sheet: answered ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">— same sheet<span class="badge state">state</span></span>
+      <span class="name">Question sheet — answered</span>
+      <span class="file">question_sheet.dart · _ChoiceTile</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;opacity:.4">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 1 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px"><div class="illus">✦</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="label-m center muted">Question 1 of 3</div>
+        <div class="title-l center mt12">What did Bunny see in the sky?</div>
+        <div class="qgrid c3 mt18">
+          <div class="qtile ok"><span class="em">🌙</span><span class="lb">Moon</span></div>
+          <div class="qtile bad"><span class="em">☀️</span><span class="lb">Sun</span></div>
+          <div class="qtile"><span class="em">⚽</span><span class="lb">Ball</span></div>
+        </div>
+        <div class="fbtn mt16" style="display:block;text-align:center;border-radius:999px;padding:13px 18px">Next</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Correctness is revealed only after answering, never punitively.</b>
+      <ul>
+        <li>The correct tile always turns green — whether or not it was the one chosen. A wrong <em>chosen</em> tile turns red; untouched wrong tiles stay neutral.</li>
+        <li>The first tap locks the question (<code>_answered</code>), records a <code>question_answered</code> event with the choice and its correctness, and reveals the button.</li>
+        <li>The button reads <b>Next</b> until the last question, then <b>Done</b>, which closes the sheet.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- The End ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">AlertDialog<span class="badge overlay">overlay</span></span>
+      <span class="name">Story complete</span>
+      <span class="file">story_player_screen.dart · _completeStory()</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="padding:10px 16px 0;opacity:.4">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px">Page 5 of 5</div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px"><div class="illus">✦</div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dialog">
+        <div class="dt">The End!</div>
+        <div class="body mt10">What a lovely story!</div>
+        <div class="actions"><span class="fbtn">Back to home</span></div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>A calm ending, with no autoplay onward.</b> Fires once, when the last page's narration completes.
+      <ul>
+        <li>Order is deliberate: complete the session → ask every question in the story → then this dialog.</li>
+        <li>Single action, and barrier-locked (<code>barrierDismissible: false</code>) so a scrim tap cannot dismiss the ending and strand the child on the last page of a story they just finished.</li>
+        <li><code>_storyCompleted</code> guards against the listener firing twice.</li>
+      </ul>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="parent"><span class="num">04</span>Parent surfaces</h2>
+<p class="section-sub">Both sit behind the gate. The dashboard is a gentle weekly summary rather than a performance report, and it is the only place a captured story can be deleted.</p>
+
+<div class="grid">
+
+  <!-- ---------- Parent dashboard ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/parent<span class="badge gate">gated</span></span>
+      <span class="name">Parent dashboard</span>
+      <span class="file">lib/features/dashboard/parent_dashboard_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <span class="scroll-tag">scrolls</span>
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="scrollarea">
+      <div class="pad" style="padding-top:16px;padding-bottom:40px">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="title-m">Parent Dashboard</div>
+        </div>
+
+        <div class="card mt18">
+          <div class="row">
+            <div class="col" style="flex:1">
+              <div class="h-display" style="color:var(--coral-deep)">12</div>
+              <div class="small">Stories completed</div>
+            </div>
+            <div class="col" style="flex:1">
+              <div class="h-display" style="color:var(--coral-deep);font-size:22px">48 min</div>
+              <div class="small">Reading time</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mt22" style="gap:12px">
+          <div class="stat"><div class="v">31</div><div class="l">Questions answered</div></div>
+          <div class="stat"><div class="v">84%</div><div class="l">Question accuracy</div></div>
+        </div>
+
+        <div class="card tight mt22">
+          <div class="row">
+            <div class="cover g3 xs" style="width:48px;height:62px;flex:0 0 48px">🐰</div>
+            <div class="col" style="flex:1;min-width:0">
+              <div class="eyebrow ink">Recently read</div>
+              <div class="title-s mt4">Bunny and the Moon</div>
+            </div>
+            <div style="width:36px;height:36px;border-radius:999px;background:var(--coral);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px">▶</div>
+          </div>
+        </div>
+
+        <div class="listrow mt14">
+          <span style="color:var(--coral-deep);font-size:19px">🛡</span>
+          <span class="title-s" style="flex:1">Reading and safety settings</span>
+          <span class="muted">›</span>
+        </div>
+        <div class="listrow mt12">
+          <span style="color:var(--lavender);font-size:19px">📚</span>
+          <span class="title-s" style="flex:1">My books</span>
+          <span class="muted">›</span>
+        </div>
+
+        <div class="title-m mt28">Suggested next</div>
+        <div class="hstrip mt10">
+          <div style="width:104px;flex:0 0 104px">
+            <div class="cover g3 xs" style="height:120px">💛</div>
+            <div class="small mt6" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lola Learns to Share</div>
+          </div>
+          <div style="width:104px;flex:0 0 104px">
+            <div class="cover g3 xs" style="height:120px">🌙</div>
+            <div class="small mt6" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sleepy Little Star</div>
+          </div>
+          <div style="width:104px;flex:0 0 104px">
+            <div class="cover g4 xs" style="height:120px">🔤</div>
+            <div class="small mt6" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Max and the…</div>
+          </div>
+        </div>
+
+        <div class="title-m mt26">Stories you made</div>
+        <div class="mt8">
+          <div class="row between" style="padding:8px 0">
+            <div class="col">
+              <div class="body">Max and the Color Garden</div>
+              <div class="small">Ages 4–6 · captured in the app</div>
+            </div>
+            <span class="muted" style="font-size:19px">🗑</span>
+          </div>
+          <div class="row between" style="padding:8px 0">
+            <div class="col">
+              <div class="body">Grandma's Paper Boat</div>
+              <div class="small">Ages 5–6 · captured in the app</div>
+            </div>
+            <span class="muted" style="font-size:19px">🗑</span>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Two stat blocks, then links, then content.</b> Stories completed is the headline figure in the summary card and is deliberately not repeated in the tile row below it.
+      <ul>
+        <li>Accuracy renders as <code>—</code> rather than <code>0%</code> when no questions have been answered.</li>
+        <li>The back arrow does more than pop: it <em>re-locks</em> the parental gate before returning to <code>/home</code>.</li>
+        <li>Recently-read and Suggested-next sections are omitted entirely when empty.</li>
+        <li><b>Stories you made</b> is the only delete surface in the app — deliberately here, behind the gate, and not in the child library.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Delete confirm ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">AlertDialog<span class="badge overlay">overlay</span></span>
+      <span class="name">Delete captured story</span>
+      <span class="file">dashboard/authored_stories_section.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="pad" style="padding-top:16px;opacity:.4">
+        <div class="row"><div class="rnd">←</div><div class="title-m">Parent Dashboard</div></div>
+        <div class="row mt22" style="gap:12px">
+          <div class="stat"><div class="v">31</div><div class="l">Questions answered</div></div>
+          <div class="stat"><div class="v">84%</div><div class="l">Question accuracy</div></div>
+        </div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dialog">
+        <div class="dt">Delete “Max and the Color Garden”?</div>
+        <div class="body mt10">This cannot be undone.</div>
+        <div class="actions">
+          <span class="tbtn">Cancel</span>
+          <span class="fbtn">Delete</span>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The only destructive action in the app.</b>
+      <ul>
+        <li>Reachable only after passing the gate, so a child cannot get here.</li>
+        <li>On confirm it deletes through the repository and invalidates the library so every shelf refreshes.</li>
+        <li>An <code>AuthoredStoryFailure</code> surfaces as "We couldn't delete that story." — the row stays.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Settings ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/parent/settings<span class="badge gate">gated</span></span>
+      <span class="name">Reading &amp; safety settings</span>
+      <span class="file">lib/features/settings/settings_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <span class="scroll-tag">long · scrolls</span>
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="scrollarea">
+      <div class="pad" style="padding-top:16px;padding-bottom:40px">
+        <div class="row"><div class="rnd">←</div><div class="title-m">Settings</div></div>
+
+        <div class="h-small mt18">Reading &amp; safety settings</div>
+        <div class="body muted mt4">Manage your child's experience on Mọt Nhí.</div>
+
+        <div class="card mt22">
+          <div class="title-s">Reading time limit</div>
+          <div class="small mt4">Set the maximum time your child can use the app each day.</div>
+          <div class="chips mt12">
+            <span class="spill sm">15 min</span>
+            <span class="spill sm on">45 min</span>
+            <span class="spill sm">120 min</span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="title-s">Content filter</div>
+          <div class="small mt4">Automatically suggest age-appropriate books.</div>
+          <div class="chips mt12">
+            <span class="spill sm">Preschool (2–5)</span>
+            <span class="spill sm on">Primary (6–9)</span>
+            <span class="spill sm">Explorer (10+)</span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="row between">
+            <div class="col" style="flex:1">
+              <div class="title-s">Notifications</div>
+              <div class="small mt4">Learning reports and new book suggestions.</div>
+            </div>
+            <span class="sw"></span>
+          </div>
+        </div>
+
+        <div class="eyebrow ink mt26">Voice &amp; sound</div>
+        <div class="card mt10">
+          <div class="row between"><span class="title-s">Voice speed</span><span class="label-m">1.00×</span></div>
+          <div class="sld"><div class="trk"><div class="fil" style="width:50%"></div><div class="thb" style="left:50%"></div></div></div>
+        </div>
+        <div class="card mt14">
+          <div class="row between"><span class="title-s">Sound effects</span><span class="label-m">60%</span></div>
+          <div class="sld"><div class="trk"><div class="fil" style="width:60%"></div><div class="thb" style="left:60%"></div></div></div>
+        </div>
+        <div class="card mt14">
+          <div class="row between"><span class="title-s">Background music</span><span class="label-m">40%</span></div>
+          <div class="sld"><div class="trk"><div class="fil" style="width:40%"></div><div class="thb" style="left:40%"></div></div></div>
+        </div>
+
+        <div class="card mt14">
+          <div class="title-s">Story language</div>
+          <div class="chips mt10"><span class="spill sm on">English</span><span class="spill sm">Tiếng Việt</span></div>
+        </div>
+
+        <div class="card mt14">
+          <div class="title-s">App language</div>
+          <div class="chips mt10">
+            <span class="spill sm on">System</span><span class="spill sm">English</span><span class="spill sm">Tiếng Việt</span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="row between">
+            <span style="color:var(--lavender);font-size:19px">🌙</span>
+            <div class="col" style="flex:1;margin-left:12px">
+              <div class="title-s">Start in bedtime mode</div>
+              <div class="small mt4">Calmer pacing and a darker, dimmer screen.</div>
+            </div>
+            <span class="sw"></span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="row between">
+            <div class="col" style="flex:1">
+              <div class="title-s">AR camera scenes</div>
+              <div class="small mt4">Characters appear over the page.</div>
+            </div>
+            <span class="sw on"></span>
+          </div>
+        </div>
+
+        <div class="card mt14">
+          <div class="row between">
+            <div class="col" style="flex:1">
+              <div class="title-s">Microphone</div>
+              <div class="small mt4">Off by default. Only needed for voice answers.</div>
+            </div>
+            <span class="sw"></span>
+          </div>
+        </div>
+
+        <div class="listrow mt14">
+          <span style="color:var(--lavender);font-size:19px">👤</span>
+          <span class="title-s" style="flex:1">Manage account</span>
+          <span class="muted">›</span>
+        </div>
+
+        <div class="card mt14">
+          <div class="row gap8">
+            <span style="color:var(--sage);font-size:17px">🛈</span>
+            <span class="title-s">Your privacy</span>
+          </div>
+          <div class="small mt8">Reading progress is stored only on this device. We never collect your child's real name, birthday, photo, voice, or camera images.</div>
+        </div>
+
+        <div class="pill" style="margin-top:24px">Save changes</div>
+      </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The longest screen in the app</b> — roughly two and a half viewports of <code>PaperCard</code>s.
+      <ul>
+        <li>Three sources of truth are edited here side by side: <code>ReadingSettings</code> (sliders, story language, bedtime default), the <code>ChildProfile</code> (AR + microphone), and standalone local prefs (time limit, content filter, notifications, app language).</li>
+        <li>Every control applies immediately. <b>Save changes</b> only shows a "Saved" snackbar — it exists so parents get an out-loud confirmation, not because anything is pending.</li>
+        <li>The AR and microphone switches go grey and inert while the child profile is still loading.</li>
+        <li><b>Manage account</b> fires the "coming soon" snackbar.</li>
+        <li>Reading time limit, content filter, and notifications are stored but <em>not yet enforced</em> — they ship ahead of the screen-time slice so parents can express intent early.</li>
+      </ul>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="create"><span class="num">05</span>Create &amp; scan</h2>
+<p class="section-sub">Two related flows. <b>Create a story</b> ships in release builds and turns captured pages into a saved, authored story. <b>Scan any page</b> is a <code>kDebugMode</code>-only single-page demo that ends in the native AR character reader.</p>
+
+<div class="grid">
+
+  <!-- ---------- Composer empty ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/create-story</span>
+      <span class="name">Story composer — empty</span>
+      <span class="file">lib/features/story_composer/story_composer_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Create a story</div>
+      <div style="padding:16px 16px 0">
+        <div class="field">Story name</div>
+        <div class="counter mt6">0/120</div>
+      </div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center">
+        <span class="body muted">Scan a page to start your story.</span>
+      </div>
+      <div style="padding:16px">
+        <div class="row" style="gap:12px">
+          <div class="pill sec h48" style="flex:1"><span class="i">🗎</span>Add another page</div>
+          <div class="pill h48 off" style="flex:1"><span class="i">💾</span>Save story</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The only screen still using a Material <code>AppBar</code></b> rather than the design system's inline header.
+      <ul>
+        <li>Not <code>kDebugMode</code>-gated and <em>not</em> behind the parental gate — the premise is a child pointing the tablet at their own book. Deleting is what's gated instead.</li>
+        <li>Language defaults to the child profile's, because <code>list_published</code> filters on <code>language_code</code> — saving in another language would make the story invisible afterwards and a successful save would look like a failure.</li>
+        <li><b>Save story</b> stays disabled until the draft is saveable, which is only <code>title.trim().isNotEmpty &amp;&amp; pages.isNotEmpty</code> — a captured page whose text has been cleared still counts.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Composer with pages ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/create-story<span class="badge state">state</span></span>
+      <span class="name">Story composer — pages captured</span>
+      <span class="file">story_composer_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Create a story</div>
+      <div style="padding:16px 16px 0">
+        <div class="field focus">
+          <span class="flbl">Story name</span>Grandma's Paper Boat
+        </div>
+        <div class="counter mt6">20/120</div>
+        <div class="small" style="color:var(--err);margin-top:2px">The scan didn't work. Try again.</div>
+      </div>
+      <div style="flex:1;overflow:hidden;padding:16px">
+        <div class="card pad16">
+          <div class="row between">
+            <span class="title-m">Page 1</span>
+            <span class="muted" style="font-size:18px">🗑</span>
+          </div>
+          <div class="field mt8" style="font-size:13.5px;color:var(--ink)">Grandma folded the last corner and the little boat was finished.</div>
+          <div class="counter mt4" style="font-size:10.5px">62 / 4000</div>
+        </div>
+        <div class="card pad16 mt14">
+          <div class="row between">
+            <span class="title-m">Page 2</span>
+            <span class="muted" style="font-size:18px">🗑</span>
+          </div>
+          <div class="field mt8" style="font-size:13.5px;color:var(--ink)">We carried it down to the stream together.</div>
+          <div class="counter mt4" style="font-size:10.5px">41 / 4000</div>
+        </div>
+        <div class="card pad16 mt14" style="opacity:.55">
+          <div class="row between">
+            <span class="title-m">Page 3</span>
+            <span class="muted" style="font-size:18px">🗑</span>
+          </div>
+          <div class="field mt8" style="font-size:13.5px;color:var(--ink)">The boat spun once and floated away.</div>
+          <div class="counter mt4" style="font-size:10.5px">35 / 4000</div>
+        </div>
+      </div>
+      <div style="padding:16px">
+        <div class="row" style="gap:12px">
+          <div class="pill sec h48" style="flex:1"><span class="i">🗎</span>Add another page</div>
+          <div class="pill h48" style="flex:1"><span class="i">💾</span>Save story</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Each captured page is an editable card.</b> OCR output lands in the field and stays fully editable, up to 4,000 characters per page.
+      <ul>
+        <li>Each button shows <code>…</code> during its own phase only — <b>Add another page</b> while scanning, <b>Save story</b> while saving — and both go inert during either.</li>
+        <li>The error line sits directly under the title field, above the page list — not above the buttons — and is cleared when the next action <em>starts</em>, not when one succeeds.</li>
+        <li>On save: invalidate the library, show "Story saved.", and <code>go</code> to <code>/home</code> — the composer is not left on the stack.</li>
+      </ul>
+      <table class="codes">
+        <tr><th>failure code</th><th>message</th></tr>
+        <tr><td><code>scan:*</code></td><td>The scan didn't work. Try again.</td></tr>
+        <tr><td><code>save:quota_reached</code></td><td>That's plenty of pages already!</td></tr>
+        <tr><td><code>save:backend_unreachable</code> · <code>save:timeout</code></td><td>Couldn't save. You appear to be offline.</td></tr>
+      </table>
+    </div>
+  </figure>
+
+  <!-- ---------- Scan entry ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">/scan-any-page<span class="badge dbg">debug only</span></span>
+      <span class="name">Scan — entry</span>
+      <span class="file">lib/features/scan_any_page/scan_any_page_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Scan any page</div>
+      <div style="flex:1;display:flex;flex-direction:column;padding:24px">
+        <div style="flex:1"></div>
+        <div class="hero-ring"><div class="inner">📖</div></div>
+        <div class="h-display center" style="margin-top:30px">Bring any page to life</div>
+        <div class="body muted center mt12">Point at a page from any printed story. Mọt Nhí reads it aloud and wakes up its characters.</div>
+        <div class="stepper mt26">
+          <div class="st"><span class="dot on"></span><span class="eyebrow">Scan</span></div>
+          <span class="lk on"></span>
+          <div class="st"><span class="dot"></span><span class="eyebrow" style="color:var(--ink-muted)">Voice</span></div>
+          <span class="lk"></span>
+          <div class="st"><span class="dot"></span><span class="eyebrow" style="color:var(--ink-muted)">Character</span></div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="pill"><span class="i">🗎</span>Scan a page</div>
+        <div class="pill sec h46 mt10">Type the text instead</div>
+        <div class="small center mt14">Saved pages also work offline.</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Three-beat promise up front:</b> Scan → Voice → Character.
+      <ul>
+        <li>Reachable only from the debug-only button on the child home, and only in debug builds.</li>
+        <li>Body is vertically centred via <code>Spacer</code>s but still scrolls on short screens (<code>IntrinsicHeight</code> inside a <code>SingleChildScrollView</code>), and is capped at 680&nbsp;pt wide on tablets.</li>
+        <li><b>Type the text instead</b> jumps straight to the review screen with an empty, autofocused field — no camera needed.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Scan review ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">phase: reviewingText<span class="badge state">state</span></span>
+      <span class="name">Scan — check the words</span>
+      <span class="file">scan_any_page_screen.dart · _review()</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Scan any page</div>
+      <div style="flex:1;display:flex;flex-direction:column;padding:24px">
+        <div style="text-align:right;font-size:14px;font-weight:800;color:var(--coral)">English + Vietnamese</div>
+        <div class="h-small mt12">Check the words</div>
+        <div class="body mt8">Tap in the text to correct recognition mistakes.</div>
+        <div class="field tall mt18" style="color:var(--ink);border-radius:6px">
+          Grandma folded the last corner and the little boat was finished. We carried it down to the stream together, and the boat spun once before it floated away.
+        </div>
+        <div class="counter mt8">158 / 4,000 characters</div>
+        <div class="mt18" style="display:flex;flex-direction:column;gap:10px">
+          <div class="pill">Use this text</div>
+          <div class="pill sec">Scan again</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Recognition is always reviewable before it becomes a voice.</b>
+      <ul>
+        <li>Reached two ways — after a successful OCR pass, or immediately via <b>Type the text instead</b>, in which case the field autofocuses.</li>
+        <li><b>Use this text</b> is disabled when the field is empty or over 4,000 characters; the counter turns red and an explicit "Shorten the text…" line appears above the button.</li>
+        <li>Confirming the text kicks off narration generation, which is the next frame.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Scan progress ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">phase: scanning · generatingAudio · openingAr<span class="badge state">3 states</span></span>
+      <span class="name">Scan — progress</span>
+      <span class="file">scan_any_page_screen.dart · _ProgressState</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Scan any page</div>
+      <div style="flex:1;display:flex;flex-direction:column;padding:24px">
+        <div style="flex:1"></div>
+        <div class="bigicon">🎚</div>
+        <div class="spinner mt22"></div>
+        <div class="h-small center mt22">Giving your character a voice…</div>
+        <div class="body center mt12">Keep this device and the computer on the same Wi-Fi.</div>
+        <div style="flex:1"></div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>One template, three phases.</b> Icon, spinner, title, message — nothing else, and no in-body way to cancel.
+      <table class="codes">
+        <tr><th>phase</th><th>title</th><th>message</th></tr>
+        <tr><td><code>scanning</code></td><td>Scanning your page…</td><td>Hold over one page and keep all four corners visible.</td></tr>
+        <tr><td><code>generatingAudio</code></td><td>Giving your character a voice…</td><td>Keep this device and the computer on the same Wi-Fi.</td></tr>
+        <tr><td><code>openingAr</code></td><td>Opening character reader…</td><td>Move this device slowly to find a flat surface.</td></tr>
+      </table>
+      <ul>
+        <li>Transitions between all scan phases cross-fade over 200&nbsp;ms via <code>AnimatedSwitcher</code>.</li>
+        <li>The persistent <code>AppBar</code> back button stays live throughout, so the whole flow can be popped mid-generation.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Scan ready ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">phase: readyForAr<span class="badge state">state</span></span>
+      <span class="name">Scan — character ready</span>
+      <span class="file">scan_any_page_screen.dart · _readyForAr()</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Scan any page</div>
+      <div style="flex:1;display:flex;flex-direction:column;padding:24px">
+        <div style="flex:1"></div>
+        <div class="bigicon">🗣</div>
+        <div class="h-display center" style="margin-top:32px">Your character is ready!</div>
+        <div class="body center mt12">Find a table or another flat surface, then place your reader.</div>
+        <div style="flex:1"></div>
+        <div class="pill"><span class="i">◈</span>Place character</div>
+        <div class="pill sec h46 mt10">Scan another page</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The hand-off into native AR.</b> <b>Place character</b> opens the platform character reader; <b>Scan another page</b> resets the whole flow to entry.
+      <ul>
+        <li>The generated voice file survives this screen, so a failed AR attempt can retry without regenerating narration.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <!-- ---------- Scan failure ---------- -->
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">phase: failure<span class="badge state">~20 codes</span></span>
+      <span class="name">Scan — failure template</span>
+      <span class="file">scan_any_page_screen.dart · _FailureState</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="appbar"><span class="back">←</span>Scan any page</div>
+      <div style="flex:1;display:flex;flex-direction:column;padding:24px">
+        <div style="flex:1"></div>
+        <div class="bigicon err">⛶</div>
+        <div class="h-small center mt22">We couldn't find one clear page</div>
+        <div class="body center mt12">Place one flat page in good light, avoid glare, and keep all four corners visible.</div>
+        <div style="flex:1"></div>
+        <div class="pill">Scan again</div>
+        <div class="pill sec h46 mt10">Enter text manually</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Every failure keeps a way forward.</b> Same four slots each time: error icon, title, guidance, primary + secondary action.
+      <ul>
+        <li>The <b>TTS</b> family is the exception — it re-renders the editable text field inline under the message, so the words are never lost and can be shortened or fixed before retrying. <code>tts:invalid_text</code> is the exception to that exception: it uses the plain four-slot template with an <b>Edit text</b> primary and no inline field.</li>
+        <li>Hard-stop codes (<code>ar_unsupported</code>, <code>model_missing</code>, <code>model_load_failed</code>, <code>audio_failed</code>) swap the actions to <b>Scan another page</b> / <b>Close</b> rather than offering a retry that cannot succeed.</li>
+      </ul>
+      <table class="codes">
+        <tr><th>family</th><th>codes</th><th>title</th></tr>
+        <tr><td rowspan="6">scan</td><td><code>camera_denied</code></td><td>Camera access is off</td></tr>
+        <tr><td><code>camera_unavailable</code></td><td>The scanner is not available</td></tr>
+        <tr><td><code>page_not_found</code> · <code>rectangle_not_found</code> · <code>unstable_page</code></td><td>We couldn't find one clear page</td></tr>
+        <tr><td><code>capture_failed</code> · <code>correction_failed</code></td><td>We couldn't capture / straighten the page</td></tr>
+        <tr><td><code>ocr_failed</code> · <code>no_text</code></td><td>We couldn't recognize / read enough text</td></tr>
+        <tr><td>default</td><td>Scanning stopped</td></tr>
+        <tr><td rowspan="6">tts</td><td><code>invalid_text</code></td><td>Check the text length</td></tr>
+        <tr><td><code>backend_unreachable</code> · <code>network</code> · <code>connection_error</code></td><td>We couldn't reach the narration service</td></tr>
+        <tr><td><code>auth*</code> · <code>unauthorized</code></td><td>We couldn't verify this device</td></tr>
+        <tr><td><code>rate_limit*</code></td><td>The narration service is busy</td></tr>
+        <tr><td><code>timeout</code> · <code>timed_out</code></td><td>The voice took too long to create</td></tr>
+        <tr><td><code>invalid_audio</code></td><td>We couldn't use the voice response</td></tr>
+        <tr><td>default</td><td>We couldn't create the voice</td></tr>
+        <tr><td rowspan="6">ar</td><td><code>ar_unsupported</code></td><td>AR is not available</td></tr>
+        <tr><td><code>ar_unavailable</code> · <code>ar_failed</code></td><td>We couldn't start AR / session stopped</td></tr>
+        <tr><td><code>surface_not_found</code> · <code>plane_not_found</code></td><td>We couldn't find a flat surface</td></tr>
+        <tr><td><code>model_missing</code> · <code>model_load_failed</code></td><td>The character is missing / couldn't load</td></tr>
+        <tr><td><code>audio_missing</code> · <code>missing_audio</code></td><td>The generated voice is missing</td></tr>
+        <tr><td><code>audio_failed</code></td><td>The character couldn't play the voice</td></tr>
+        <tr><td>default</td><td>We couldn't open the character reader</td></tr>
+      </table>
+    </div>
+  </figure>
+
+</div>
+
+<!-- ====================================================================== -->
+<h2 class="section" id="states"><span class="num">06</span>Shared async states</h2>
+<p class="section-sub">Story detail, the player, the library grid, and the parent dashboard all resolve through the same two views, so a network hiccup looks identical wherever it happens.</p>
+
+<div class="grid">
+
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">LoadingView<span class="badge state">shared</span></span>
+      <span class="name">Loading</span>
+      <span class="file">lib/shared/widgets/async_views.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column">
+        <div class="spinner"></div>
+        <div class="body mt16">Opening the book…</div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Calm, centred, always with words.</b> The message is passed in per surface, so the wait is named rather than generic.
+      <ul>
+        <li>"Opening the book…" — story detail and the player.</li>
+        <li>"Finding stories…" — the home library grid.</li>
+        <li>No message at all on the parent dashboard.</li>
+      </ul>
+    </div>
+  </figure>
+
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">ErrorView<span class="badge state">shared</span></span>
+      <span class="name">Error</span>
+      <span class="file">lib/shared/widgets/async_views.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px">
+        <div style="font-size:54px;line-height:1">☁</div>
+        <div class="body center mt12">We couldn't load the stories.</div>
+        <div class="mt16"><span class="fbtn">Try again</span></div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>Friendly and non-alarming — no red, no error code.</b>
+      <ul>
+        <li>The retry button is omitted entirely where retrying is pointless (for example "Story not found.").</li>
+        <li>Retry re-invalidates the underlying provider, so the same surface reloads in place.</li>
+        <li>Copy varies: "We couldn't load the stories." · "We couldn't open this story." · "Story not found."</li>
+      </ul>
+    </div>
+  </figure>
+
+  <figure class="frame">
+    <figcaption class="frame-head">
+      <span class="route">library.isEmpty<span class="badge state">shared</span></span>
+      <span class="name">Empty shelf</span>
+      <span class="file">child_home_screen.dart · my_books_screen.dart</span>
+    </figcaption>
+    <div class="phone"><div class="screen">
+      <div class="statusbar"><span>9:41</span><span>▮▮▮ ᯤ ▰</span></div>
+      <div class="pad">
+        <div class="row between top">
+          <div class="col">
+            <div class="eyebrow">Good evening</div>
+            <div class="h-26 mt4">Little Star</div>
+          </div>
+          <div class="row" style="height:40px;padding:0 14px;border-radius:999px;background:var(--paper);border:1px solid var(--line);gap:6px">
+            <span style="font-size:14px;color:var(--coral-deep)">🛡</span>
+            <span style="font-size:11px;font-weight:800">Parent area</span>
+          </div>
+        </div>
+        <div class="eyebrow ink mt28">For you</div>
+        <div class="chips nowrap mt10">
+          <span class="chip on">All</span><span class="chip">Animals</span>
+          <span class="chip">Bedtime</span><span class="chip">Friendship</span>
+        </div>
+        <div class="row between mt22">
+          <span class="eyebrow ink">Pick a story</span>
+          <span style="font-size:12px;font-weight:800;color:var(--coral)">See all</span>
+        </div>
+        <div class="body muted center" style="margin-top:56px">No stories here yet.</div>
+      </div>
+      <div class="navbar">
+        <div class="it on"><span class="ic">📖</span><span class="lb">Stories</span></div>
+        <div class="it"><span class="ic">📚</span><span class="lb">My books</span></div>
+        <div class="it"><span class="ic">🌙</span><span class="lb">Moon mode</span></div>
+      </div>
+    </div></div>
+    <div class="notes">
+      <b>The page keeps its shape when the shelf is empty.</b> Header, filters and nav all stay — only the grid is replaced by a single line.
+      <ul>
+        <li>Home: "No stories here yet." My books: "Nothing here yet."</li>
+        <li>A filter that matches nothing produces this too, so an over-narrow filter never reads as a broken app.</li>
+      </ul>
+    </div>
+  </figure>
+
+</div>
+
+<div class="footnote">
+  <b>Not drawn here.</b> The native AR character reader itself (<code>native_story_reader.dart</code> / <code>native_character_reader.dart</code>) is a platform view — an ARKit / ARCore camera session, not Flutter widgets — so it has no Flutter layout to wireframe. Its Flutter-side surfaces (the friend picker, the preparing dialog, and the failure dialog) are in section 03.
+  <br><br>
+  <b>Faithful, not corrected.</b> Three things look like document bugs but are the app as written, and are reproduced here deliberately: selected filter chips are white on <code>lavenderContainer</code> <code>#BFADFF</code> in Day mode, which is close to unreadable; <code>error</code> is pinned to <code>#BA1A1A</code> in <em>both</em> themes, so Moon mode shows dark red on dark paper; and the Settings "Manage account" row reuses the library's <code>comingSoonToast</code> ("More stories arrive soon."), which reads oddly there.
+  <br><br>
+  Generated from the working tree on branch <code>main</code>. Copy is the English <code>.arb</code>; the app also ships Vietnamese, where longer strings wrap the pill buttons and section titles a line deeper than shown.
+</div>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var day = document.getElementById('btn-day');
+  var moon = document.getElementById('btn-moon');
+  function set(mode) {
+    root.setAttribute('data-mode', mode);
+    day.setAttribute('aria-pressed', String(mode === 'day'));
+    moon.setAttribute('aria-pressed', String(mode === 'moon'));
+    try { localStorage.setItem('wireframe-mode', mode); } catch (e) {}
+  }
+  day.addEventListener('click', function () { set('day'); });
+  moon.addEventListener('click', function () { set('moon'); });
+  try {
+    var saved = localStorage.getItem('wireframe-mode');
+    if (saved === 'day' || saved === 'moon') set(saved);
+  } catch (e) {}
+})();
+</script>
+
+</body>
+</html>
