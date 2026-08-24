@@ -241,16 +241,21 @@ class CharacterReaderBridgeTest {
     private fun storyArguments(
         vararg clips: String,
         initialPageIndex: Int = 0,
-    ): Map<String, Any> = mapOf(
-        "pages" to listOf(
-            mapOf(
-                "pageId" to "p1",
-                "pageNumber" to 1,
-                "audioFilePaths" to clips.toList(),
+        modelAssetBaseName: String? = null,
+    ): Map<String, Any> = buildMap {
+        put(
+            "pages",
+            listOf(
+                mapOf(
+                    "pageId" to "p1",
+                    "pageNumber" to 1,
+                    "audioFilePaths" to clips.toList(),
+                ),
             ),
-        ),
-        "initialPageIndex" to initialPageIndex,
-    )
+        )
+        put("initialPageIndex", initialPageIndex)
+        if (modelAssetBaseName != null) put("modelAssetBaseName", modelAssetBaseName)
+    }
 
     private fun storyClip(name: String): String =
         File(cacheDir, name).apply { writeBytes(byteArrayOf(1)) }.path
@@ -263,7 +268,7 @@ class CharacterReaderBridgeTest {
         bridge().handle(MethodCall("openStoryReader", storyArguments(first, second)), result)
 
         assertEquals(1, host.storyLaunches.size)
-        val (pages, initialIndex) = host.storyLaunches.single()
+        val (pages, initialIndex, modelFile) = host.storyLaunches.single()
         assertEquals(1, pages.size)
         assertEquals("p1", pages.single().pageId)
         assertEquals(
@@ -271,6 +276,8 @@ class CharacterReaderBridgeTest {
             pages.single().audioFilePaths,
         )
         assertEquals(0, initialIndex)
+        // No model name on the arguments: the reader still gets a usable default.
+        assertEquals(CharacterReaderActivity.MODEL_FILENAME, modelFile)
         assertEquals(0, result.replies)
     }
 
@@ -299,6 +306,61 @@ class CharacterReaderBridgeTest {
         )
 
         assertEquals(0, host.storyLaunches.single().second)
+    }
+
+    @Test
+    fun openStoryReaderForwardsTheSelectedDollVariantToTheHost() {
+        val clip = storyClip("ar_story1_p1_s0.mp3")
+
+        bridge().handle(
+            MethodCall(
+                "openStoryReader",
+                storyArguments(clip, modelAssetBaseName = "cute_doll_v01"),
+            ),
+            result,
+        )
+
+        assertEquals("cute_doll_v01.glb", host.storyLaunches.single().third)
+    }
+
+    @Test
+    fun openStoryReaderFallsBackToTheFoxWhenTheBaseNameIsAPathTrick() {
+        val clip = storyClip("ar_story1_p1_s0.mp3")
+
+        bridge().handle(
+            MethodCall(
+                "openStoryReader",
+                storyArguments(clip, modelAssetBaseName = "../evil"),
+            ),
+            result,
+        )
+
+        assertEquals(CharacterReaderActivity.MODEL_FILENAME, host.storyLaunches.single().third)
+        assertEquals(0, result.replies)
+    }
+
+    @Test
+    fun openStoryReaderDefaultsTheModelWhenTheKeyIsMissing() {
+        val clip = storyClip("ar_story1_p1_s0.mp3")
+
+        bridge().handle(MethodCall("openStoryReader", storyArguments(clip)), result)
+
+        assertEquals(CharacterReaderActivity.MODEL_FILENAME, host.storyLaunches.single().third)
+    }
+
+    @Test
+    fun openStoryReaderFallsBackToTheFoxWhenTheBaseNameHasInvalidCharacters() {
+        val clip = storyClip("ar_story1_p1_s0.mp3")
+
+        bridge().handle(
+            MethodCall(
+                "openStoryReader",
+                storyArguments(clip, modelAssetBaseName = "CuteDoll"),
+            ),
+            result,
+        )
+
+        assertEquals(CharacterReaderActivity.MODEL_FILENAME, host.storyLaunches.single().third)
     }
 
     @Test
@@ -451,7 +513,7 @@ private class FakeReaderHost : ReaderHost {
     var presentable = true
     var launchSucceeds = true
     val launches = mutableListOf<String>()
-    val storyLaunches = mutableListOf<Pair<List<StoryReaderPage>, Int>>()
+    val storyLaunches = mutableListOf<Triple<List<StoryReaderPage>, Int, String>>()
 
     override fun isPresentable() = presentable
 
@@ -463,8 +525,9 @@ private class FakeReaderHost : ReaderHost {
     override fun launchStoryReader(
         pages: List<StoryReaderPage>,
         initialPageIndex: Int,
+        modelAssetFileName: String,
     ): Boolean {
-        storyLaunches += pages to initialPageIndex
+        storyLaunches += Triple(pages, initialPageIndex, modelAssetFileName)
         return launchSucceeds
     }
 }

@@ -34,6 +34,12 @@ class CharacterReaderActivity : ComponentActivity() {
     private var pageIndex = 0
     private var clipIndex = 0
 
+    /**
+     * Which bundled `<base>.glb` the scene loads, resolved once in onCreate. The single-clip
+     * scan-any-page flow never receives an extra and keeps the fox.
+     */
+    private var modelAssetFileName: String = MODEL_FILENAME
+
     /** Insertion-ordered so the player receives pages in the order the child heard them. */
     private val pagesRead = LinkedHashSet<String>()
     private var storyMode = false
@@ -59,6 +65,7 @@ class CharacterReaderActivity : ComponentActivity() {
             return
         }
         pages = resolved
+        modelAssetFileName = resolveModelAssetFileName()
         if (!modelExists()) {
             finishWith("model_missing")
             return
@@ -115,12 +122,23 @@ class CharacterReaderActivity : ComponentActivity() {
         )
     }
 
+    /**
+     * Re-validates the model name even though the bridge already did: intent extras are a trust
+     * boundary of their own, since any component can start this activity with crafted values.
+     * The strict allowlist keeps a name like `../evil.glb` from pointing outside the bundled
+     * doll variants; anything malformed falls back to the fox rather than failing the open.
+     */
+    private fun resolveModelAssetFileName(): String =
+        intent.getStringExtra(EXTRA_MODEL_ASSET_FILE_NAME)
+            ?.takeIf { Regex("^[a-z0-9_]+\\.glb$").matches(it) }
+            ?: MODEL_FILENAME
+
     private fun showScene() {
         if (terminal) return
         setContent {
             CharacterReaderScreen(
                 state = ui,
-                modelAssetFileName = MODEL_FILENAME,
+                modelAssetFileName = modelAssetFileName,
                 onFailure = ::finishWith,
                 onPlaced = {
                     placed = true
@@ -358,7 +376,7 @@ class CharacterReaderActivity : ComponentActivity() {
 
     private fun modelExists(): Boolean {
         return try {
-            assets.open(MODEL_FILENAME).use { }
+            assets.open(modelAssetFileName).use { }
             true
         } catch (_: FileNotFoundException) {
             false
@@ -395,6 +413,9 @@ class CharacterReaderActivity : ComponentActivity() {
         const val EXTRA_AUDIO_FILE_PATH = "storybook_ar.character_reader.AUDIO_FILE_PATH"
         const val EXTRA_PAGES_JSON = "storybook_ar.character_reader.PAGES_JSON"
         const val EXTRA_INITIAL_PAGE_INDEX = "storybook_ar.character_reader.INITIAL_PAGE_INDEX"
+        const val EXTRA_MODEL_ASSET_FILE_NAME = "storybook_ar.character_reader.MODEL_ASSET_FILE_NAME"
+
+        /** Default fallback whenever no (valid) model name arrives on the intent. */
         const val MODEL_FILENAME = "scan_any_page_character.glb"
     }
 }

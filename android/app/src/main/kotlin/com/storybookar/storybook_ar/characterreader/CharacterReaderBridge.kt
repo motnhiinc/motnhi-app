@@ -35,6 +35,12 @@ class CharacterReaderBridge internal constructor(
     private var pendingPages: List<StoryReaderPage>? = null
     private var pendingInitialPageIndex = 0
 
+    /**
+     * The bundled `<base>.glb` the story reader should load. Only story mode carries a choice;
+     * the single-clip scan-any-page flow keeps the fox, so this stays at the default there.
+     */
+    private var pendingModelAssetFileName: String = CharacterReaderActivity.MODEL_FILENAME
+
     internal fun attachTo(messenger: BinaryMessenger) {
         channel = MethodChannel(messenger, CHANNEL_NAME).apply {
             setMethodCallHandler(::handle)
@@ -89,6 +95,7 @@ class CharacterReaderBridge internal constructor(
                 (arguments?.get("initialPageIndex") as? Number)?.toInt() ?: 0,
                 pages.size,
             )
+            pendingModelAssetFileName = modelAssetFileName(arguments)
             pendingAudioPath = null
         } else {
             val audioFile = audioPathValidator
@@ -113,6 +120,20 @@ class CharacterReaderBridge internal constructor(
         installAttempts = 0
         awaitingInstallResume = false
         checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
+    }
+
+    /**
+     * Maps Dart's chosen base name onto a bundled asset file name. The allowlist here is the
+     * first gate: a malformed or hostile name never reaches the activity, it simply falls back
+     * to the fox so an open still shows some character instead of failing with model_missing.
+     * Deliberately free of Android types so JVM tests can pin the fallbacks.
+     */
+    private fun modelAssetFileName(arguments: Map<*, *>?): String {
+        val baseName = arguments?.get("modelAssetBaseName") as? String
+        val safeBaseName = baseName
+            ?.takeIf { Regex("^[a-z0-9_]+$").matches(it) }
+            ?: "scan_any_page_character"
+        return "$safeBaseName.glb"
     }
 
     /**
@@ -194,7 +215,7 @@ class CharacterReaderBridge internal constructor(
                 finishError("audio_missing")
                 return
             }
-            host.launchStoryReader(pages, pendingInitialPageIndex)
+            host.launchStoryReader(pages, pendingInitialPageIndex, pendingModelAssetFileName)
         } else {
             val audioPath = pendingAudioPath ?: run {
                 finishError("audio_missing")
@@ -299,6 +320,7 @@ class CharacterReaderBridge internal constructor(
         pendingIsStoryReader = false
         pendingPages = null
         pendingInitialPageIndex = 0
+        pendingModelAssetFileName = CharacterReaderActivity.MODEL_FILENAME
         installAttempts = 0
         awaitingInstallResume = false
         inProgressGate.finish()
