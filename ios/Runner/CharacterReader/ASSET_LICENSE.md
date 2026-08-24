@@ -17,7 +17,7 @@ Before conversion the `Idle` clip was moved from index 5 to index 0. USD bakes a
 single timeline, and the converter takes glTF animation index 0 — the pack ships
 `Attack` at index 0 and `Death` at index 1. The resulting timeline is 3.333 s,
 matching the `Idle` clip exactly. Android renders the same clip from
-`android/app/src/debug/assets/scan_any_page_character.glb`.
+`android/app/src/main/assets/scan_any_page_character.glb`.
 
 This file replaced `toy_drummer.usdz`, an Apple AR Quick Look sample that was
 prototype-only and could not be distributed.

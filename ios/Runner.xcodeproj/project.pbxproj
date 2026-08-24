@@ -25,6 +25,12 @@
 		A30000000000000000000008 /* CharacterReaderViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000019 /* CharacterReaderViewController.swift */; };
 		A30000000000000000000009 /* CharacterReaderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001A /* CharacterReaderBridge.swift */; };
 		A3000000000000000000000A /* CharacterReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3000000000000000000001B /* CharacterReaderTests.swift */; };
+		A30000000000000000000031 /* cute_doll_v01.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000041 /* cute_doll_v01.usdz */; };
+		A30000000000000000000032 /* cute_doll_v02.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000042 /* cute_doll_v02.usdz */; };
+		A30000000000000000000033 /* cute_doll_v03.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000043 /* cute_doll_v03.usdz */; };
+		A30000000000000000000034 /* cute_doll_v04.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000044 /* cute_doll_v04.usdz */; };
+		A30000000000000000000035 /* cute_doll_v05.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000045 /* cute_doll_v05.usdz */; };
+		A30000000000000000000036 /* cute_doll_v06.usdz in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000046 /* cute_doll_v06.usdz */; };
 		BFF18E83DB9E1C2FAF266005 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 46B921F4D2C72E4D5596596C /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
 
@@ -84,6 +90,12 @@
 		A30000000000000000000019 /* CharacterReaderViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderViewController.swift; sourceTree = "<group>"; };
 		A3000000000000000000001A /* CharacterReaderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderBridge.swift; sourceTree = "<group>"; };
 		A3000000000000000000001B /* CharacterReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterReaderTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000041 /* cute_doll_v01.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = cute_doll_v01.usdz; sourceTree = "<group>"; };
+		A30000000000000000000042 /* cute_doll_v02.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = cute_doll_v02.usdz; sourceTree = "<group>"; };
+		A30000000000000000000043 /* cute_doll_v03.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = cute_doll_v03.usdz; sourceTree = "<group>"; };
+		A30000000000000000000044 /* cute_doll_v04.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = cute_doll_v04.usdz; sourceTree = "<group>"; };
+		A30000000000000000000045 /* cute_doll_v05.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = cute_doll_v05.usdz; sourceTree = "<group>"; };
+		A30000000000000000000046 /* cute_doll_v06.usdz */ = {isa = PBXFileReference; lastKnownFileType = file.usdz; path = cute_doll_v06.usdz; sourceTree = "<group>"; };
 		C5360E76BAF208A688C28AEA /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		FD87CED974EC561124854D09 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -194,6 +206,12 @@
 				A30000000000000000000019 /* CharacterReaderViewController.swift */,
 				A3000000000000000000001A /* CharacterReaderBridge.swift */,
 				A30000000000000000000017 /* scan_any_page_character.usdz */,
+				A30000000000000000000041 /* cute_doll_v01.usdz */,
+				A30000000000000000000042 /* cute_doll_v02.usdz */,
+				A30000000000000000000043 /* cute_doll_v03.usdz */,
+				A30000000000000000000044 /* cute_doll_v04.usdz */,
+				A30000000000000000000045 /* cute_doll_v05.usdz */,
+				A30000000000000000000046 /* cute_doll_v06.usdz */,
 				A30000000000000000000018 /* ASSET_LICENSE.md */,
 			);
 			path = CharacterReader;
@@ -309,6 +327,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				A30000000000000000000007 /* scan_any_page_character.usdz in Resources */,
+				A30000000000000000000031 /* cute_doll_v01.usdz in Resources */,
+				A30000000000000000000032 /* cute_doll_v02.usdz in Resources */,
+				A30000000000000000000033 /* cute_doll_v03.usdz in Resources */,
+				A30000000000000000000034 /* cute_doll_v04.usdz in Resources */,
+				A30000000000000000000035 /* cute_doll_v05.usdz in Resources */,
+				A30000000000000000000036 /* cute_doll_v06.usdz in Resources */,
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
