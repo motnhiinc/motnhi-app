@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="en" data-mode="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mọt Nhí · Storybook AR — App Store screenshots</title>
+<style>
+/* ==========================================================================
+   App Store screenshot mockups.
+
+   Preview  : open this file in a browser — five panels, scaled down.
+   Export   : tools/export-appstore-shots.sh  →  build/appstore/screenshot-N.png
+              (each panel is 430x932 CSS px, exported at 3x = 1290x2796)
+
+   The phone screens below are drawn from app-screens-wireframes.html, which is
+   itself reconstructed from the widget tree. Tokens mirror StitchTokens in
+   lib/core/theme/app_theme.dart.
+   ========================================================================== */
+
+/* ---------- app fonts, loaded from the repo so export needs no network ---------- */
+@font-face{font-family:"Nunito Sans";src:url("assets/fonts/NunitoSans-Regular.ttf") format("truetype");font-weight:400;font-display:block}
+@font-face{font-family:"Nunito Sans";src:url("assets/fonts/NunitoSans-Bold.ttf") format("truetype");font-weight:700;font-display:block}
+@font-face{font-family:"Nunito Sans";src:url("assets/fonts/NunitoSans-ExtraBold.ttf") format("truetype");font-weight:800;font-display:block}
+@font-face{font-family:"Source Serif 4";src:url("assets/fonts/SourceSerif4-Regular.ttf") format("truetype");font-weight:400;font-display:block}
+@font-face{font-family:"Source Serif 4";src:url("assets/fonts/SourceSerif4-SemiBold.ttf") format("truetype");font-weight:600;font-display:block}
+@font-face{font-family:"Source Serif 4";src:url("assets/fonts/SourceSerif4-Bold.ttf") format("truetype");font-weight:700;font-display:block}
+
+/* ---------- app tokens (Day theme) ---------- */
+:root{
+  --background:#FFF8F5; --canvas:#F2EAE0; --paper:#FFFAF4; --input-fill:#FEF1EC;
+  --ink:#201A18; --ink-muted:#746B66; --line:#DBD0C4;
+  --coral:#DC704B; --coral-pressed:#B95639; --coral-deep:#9B3F1E;
+  --lavender:#63539E; --lavender-c:#BFADFF; --sage:#3B644C; --sage-c:#BFEDCD;
+  --gold:#F2D493; --glass:rgba(255,250,244,.95); --shadow:rgba(76,57,43,.15);
+  --on-lav-c:#FFFFFF; --err:#BA1A1A;
+
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"Nunito Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+
+  /* ---------- panel geometry ----------
+     430x932 = iPhone 15 Pro Max points. Exported at 3x -> 1290x2796.
+     For the 1320x2868 slot instead, set --pw:440 and --ph:956. */
+  --pw:430px; --ph:932px;
+  --prev:.42;               /* preview scale on screen; export forces 1 */
+
+  /* ---------- marketing background ---------- */
+  --mk-deep:#1C1733;
+  --mk-mid:#2E2757;
+  --mk-lift:#453A7B;
+  --mk-cream:#FFF1DF;
+  --mk-dim:#BDB2DC;
+  --mk-gold:#F2D493;
+  --mk-coral:#E38A6A;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#0F0E14; color:#E9E7F0;
+  font-family:var(--sans); -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- document chrome (preview only) ---------- */
+.chrome{padding:30px 34px 6px;border-bottom:1px solid #2B2937}
+.chrome h1{font-family:var(--serif);font-weight:600;font-size:20px;margin:0 0 4px}
+.chrome p{margin:4px 0;font-size:13px;color:#9B96AB;max-width:760px;line-height:1.6}
+.chrome code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#BFADFF}
+.seg{display:inline-flex;border:1px solid #33313D;border-radius:999px;padding:3px;background:#201F27;margin-top:12px}
+.seg button{font:inherit;font-weight:800;font-size:12px;color:#9B96AB;background:none;border:0;border-radius:999px;padding:6px 16px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:#DC704B;color:#fff}
+
+.stage{display:flex;flex-wrap:wrap;gap:30px;padding:30px 34px 80px;align-items:flex-start}
+.shot{width:calc(var(--pw) * var(--prev))}
+.shot .panel{transform:scale(var(--prev));transform-origin:top left}
+.shot .box{width:calc(var(--pw) * var(--prev));height:calc(var(--ph) * var(--prev));overflow:hidden}
+.shot .cap{margin-top:9px;font-size:11.5px;color:#9B96AB;line-height:1.45}
+.shot .cap b{display:block;color:#E9E7F0;font-size:12.5px;font-weight:800}
+
+/* ---------- the panel ---------- */
+.panel{
+  width:var(--pw);height:var(--ph);position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;
+  padding:64px 30px 0;
+  background:
+    radial-gradient(120% 62% at 50% 0%, var(--mk-lift) 0%, transparent 62%),
+    linear-gradient(178deg, var(--mk-mid) 0%, var(--mk-deep) 100%);
+}
+/* soft light blooms behind the device */
+.panel::before{
+  content:"";position:absolute;left:-18%;top:34%;width:78%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle, rgba(226,138,106,.20) 0%, transparent 68%);
+}
+.panel::after{
+  content:"";position:absolute;right:-22%;top:12%;width:80%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle, rgba(191,173,255,.18) 0%, transparent 66%);
+}
+.doodles{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+/* ---------- headline ---------- */
+.head{
+  position:relative;z-index:2;text-align:center;width:100%;max-width:372px;
+  min-height:152px;   /* fixed so headline length never shifts the device */
+}
+.head h2{
+  font-family:var(--serif);font-weight:600;font-size:40px;line-height:1.14;
+  letter-spacing:-.5px;color:var(--mk-cream);margin:0;
+  text-wrap:balance;
+}
+.head h2 em{font-style:normal;color:var(--mk-gold)}
+
+/* ---------- EN / VI copy switch ----------
+   Chrome strings are the real values from lib/l10n/app_*.arb.
+   Story content (titles, page text, question prompts) stays English in both
+   sets: every bundled story is language_code "en" — there is no VI catalogue
+   yet, so translating it here would advertise content the app cannot show. */
+.vi{display:none}
+[data-lang="vi"] .en{display:none}
+[data-lang="vi"] .vi{display:inline}
+.head p{
+  margin:14px 0 0;font-size:16px;line-height:1.45;font-weight:700;
+  color:var(--mk-dim);text-wrap:balance;
+}
+
+/* ---------- device ---------- */
+.device{
+  position:relative;z-index:2;margin-top:18px;
+  transform:scale(.85);transform-origin:top center;
+}
+.device.tilt{transform:scale(.83) perspective(1400px) rotateY(-11deg) rotateX(3deg) rotate(-2deg)}
+.bezel{
+  width:399px;height:836px;border-radius:60px;padding:12px;
+  background:linear-gradient(155deg,#4A4757 0%,#16151B 26%,#0C0B10 62%,#3A3745 100%);
+  box-shadow:
+    0 2px 0 rgba(255,255,255,.10) inset,
+    0 40px 70px rgba(0,0,0,.55),
+    0 12px 26px rgba(0,0,0,.40);
+}
+.screen{
+  position:relative;width:375px;height:812px;border-radius:48px;overflow:hidden;
+  background:var(--background);color:var(--ink);
+  display:flex;flex-direction:column;
+}
+/* dynamic island + status bar */
+.island{
+  position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:20;
+  width:122px;height:35px;border-radius:999px;background:#08070B;
+}
+.sysbar{
+  flex:0 0 auto;height:56px;display:flex;align-items:center;justify-content:space-between;
+  padding:14px 30px 0;font-size:14px;font-weight:800;color:var(--ink);letter-spacing:.2px;
+}
+.sysbar .icons{display:flex;align-items:center;gap:6px}
+.homebar{
+  position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:20;
+  width:140px;height:5px;border-radius:99px;background:var(--ink);opacity:.30;
+}
+
+/* ==========================================================================
+   In-frame component kit — mirrored from app-screens-wireframes.html,
+   which mirrors lib/shared/widgets/storybook/*
+   ========================================================================== */
+.scrollarea{flex:1;min-height:0;overflow:hidden}
+.pad{padding:20px 24px 24px}
+.pad-t12{padding-top:12px}
+.body{font-size:14px;line-height:1.55}
+.small{font-size:12.5px;line-height:1.45;color:var(--ink-muted)}
+.muted{color:var(--ink-muted)}
+.center{text-align:center}
+.row{display:flex;align-items:center;gap:12px}
+.row.between{justify-content:space-between}
+.row.top{align-items:flex-start}
+.col{display:flex;flex-direction:column}
+.mt4{margin-top:4px}.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}
+.mt12{margin-top:12px}.mt14{margin-top:14px}.mt16{margin-top:16px}.mt18{margin-top:18px}
+.mt22{margin-top:22px}.mt26{margin-top:26px}.mt28{margin-top:28px}
+
+.h-display{font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.2;letter-spacing:-.2px}
+.h-26{font-family:var(--serif);font-weight:600;font-size:26px;line-height:1.2}
+.title-m{font-family:var(--serif);font-weight:600;font-size:17px;line-height:1.3}
+.title-s{font-weight:700;font-size:14px;line-height:1.35}
+.title-l{font-family:var(--serif);font-weight:600;font-size:22px;line-height:1.25}
+.label-m{font-weight:700;font-size:12px}
+.eyebrow{font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--coral-deep)}
+.eyebrow.ink{color:var(--ink)}
+
+.card{background:var(--paper);border-radius:22px;padding:18px;box-shadow:0 6px 18px var(--shadow)}
+.card.tight{padding:15px 16px}
+.card.pad16{padding:16px}
+
+.pill{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  height:52px;border-radius:999px;font-weight:800;font-size:14px;
+  background:var(--coral);color:#fff;box-shadow:0 4px 0 var(--coral-pressed);
+}
+.pill.h44{height:44px}.pill.h46{height:46px}
+.pill.sec{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.pill.off{opacity:.45;box-shadow:none}
+.pill .i{font-size:16px;line-height:1}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips.nowrap{flex-wrap:nowrap;overflow:hidden}
+.chip{
+  height:30px;display:inline-flex;align-items:center;padding:0 13px;border-radius:999px;
+  font-size:11.5px;font-weight:700;color:var(--ink-muted);border:1px solid var(--line);white-space:nowrap;
+}
+.chip.on{background:var(--lavender-c);color:var(--on-lav-c);border-color:transparent}
+.chip.gold{background:color-mix(in srgb,var(--gold) 35%,transparent);border-color:transparent;color:var(--ink-muted)}
+
+.rnd{
+  width:38px;height:38px;flex:0 0 38px;border-radius:999px;background:var(--paper);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:18px;color:var(--ink);
+}
+.rnd.lav{color:var(--lavender)}
+.rnd.big{width:44px;height:44px;flex-basis:44px;font-size:20px}
+.bigplay{
+  width:72px;height:72px;border-radius:999px;background:var(--coral);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:38px;
+  box-shadow:0 2px 6px var(--shadow);
+}
+
+.cover{
+  border-radius:42px 42px 22px 22px;overflow:hidden;position:relative;
+  display:flex;align-items:center;justify-content:center;font-size:56px;
+}
+.cover.sm{border-radius:26px 26px 12px 12px;font-size:26px}
+.cover.xs{border-radius:20px 20px 9px 9px;font-size:20px}
+.g3{background:linear-gradient(135deg,#CDBDF2,#8B6FD6)}
+.g4{background:linear-gradient(135deg,#FFB3C1,#E26D8A)}
+.cover .tag{
+  position:absolute;top:8px;right:8px;background:color-mix(in srgb,var(--paper) 92%,transparent);
+  color:var(--ink);border-radius:999px;padding:3px 8px;font-size:9.5px;font-weight:800;
+}
+.cover .tag.left{left:8px;right:auto;background:var(--lavender-c);color:#2C2452}
+.cover .dl{
+  position:absolute;bottom:8px;right:8px;width:26px;height:26px;border-radius:999px;
+  background:var(--paper);color:var(--ink);display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.shelf{display:grid;grid-template-columns:1fr 1fr;gap:18px 14px}
+.shelf .item .t{font-size:14px;font-weight:700;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hstrip{display:flex;gap:14px;overflow:hidden}
+
+.navbar{
+  position:absolute;left:16px;right:16px;bottom:26px;
+  background:var(--glass);border:1px solid var(--line);border-radius:999px;
+  box-shadow:0 8px 24px var(--shadow);
+  display:flex;justify-content:space-around;padding:8px 10px;
+}
+.navbar .it{display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ink-muted);padding:0 12px}
+.navbar .it.on{color:var(--coral)}
+.navbar .it .ic{font-size:21px;line-height:1}
+.navbar .it .lb{font-size:10px;font-weight:800}
+
+.beads{display:flex;gap:6px;justify-content:center}
+.beads i{width:8px;height:8px;border-radius:999px;background:var(--line);display:block}
+.beads i.on{background:var(--coral)}
+
+.arpill{
+  display:inline-flex;align-items:center;gap:6px;align-self:center;
+  background:color-mix(in srgb,var(--gold) 32%,transparent);
+  border-radius:999px;padding:7px 14px;font-size:11.5px;font-weight:800;color:var(--ink);
+}
+.illus{
+  aspect-ratio:4/3;border-radius:22px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--lavender-c) 45%,transparent),var(--paper));
+  display:flex;align-items:center;justify-content:center;font-size:44px;color:var(--lavender);
+}
+.illus.art{padding:0;overflow:hidden;background:none}
+.illus svg{width:100%;height:100%;display:block}
+.pagescroll{flex:1;min-height:0;overflow:hidden;padding:20px}
+.pagetext{font-family:var(--serif);font-weight:600;font-size:20px;line-height:1.4;text-align:center}
+.pagetext .hl{color:var(--coral);font-weight:700;background:color-mix(in srgb,var(--coral) 12%,transparent)}
+.circ-icon{width:42px;height:42px;flex:0 0 42px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.circ-icon.lav{background:color-mix(in srgb,var(--lavender) 16%,transparent);color:var(--lavender)}
+.stat{flex:1;background:var(--paper);border-radius:22px;box-shadow:0 6px 18px var(--shadow);padding:14px 8px;text-align:center}
+.stat .v{font-family:var(--serif);font-weight:600;font-size:20px;color:var(--coral-deep)}
+.stat .l{font-size:11px;color:var(--ink-muted);line-height:1.3;margin-top:2px}
+.listrow{display:flex;align-items:center;gap:12px;padding:15px 16px;background:var(--paper);border-radius:22px;box-shadow:0 6px 18px var(--shadow)}
+
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.42);z-index:5}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--paper);
+  border-radius:28px 28px 0 0;padding:8px 20px 34px;box-shadow:0 -8px 30px var(--shadow);
+}
+.sheet .handle{width:32px;height:4px;border-radius:99px;background:var(--line);margin:0 auto 10px}
+.qgrid{display:grid;gap:12px}
+.qgrid.c3{grid-template-columns:1fr 1fr 1fr}
+.qtile{
+  aspect-ratio:1;border-radius:20px;border:2px solid var(--line);
+  background:color-mix(in srgb,var(--ink) 5%,var(--paper));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+}
+.qtile .em{font-size:40px;line-height:1}
+.qtile .lb{font-family:var(--serif);font-weight:600;font-size:16px}
+.qtile.ok{border-color:#4CAF50;background:rgba(76,175,80,.12)}
+.qtile.bad{border-color:var(--err);background:color-mix(in srgb,var(--err) 18%,transparent)}
+.fbtn{font-size:13px;font-weight:800;color:#fff;background:var(--coral);border-radius:999px;padding:11px 18px}
+
+/* ==========================================================================
+   Export mode — one panel, 1:1, no document chrome.
+   ========================================================================== */
+body.export{background:#000;--prev:1}
+body.export .chrome{display:none}
+body.export .stage{display:block;padding:0;gap:0}
+body.export .shot{display:none;width:var(--pw)}
+body.export .shot .box{width:var(--pw);height:var(--ph)}
+body.export .shot .panel{transform:none}
+body.export .shot .cap{display:none}
+body.export[data-only="1"] .shot[data-n="1"],
+body.export[data-only="2"] .shot[data-n="2"],
+body.export[data-only="3"] .shot[data-n="3"],
+body.export[data-only="4"] .shot[data-n="4"],
+body.export[data-only="5"] .shot[data-n="5"]{display:block}
+</style>
+</head>
+<body>
+
+<!-- doodle tile, referenced by every panel -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="doodleTile" width="150" height="150" patternUnits="userSpaceOnUse">
+      <g fill="none" stroke="#FFF1DF" stroke-opacity=".095" stroke-width="2.2"
+         stroke-linejoin="round" stroke-linecap="round">
+        <!-- five-point star -->
+        <path d="M34 20 l6.4 13 14.4 2.1 -10.4 10.2 2.4 14.3 -12.8-6.8 -12.8 6.8 2.4-14.3 -10.4-10.2 14.4-2.1z"/>
+        <!-- crescent moon -->
+        <path d="M126 26 a16 16 0 1 0 15 20 a12.5 12.5 0 1 1 -15-20z"/>
+        <!-- open book -->
+        <path d="M22 128 c11-8 24-8 33-2 v-26 c-9-6-22-6-33 2z"/>
+        <path d="M88 128 c-11-8-24-8-33-2 v-26 c9-6 22-6 33 2z"/>
+        <!-- four-point sparkle -->
+        <path d="M130 96 c0 10 4 14 14 14 c-10 0-14 4-14 14 c0-10-4-14-14-14 c10 0 14-4 14-14z"/>
+      </g>
+    </pattern>
+  </defs>
+
+  <!-- Page art for "Bunny and the Moon", page 3. The app renders
+       page.pageImageAssetId here; no such asset is bundled yet, so this
+       stands in for the art that must ship before submission. -->
+  <symbol id="pageArt" viewBox="0 0 400 300">
+    <defs>
+      <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#7C69CE"/>
+        <stop offset=".58" stop-color="#C3B4EE"/>
+        <stop offset="1" stop-color="#FFF6EC"/>
+      </linearGradient>
+      <radialGradient id="moonGlow">
+        <stop offset="0" stop-color="#F2D493" stop-opacity=".50"/>
+        <stop offset="1" stop-color="#F2D493" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+
+    <rect width="400" height="300" fill="url(#skyG)"/>
+
+    <!-- moon -->
+    <circle cx="320" cy="74" r="76" fill="url(#moonGlow)"/>
+    <circle cx="320" cy="74" r="31" fill="#F2D493"/>
+    <circle cx="311" cy="66" r="5" fill="#E3C079" opacity=".55"/>
+    <circle cx="329" cy="84" r="7" fill="#E3C079" opacity=".45"/>
+
+    <!-- stars -->
+    <g fill="#FFF6EC">
+      <path d="M212 44c0 8 3.5 11.5 11.5 11.5C215.5 55.5 212 59 212 67c0-8-3.5-11.5-11.5-11.5C208.5 55.5 212 52 212 44z" opacity=".9"/>
+      <path d="M258 116c0 5 2 7 7 7-5 0-7 2-7 7 0-5-2-7-7-7 5 0 7-2 7-7z" opacity=".7"/>
+      <circle cx="160" cy="36" r="3" opacity=".8"/>
+      <circle cx="366" cy="146" r="2.6" opacity=".6"/>
+      <circle cx="122" cy="62" r="2.2" opacity=".55"/>
+    </g>
+
+    <!-- ground -->
+    <path d="M0 300V258Q92 236 190 250 292 266 400 246V300Z" fill="#3B644C"/>
+    <path d="M0 300V272Q110 258 208 268 300 278 400 266V300Z" fill="#2E5240"/>
+
+    <!-- tree -->
+    <rect x="56" y="146" width="21" height="118" rx="9" fill="#6B4F3D"/>
+    <path d="M74 174q24 4 44-8" stroke="#6B4F3D" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <circle cx="48" cy="130" r="35" fill="#2E5240"/>
+    <circle cx="88" cy="122" r="30" fill="#3B644C"/>
+    <circle cx="62" cy="98" r="29" fill="#356048"/>
+
+    <!-- owl on the branch -->
+    <g>
+      <ellipse cx="126" cy="144" rx="21" ry="25" fill="#5B4B94"/>
+      <path d="M110 125l5-13 6 11z" fill="#5B4B94"/>
+      <path d="M142 125l-5-13-6 11z" fill="#5B4B94"/>
+      <ellipse cx="126" cy="157" rx="14" ry="16" fill="#7A68B8"/>
+      <circle cx="118" cy="139" r="9.5" fill="#FFF6E8"/>
+      <circle cx="134" cy="139" r="9.5" fill="#FFF6E8"/>
+      <circle cx="119" cy="139" r="4.6" fill="#201A18"/>
+      <circle cx="133" cy="139" r="4.6" fill="#201A18"/>
+      <path d="M126 148l-4.5 4.5 4.5 4.5 4.5-4.5z" fill="#F2D493"/>
+      <path d="M106 146q-4 15 7 23" stroke="#4B3D7E" stroke-width="5" fill="none" stroke-linecap="round"/>
+    </g>
+
+    <!-- bunny, looking up -->
+    <g fill="#FFF3E4">
+      <circle cx="270" cy="248" r="7"/>
+      <ellipse cx="294" cy="254" rx="24" ry="18"/>
+      <ellipse cx="313" cy="212" rx="4.6" ry="14" transform="rotate(-9 313 212)"/>
+      <ellipse cx="324" cy="214" rx="4.6" ry="14" transform="rotate(9 324 214)"/>
+      <circle cx="317" cy="233" r="13.5"/>
+    </g>
+    <circle cx="322" cy="231" r="2.5" fill="#201A18"/>
+    <path d="M317 238q4 3 8 0" stroke="#201A18" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".6"/>
+  </symbol>
+</svg>
+
+<div class="chrome">
+  <h1>Mọt Nhí · Storybook AR — App Store screenshots</h1>
+  <p>Five marketing panels, each <code>430&times;932</code> CSS px. Run <code>tools/export-appstore-shots.sh</code> to write <code>build/appstore/screenshot-1…5.png</code> at 3&times; (<code>1290&times;2796</code>, the 6.7&Prime;/6.9&Prime; iPhone slot).</p>
+  <p>Phone screens are drawn from <code>app-screens-wireframes.html</code>; colour and type come from <code>StitchTokens</code>. UI copy is the real <code>app_en.arb</code> / <code>app_vi.arb</code> values. Headlines are marketing copy — edit them in the <code>.head</code> blocks.</p>
+  <p><b>Story content stays English in both sets.</b> Every bundled story is <code>language_code: "en"</code>; there is no Vietnamese catalogue yet, so translating titles and page text here would advertise content the app cannot show.</p>
+  <div class="seg" role="group" aria-label="Language">
+    <button class="langbtn" data-lang="en" aria-pressed="true">EN</button>
+    <button class="langbtn" data-lang="vi" aria-pressed="false">VI</button>
+  </div>
+</div>
+
+<div class="stage">
+
+<!-- ====================================================================== -->
+<!-- 1 · Child home -->
+<div class="shot" data-n="1">
+  <div class="box"><div class="panel">
+    <svg class="doodles"><rect width="100%" height="100%" fill="url(#doodleTile)"/></svg>
+
+    <div class="head">
+      <h2><span class="en">A shelf full of <em>bedtime</em> stories</span><span class="vi">Cả kệ truyện cho <em>giờ đi ngủ</em></span></h2>
+      <p><span class="en">Warm narration, written for ages 3–6.</span><span class="vi">Giọng đọc ấm áp, dành cho bé 3–6 tuổi.</span></p>
+    </div>
+
+    <div class="device"><div class="bezel"><div class="screen">
+      <div class="island"></div>
+      <div class="sysbar"><span>9:41</span><span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 4.2a10 10 0 0 1 14 0"/><path d="M3.6 7a6.4 6.4 0 0 1 8.8 0"/></g><circle cx="8" cy="10" r="1.3" fill="currentColor"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect x="2.3" y="2.3" width="17.6" height="7.4" rx="2" fill="currentColor"/><path d="M23.2 4.1v3.8a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".45"/></svg>
+      </span></div>
+
+      <div class="scrollarea">
+        <div class="pad" style="padding-bottom:110px">
+          <div class="row between top">
+            <div class="col">
+              <div class="eyebrow"><span class="en">Good evening</span><span class="vi">Chào buổi tối</span></div>
+              <div class="h-26 mt4"><span class="en">Little Star</span><span class="vi">Ngôi Sao Nhỏ</span></div>
+            </div>
+            <div class="row" style="height:40px;padding:0 14px;border-radius:999px;background:var(--paper);border:1px solid var(--line);box-shadow:0 6px 18px var(--shadow);gap:6px">
+              <span style="font-size:14px;color:var(--coral-deep)">🛡</span>
+              <span style="font-size:11px;font-weight:800"><span class="en">Parent area</span><span class="vi">Khu vực phụ huynh</span></span>
+            </div>
+          </div>
+
+          <div class="card pad16 mt28">
+            <div class="eyebrow ink"><span class="en">Jump back in</span><span class="vi">Đọc tiếp</span></div>
+            <div class="row top mt10" style="gap:12px">
+              <div class="cover g3 sm" style="width:62px;height:82px;flex:0 0 62px">🐰</div>
+              <div class="col" style="flex:1;min-width:0">
+                <div class="title-m">Bunny and the Moon</div>
+                <div class="small mt4">On a quiet night, Bunny meets a wise Owl who shares a gentle secret about the moon.</div>
+              </div>
+            </div>
+            <div class="pill h44 mt12"><span class="i">▶</span><span class="en">Resume reading</span><span class="vi">Đọc tiếp</span></div>
+          </div>
+
+          <div class="eyebrow ink mt28"><span class="en">For you</span><span class="vi">Dành cho bé</span></div>
+          <div class="chips nowrap mt10">
+            <span class="chip on"><span class="en">All</span><span class="vi">Tất cả</span></span><span class="chip"><span class="en">Animals</span><span class="vi">Động vật</span></span>
+            <span class="chip"><span class="en">Bedtime</span><span class="vi">Giấc ngủ</span></span><span class="chip"><span class="en">Friendship</span><span class="vi">Bạn bè</span></span>
+          </div>
+
+          <div class="row between mt22">
+            <span class="eyebrow ink"><span class="en">Pick a story</span><span class="vi">Chọn truyện</span></span>
+            <span style="font-size:12px;font-weight:800;color:var(--coral)"><span class="en">See all</span><span class="vi">Xem tất cả</span></span>
+          </div>
+
+          <div class="shelf mt14">
+            <div class="item">
+              <div class="cover g3" style="height:186px">🐰<span class="tag"><span class="en">Ages 3–5 · 5 min</span><span class="vi">3–5 tuổi · 5 phút</span></span><span class="dl">⤓</span></div>
+              <div class="t">Bunny and the Moon</div>
+            </div>
+            <div class="item">
+              <div class="cover g4" style="height:186px">🦊<span class="tag"><span class="en">Ages 5–6 · 4 min</span><span class="vi">5–6 tuổi · 4 phút</span></span></div>
+              <div class="t">The Brave Little Fox</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="navbar">
+        <div class="it on"><span class="ic">📖</span><span class="lb"><span class="en">Stories</span><span class="vi">Truyện</span></span></div>
+        <div class="it"><span class="ic">📚</span><span class="lb"><span class="en">My books</span><span class="vi">Sách của tôi</span></span></div>
+        <div class="it"><span class="ic">🌙</span><span class="lb"><span class="en">Moon mode</span><span class="vi">Mặt trăng</span></span></div>
+      </div>
+      <div class="homebar"></div>
+    </div></div></div>
+  </div></div>
+  <div class="cap"><b>1 · Child home</b><code>/home</code> — the shelf</div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- 2 · Story detail -->
+<div class="shot" data-n="2">
+  <div class="box"><div class="panel">
+    <svg class="doodles"><rect width="100%" height="100%" fill="url(#doodleTile)"/></svg>
+
+    <div class="head">
+      <h2><span class="en">Every story hides a moment of <em>magic</em></span><span class="vi">Mỗi truyện đều có một khoảnh khắc <em>diệu kỳ</em></span></h2>
+      <p><span class="en">Look for the AR page while you read.</span><span class="vi">Tìm trang AR trong lúc bé đọc.</span></p>
+    </div>
+
+    <div class="device"><div class="bezel"><div class="screen">
+      <div class="island"></div>
+      <div class="sysbar"><span>9:41</span><span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 4.2a10 10 0 0 1 14 0"/><path d="M3.6 7a6.4 6.4 0 0 1 8.8 0"/></g><circle cx="8" cy="10" r="1.3" fill="currentColor"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect x="2.3" y="2.3" width="17.6" height="7.4" rx="2" fill="currentColor"/><path d="M23.2 4.1v3.8a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".45"/></svg>
+      </span></div>
+
+      <div class="scrollarea">
+        <div class="pad pad-t12" style="padding-bottom:40px">
+          <div class="rnd">←</div>
+          <div class="cover g3 mt8" style="height:250px">🌙</div>
+
+          <div class="chips mt18">
+            <span class="chip on"><span class="en">Ages 3–5</span><span class="vi">3–5 tuổi</span></span>
+            <span class="chip"><span class="en">5 minutes</span><span class="vi">5 phút</span></span>
+            <span class="chip gold"><span class="en">Bedtime</span><span class="vi">Giấc ngủ</span></span>
+          </div>
+
+          <div class="h-display mt14">Bunny and the Moon</div>
+          <div class="body muted mt6">On a quiet night, Bunny meets a wise Owl who shares a gentle secret about the moon.</div>
+
+          <div class="card mt18">
+            <div class="row top">
+              <div class="circ-icon lav">◈</div>
+              <div class="col" style="flex:1">
+                <div class="title-s"><span class="en">A page comes alive</span><span class="vi">Trang truyện sống dậy</span></div>
+                <div class="small mt4"><span class="en">Look for the AR moment while you read to see the magic unfold in your room.</span><span class="vi">Tìm khoảnh khắc AR khi đọc để thấy phép thuật xuất hiện ngay trong phòng của bé.</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- "Download for later" is intentionally omitted: it is rendered but
+               permanently disabled in the app, so it must not appear in store art. -->
+          <div class="pill mt26"><span class="i">📖</span><span class="en">Read story</span><span class="vi">Đọc truyện</span></div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div></div>
+  </div></div>
+  <div class="cap"><b>2 · Story detail</b><code>/story/:id/detail</code></div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- 3 · Story player -->
+<div class="shot" data-n="3">
+  <div class="box"><div class="panel">
+    <svg class="doodles"><rect width="100%" height="100%" fill="url(#doodleTile)"/></svg>
+
+    <div class="head">
+      <h2><span class="en">Read along, <em>word by word</em></span><span class="vi">Đọc theo, <em>từng chữ một</em></span></h2>
+      <p><span class="en">Tap any line to hear it again.</span><span class="vi">Chạm vào câu bất kỳ để nghe lại.</span></p>
+    </div>
+
+    <div class="device"><div class="bezel"><div class="screen">
+      <div class="island"></div>
+      <div class="sysbar"><span>9:41</span><span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 4.2a10 10 0 0 1 14 0"/><path d="M3.6 7a6.4 6.4 0 0 1 8.8 0"/></g><circle cx="8" cy="10" r="1.3" fill="currentColor"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect x="2.3" y="2.3" width="17.6" height="7.4" rx="2" fill="currentColor"/><path d="M23.2 4.1v3.8a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".45"/></svg>
+      </span></div>
+
+      <div style="padding:6px 16px 0;flex:0 0 auto">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px"><span class="en">Page 3 of 5</span><span class="vi">Trang 3 / 5</span></div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+      </div>
+
+      <div class="pagescroll">
+        <div class="illus art"><svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice"><use href="#pageArt"/></svg></div>
+        <div style="display:flex;justify-content:center;margin-top:14px">
+          <span class="arpill">✦ <span class="en">This page has an AR surprise</span><span class="vi">Trang này có khoảnh khắc AR</span></span>
+        </div>
+        <div class="pagetext mt18">
+          <span class="hl">High in a tree, a wise old Owl blinked her big eyes.</span>
+          Look up, Bunny. The moon is always there.
+        </div>
+      </div>
+
+      <div style="flex:0 0 auto;padding:6px 16px 34px">
+        <div class="beads"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+        <div class="row mt14" style="justify-content:space-evenly">
+          <div class="rnd big">↺</div>
+          <div class="rnd big">‹</div>
+          <div class="bigplay">▮▮</div>
+          <div class="rnd big">›</div>
+          <div class="rnd big">◈</div>
+        </div>
+        <div class="pill sec h46 mt12"><span class="i">✨</span><span class="en">Magic Spark</span><span class="vi">Tia phép thuật</span></div>
+      </div>
+      <div class="homebar"></div>
+    </div></div></div>
+  </div></div>
+  <div class="cap"><b>3 · Story player</b><code>/story/:id/read</code></div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- 4 · Question sheet -->
+<div class="shot" data-n="4">
+  <div class="box"><div class="panel">
+    <svg class="doodles"><rect width="100%" height="100%" fill="url(#doodleTile)"/></svg>
+
+    <div class="head">
+      <h2><span class="en">A gentle question after every <em>page</em></span><span class="vi">Câu hỏi <em>nhẹ nhàng</em> sau mỗi trang</span></h2>
+      <p><span class="en">Tap a picture — no typing, no scolding.</span><span class="vi">Chạm vào hình — không gõ chữ, không la mắng.</span></p>
+    </div>
+
+    <div class="device"><div class="bezel"><div class="screen">
+      <div class="island"></div>
+      <div class="sysbar"><span>9:41</span><span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 4.2a10 10 0 0 1 14 0"/><path d="M3.6 7a6.4 6.4 0 0 1 8.8 0"/></g><circle cx="8" cy="10" r="1.3" fill="currentColor"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect x="2.3" y="2.3" width="17.6" height="7.4" rx="2" fill="currentColor"/><path d="M23.2 4.1v3.8a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".45"/></svg>
+      </span></div>
+
+      <div style="padding:6px 16px 0;opacity:.45">
+        <div class="row">
+          <div class="rnd">←</div>
+          <div class="col center" style="flex:1">
+            <div class="title-m">Bunny and the Moon</div>
+            <div class="small" style="font-size:11px"><span class="en">Page 1 of 5</span><span class="vi">Trang 1 / 5</span></div>
+          </div>
+          <div class="rnd lav">🌙</div>
+        </div>
+        <div style="padding:20px 4px">
+          <div class="illus art"><svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice"><use href="#pageArt"/></svg></div>
+        </div>
+        <div class="pagetext mt18" style="padding:0 6px">
+          One quiet night, Bunny looked up at the sky.
+        </div>
+      </div>
+
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="label-m center muted"><span class="en">Question 1 of 3</span><span class="vi">Câu hỏi 1 / 3</span></div>
+        <div class="title-l center mt12">What did Bunny see in the sky?</div>
+        <div class="qgrid c3 mt18">
+          <div class="qtile ok"><span class="em">🌙</span><span class="lb">Moon</span></div>
+          <div class="qtile"><span class="em">☀️</span><span class="lb">Sun</span></div>
+          <div class="qtile"><span class="em">⚽</span><span class="lb">Ball</span></div>
+        </div>
+        <div class="fbtn mt18" style="display:block;text-align:center"><span class="en">Next</span><span class="vi">Tiếp</span></div>
+      </div>
+      <div class="homebar" style="z-index:21"></div>
+    </div></div></div>
+  </div></div>
+  <div class="cap"><b>4 · Question sheet</b>showPageQuestions — answered</div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- 5 · Parent dashboard -->
+<div class="shot" data-n="5">
+  <div class="box"><div class="panel">
+    <svg class="doodles"><rect width="100%" height="100%" fill="url(#doodleTile)"/></svg>
+
+    <div class="head">
+      <h2><span class="en">Parents see <em>every page</em> read</span><span class="vi">Ba mẹ theo dõi <em>từng trang</em> bé đọc</span></h2>
+      <p><span class="en">Reading time, questions and safety — behind a gate.</span><span class="vi">Thời gian đọc, câu hỏi và cài đặt an toàn.</span></p>
+    </div>
+
+    <div class="device"><div class="bezel"><div class="screen">
+      <div class="island"></div>
+      <div class="sysbar"><span>9:41</span><span class="icons">
+        <svg width="18" height="12" viewBox="0 0 18 12"><g fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+        <svg width="16" height="12" viewBox="0 0 16 12"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M1 4.2a10 10 0 0 1 14 0"/><path d="M3.6 7a6.4 6.4 0 0 1 8.8 0"/></g><circle cx="8" cy="10" r="1.3" fill="currentColor"/></svg>
+        <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.2"/><rect x="2.3" y="2.3" width="17.6" height="7.4" rx="2" fill="currentColor"/><path d="M23.2 4.1v3.8a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".45"/></svg>
+      </span></div>
+
+      <div class="scrollarea">
+        <div class="pad" style="padding-top:10px;padding-bottom:40px">
+          <div class="row">
+            <div class="rnd">←</div>
+            <div class="title-m"><span class="en">Parent Dashboard</span><span class="vi">Bảng điều khiển phụ huynh</span></div>
+          </div>
+
+          <div class="card mt18">
+            <div class="row">
+              <div class="col" style="flex:1">
+                <div class="h-display" style="color:var(--coral-deep)">12</div>
+                <div class="small"><span class="en">Stories completed</span><span class="vi">Truyện hoàn thành</span></div>
+              </div>
+              <div class="col" style="flex:1">
+                <div class="h-display" style="color:var(--coral-deep);font-size:22px"><span class="en">48 min</span><span class="vi">48 phút</span></div>
+                <div class="small"><span class="en">Reading time</span><span class="vi">Thời gian đọc</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mt22" style="gap:12px">
+            <div class="stat"><div class="v">31</div><div class="l"><span class="en">Questions answered</span><span class="vi">Câu hỏi đã trả lời</span></div></div>
+            <div class="stat"><div class="v">84%</div><div class="l"><span class="en">Question accuracy</span><span class="vi">Độ chính xác</span></div></div>
+          </div>
+
+          <div class="card tight mt22">
+            <div class="row">
+              <div class="cover g3 xs" style="width:48px;height:62px;flex:0 0 48px">🐰</div>
+              <div class="col" style="flex:1;min-width:0">
+                <div class="eyebrow ink"><span class="en">Recently read</span><span class="vi">Đọc gần nhất</span></div>
+                <div class="title-s mt4">Bunny and the Moon</div>
+              </div>
+              <div style="width:36px;height:36px;border-radius:999px;background:var(--coral);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px">▶</div>
+            </div>
+          </div>
+
+          <div class="listrow mt14">
+            <span style="color:var(--coral-deep);font-size:19px">🛡</span>
+            <span class="title-s" style="flex:1"><span class="en">Reading and safety settings</span><span class="vi">Cài đặt đọc và an toàn</span></span>
+            <span class="muted">›</span>
+          </div>
+          <div class="listrow mt12">
+            <span style="color:var(--lavender);font-size:19px">📚</span>
+            <span class="title-s" style="flex:1"><span class="en">My books</span><span class="vi">Sách của tôi</span></span>
+            <span class="muted">›</span>
+          </div>
+
+          <div class="title-m mt28"><span class="en">Suggested next</span><span class="vi">Gợi ý tiếp theo</span></div>
+          <div class="hstrip mt10">
+            <div style="width:104px;flex:0 0 104px">
+              <div class="cover g3 xs" style="height:120px">💛</div>
+              <div class="small mt6" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Lola Learns to Share</div>
+            </div>
+            <div style="width:104px;flex:0 0 104px">
+              <div class="cover g3 xs" style="height:120px">🌙</div>
+              <div class="small mt6" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Sleepy Little Star</div>
+            </div>
+            <div style="width:104px;flex:0 0 104px">
+              <div class="cover g4 xs" style="height:120px">🔤</div>
+              <div class="small mt6" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Max and the…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="homebar"></div>
+    </div></div></div>
+  </div></div>
+  <div class="cap"><b>5 · Parent dashboard</b><code>/parent</code> — gated</div>
+</div>
+
+</div>
+
+<script>
+const q = new URLSearchParams(location.search);
+
+// ?lang=vi -> Vietnamese chrome strings (default en).
+const setLang = (l) => {
+  document.documentElement.setAttribute('data-lang', l);
+  document.querySelectorAll('.langbtn').forEach(
+    (b) => b.setAttribute('aria-pressed', String(b.dataset.lang === l)));
+};
+setLang(q.get('lang') === 'vi' ? 'vi' : 'en');
+document.querySelectorAll('.langbtn').forEach(
+  (b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+// ?panel=N -> export mode: that panel only, 1:1, no chrome.
+const n = q.get('panel');
+if (n) {
+  document.body.classList.add('export');
+  document.body.dataset.only = n;
+}
+</script>
+
+</body>
+</html>
