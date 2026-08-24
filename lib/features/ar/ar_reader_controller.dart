@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../data/models/models.dart';
 import '../../data/sources/asset_url_resolver.dart';
 import '../player/narration_audio_fetcher.dart';
+import 'ar_character.dart';
 import 'ar_narration_bundle.dart';
 import 'native_story_reader.dart';
 
@@ -59,6 +60,7 @@ class ArReaderController extends ValueNotifier<ArReaderState> {
   ArReaderController({
     required this.detail,
     required this.reader,
+    required this.character,
     required this.resolver,
     required this.fetcher,
     required this.tts,
@@ -69,6 +71,9 @@ class ArReaderController extends ValueNotifier<ArReaderState> {
 
   final StoryDetail detail;
   final StoryReader reader;
+
+  /// The character the child picked; the native reader loads its model files.
+  final ArCharacter character;
   final AssetUrlResolver resolver;
 
   /// The player's own fetcher instance, never a freshly built one: its cache is
@@ -115,6 +120,7 @@ class ArReaderController extends ValueNotifier<ArReaderState> {
         final result = await reader.open(
           pages: pages,
           initialPageIndex: initialPageIndex,
+          character: character,
         );
         value = value.copyWith(phase: ArReaderPhase.reading, result: result);
         return result;

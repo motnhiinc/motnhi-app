@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/sources/asset_url_resolver.dart';
+import 'package:storybook_ar/features/ar/ar_character.dart';
 import 'package:storybook_ar/features/ar/ar_narration_bundle.dart';
 import 'package:storybook_ar/features/ar/ar_reader_controller.dart';
 import 'package:storybook_ar/features/ar/native_story_reader.dart';
@@ -42,6 +43,7 @@ class _FakeReader implements StoryReader {
   int openCalls = 0;
   List<ArNarrationPage>? openedWith;
   int? openedAtIndex;
+  ArCharacter? openedWithCharacter;
 
   @override
   Future<bool> isSupported() async => supported;
@@ -50,10 +52,12 @@ class _FakeReader implements StoryReader {
   Future<StoryReaderResult> open({
     required List<ArNarrationPage> pages,
     required int initialPageIndex,
+    required ArCharacter character,
   }) async {
     openCalls++;
     openedWith = pages;
     openedAtIndex = initialPageIndex;
+    openedWithCharacter = character;
     if (failureCode != null) throw StoryReaderFailure(failureCode!);
     return const StoryReaderResult(
       terminalCode: 'completed',
@@ -101,10 +105,16 @@ void main() {
     required StoryReader reader,
     bool ttsSucceeds = true,
     int initialPageIndex = 0,
+    ArCharacter character = const ArCharacter(
+      id: 'fox_default',
+      displayName: 'Fox',
+      assetBaseName: 'scan_any_page_character',
+    ),
   }) =>
       ArReaderController(
         detail: _detail(),
         reader: reader,
+        character: character,
         resolver: _FakeResolver(),
         fetcher: null,
         tts: _FakeTts(succeeds: ttsSucceeds),
@@ -193,6 +203,19 @@ void main() {
 
     expect(reader.openedAtIndex, 1);
     expect(reader.openedWith?.map((p) => p.pageId), ['p1', 'p2']);
+  });
+
+  test('passes the selected character through to the reader', () async {
+    final reader = _FakeReader();
+    const doll = ArCharacter(
+      id: 'cute_doll_v02',
+      displayName: 'Doll 2',
+      assetBaseName: 'cute_doll_v02',
+    );
+
+    await build(reader: reader, character: doll).start();
+
+    expect(reader.openedWithCharacter, same(doll));
   });
 
   test('a second start while busy is a no-op', () async {

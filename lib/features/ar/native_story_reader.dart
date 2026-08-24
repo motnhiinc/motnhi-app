@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import 'ar_character.dart';
 import 'ar_narration_bundle.dart';
 
 /// How an AR reading ended, and how far it got.
@@ -38,9 +39,14 @@ abstract interface class StoryReader {
   /// unsupported device never shows the AR button at all.
   Future<bool> isSupported();
 
+  /// Opens the native AR reader on [pages], starting at [initialPageIndex].
+  /// [character] is the doll the child picked: its [ArCharacter.assetBaseName]
+  /// names the bundled `.glb`/`.usdz` model the native side loads, and
+  /// [ArCharacter.id] travels along so native logs can attribute a session.
   Future<StoryReaderResult> open({
     required List<ArNarrationPage> pages,
     required int initialPageIndex,
+    required ArCharacter character,
   });
 }
 
@@ -69,6 +75,7 @@ final class NativeStoryReader implements StoryReader {
   Future<StoryReaderResult> open({
     required List<ArNarrationPage> pages,
     required int initialPageIndex,
+    required ArCharacter character,
   }) async {
     try {
       final raw = await _channel.invokeMapMethod<String, dynamic>(
@@ -76,6 +83,8 @@ final class NativeStoryReader implements StoryReader {
         {
           'pages': [for (final page in pages) page.toJson()],
           'initialPageIndex': initialPageIndex,
+          'characterId': character.id,
+          'modelAssetBaseName': character.assetBaseName,
         },
       );
       return StoryReaderResult(

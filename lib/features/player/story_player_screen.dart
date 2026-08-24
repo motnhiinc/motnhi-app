@@ -9,6 +9,7 @@ import '../../core/router/app_router.dart';
 import '../../data/models/models.dart';
 import '../../shared/widgets/async_views.dart';
 import '../../shared/widgets/big_play_button.dart';
+import '../ar/ar_character.dart';
 import '../ar/ar_preparing_dialog.dart';
 import '../ar/ar_reader_controller.dart';
 import '../ar/native_story_reader.dart';
@@ -182,6 +183,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       final controller = ArReaderController(
         detail: widget.detail,
         reader: ref.read(storyReaderProvider),
+        character: arCharacters.first,
         resolver: ref.read(assetUrlResolverProvider),
         fetcher: _fetcher,
         tts: ref.read(ttsFileSynthesizerProvider),
