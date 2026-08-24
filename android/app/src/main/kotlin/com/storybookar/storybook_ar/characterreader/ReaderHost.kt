@@ -15,8 +15,15 @@ interface ReaderHost {
     /**
      * Starts the reader on a whole story. Serialisation lives in the implementation so the
      * bridge stays free of Android types and reachable from a JVM unit test.
+     *
+     * [modelAssetFileName] must already be a validated `<base>.glb` naming a bundled asset; the
+     * host forwards it verbatim, so validation belongs to the caller (bridge and activity).
      */
-    fun launchStoryReader(pages: List<StoryReaderPage>, initialPageIndex: Int): Boolean
+    fun launchStoryReader(
+        pages: List<StoryReaderPage>,
+        initialPageIndex: Int,
+        modelAssetFileName: String,
+    ): Boolean
 }
 
 class ActivityReaderHost(
@@ -42,6 +49,7 @@ class ActivityReaderHost(
     override fun launchStoryReader(
         pages: List<StoryReaderPage>,
         initialPageIndex: Int,
+        modelAssetFileName: String,
     ): Boolean =
         try {
             val intent = Intent(activity, CharacterReaderActivity::class.java)
@@ -50,6 +58,10 @@ class ActivityReaderHost(
                     StoryReaderPageCodec.encode(pages),
                 )
                 .putExtra(CharacterReaderActivity.EXTRA_INITIAL_PAGE_INDEX, initialPageIndex)
+                .putExtra(
+                    CharacterReaderActivity.EXTRA_MODEL_ASSET_FILE_NAME,
+                    modelAssetFileName,
+                )
             activity.startActivityForResult(intent, readerRequestCode)
             true
         } catch (_: RuntimeException) {

@@ -144,6 +144,11 @@ final class CharacterReaderBridge {
     let arguments = call.arguments as? [String: Any]
     let pages: [StoryReaderPage]
     var initialPageIndex = 0
+    // Only the story-mode request names a variant. The parse happens here rather than inside
+    // the branch because the reader is constructed below it; passing nil for the single-clip
+    // flow keeps that reader on the original bundled character.
+    let baseName = storyMode ? arguments?["modelAssetBaseName"] as? String : nil
+    let safeModelBaseName = Self.safeModelAssetBaseName(baseName)
 
     if storyMode {
       guard
@@ -180,7 +185,8 @@ final class CharacterReaderBridge {
     reader = CharacterReaderViewController(
       pages: pages,
       initialPageIndex: initialPageIndex,
-      storyMode: storyMode
+      storyMode: storyMode,
+      modelAssetBaseName: safeModelBaseName
     ) { [weak self, weak reader] readerResult in
       guard resultGate.claim() else { return }
       let resolve = {
@@ -218,6 +224,17 @@ final class CharacterReaderBridge {
       guard let reader, reader.presentingViewController == nil else { return }
       reader.failPresentation()
     }
+  }
+
+  /// Trust boundary, not styling: method-channel arguments must never become arbitrary
+  /// bundle-resource lookups, so only an allowlisted `[a-z0-9_]` base name reaches
+  /// `Bundle.main.url(forResource:)`. Anything else — a missing key, mixed case, or a
+  /// smuggled path — falls back to the original scan-any-page character.
+  private static func safeModelAssetBaseName(_ value: String?) -> String {
+    guard let value,
+          value.range(of: "^[a-z0-9_]+$", options: .regularExpression) != nil
+    else { return "scan_any_page_character" }
+    return value
   }
 
   private static func payload(

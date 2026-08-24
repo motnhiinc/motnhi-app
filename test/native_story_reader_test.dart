@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:storybook_ar/features/ar/ar_character.dart';
 import 'package:storybook_ar/features/ar/ar_narration_bundle.dart';
 import 'package:storybook_ar/features/ar/native_story_reader.dart';
 
@@ -35,6 +36,18 @@ void main() {
     ),
   ];
 
+  const character = ArCharacter(
+    id: 'cute_doll_v03',
+    displayName: 'Doll 3',
+    assetBaseName: 'cute_doll_v03',
+  );
+
+  const foxCharacter = ArCharacter(
+    id: 'fox_default',
+    displayName: 'Fox',
+    assetBaseName: 'scan_any_page_character',
+  );
+
   group('isSupported', () {
     test('returns the channel answer', () async {
       stub((_) async => true);
@@ -67,11 +80,17 @@ void main() {
             'pagesRead': ['p1', 'p2'],
           });
 
-      await NativeStoryReader().open(pages: pages, initialPageIndex: 1);
+      await NativeStoryReader().open(
+        pages: pages,
+        initialPageIndex: 1,
+        character: character,
+      );
 
       expect(calls.single.method, 'openStoryReader');
       final arguments = calls.single.arguments as Map;
       expect(arguments['initialPageIndex'], 1);
+      expect(arguments['characterId'], 'cute_doll_v03');
+      expect(arguments['modelAssetBaseName'], 'cute_doll_v03');
       expect(arguments['pages'], [
         {
           'pageId': 'p1',
@@ -86,6 +105,21 @@ void main() {
       ]);
     });
 
+    test('sends a different character as its own id and base name pair',
+        () async {
+      stub((_) async => {'terminalCode': 'completed'});
+
+      await NativeStoryReader().open(
+        pages: pages,
+        initialPageIndex: 0,
+        character: foxCharacter,
+      );
+
+      final arguments = calls.single.arguments as Map;
+      expect(arguments['characterId'], 'fox_default');
+      expect(arguments['modelAssetBaseName'], 'scan_any_page_character');
+    });
+
     test('parses a completed result', () async {
       stub((_) async => {
             'terminalCode': 'completed',
@@ -93,8 +127,8 @@ void main() {
             'pagesRead': ['p1', 'p2'],
           });
 
-      final result =
-          await NativeStoryReader().open(pages: pages, initialPageIndex: 0);
+      final result = await NativeStoryReader()
+          .open(pages: pages, initialPageIndex: 0, character: character);
 
       expect(result.terminalCode, 'completed');
       expect(result.completed, isTrue);
@@ -109,8 +143,8 @@ void main() {
             'pagesRead': ['p1'],
           });
 
-      final result =
-          await NativeStoryReader().open(pages: pages, initialPageIndex: 0);
+      final result = await NativeStoryReader()
+          .open(pages: pages, initialPageIndex: 0, character: character);
 
       expect(result.terminalCode, 'cancelled');
       expect(result.completed, isFalse);
@@ -120,8 +154,8 @@ void main() {
     test('tolerates a null lastPageId and a missing pagesRead', () async {
       stub((_) async => {'terminalCode': 'cancelled', 'lastPageId': null});
 
-      final result =
-          await NativeStoryReader().open(pages: pages, initialPageIndex: 0);
+      final result = await NativeStoryReader()
+          .open(pages: pages, initialPageIndex: 0, character: character);
 
       expect(result.lastPageId, isNull);
       expect(result.pagesRead, isEmpty);
@@ -132,7 +166,8 @@ void main() {
       stub((_) async => throw PlatformException(code: 'model_missing'));
 
       expect(
-        () => NativeStoryReader().open(pages: pages, initialPageIndex: 0),
+        () => NativeStoryReader()
+            .open(pages: pages, initialPageIndex: 0, character: character),
         throwsA(isA<StoryReaderFailure>()
             .having((e) => e.code, 'code', 'model_missing')),
       );
@@ -143,7 +178,8 @@ void main() {
       messenger.setMockMethodCallHandler(channel, null);
 
       expect(
-        () => NativeStoryReader().open(pages: pages, initialPageIndex: 0),
+        () => NativeStoryReader()
+            .open(pages: pages, initialPageIndex: 0, character: character),
         throwsA(isA<StoryReaderFailure>()),
       );
     });

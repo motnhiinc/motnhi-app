@@ -59,6 +59,10 @@ final class CharacterReaderViewController: UIViewController {
   /// single-clip scan-any-page flow is simply a one-page, one-clip story.
   private let pages: [StoryReaderPage]
   private let storyMode: Bool
+  /// Base name, without extension, of the bundled `.usdz` character to load. Chosen by the
+  /// player in Flutter and passed through the bridge's `[a-z0-9_]` allowlist, so only a vetted
+  /// bundle resource can be named here; the scan-any-page flow keeps its original default.
+  private let modelAssetBaseName: String
   private var pageIndex: Int
   private var clipIndex = 0
   /// Ordered and de-duplicated, so the player receives pages as the child heard them.
@@ -110,10 +114,12 @@ final class CharacterReaderViewController: UIViewController {
     pages: [StoryReaderPage],
     initialPageIndex: Int,
     storyMode: Bool,
+    modelAssetBaseName: String = "scan_any_page_character",
     onComplete: @escaping (CharacterReaderResult) -> Void
   ) {
     self.pages = pages
     self.storyMode = storyMode
+    self.modelAssetBaseName = modelAssetBaseName
     self.pageIndex = min(max(initialPageIndex, 0), max(pages.count - 1, 0))
     self.onComplete = onComplete
     super.init(nibName: nil, bundle: nil)
@@ -343,7 +349,7 @@ final class CharacterReaderViewController: UIViewController {
       finish(.failure(.audioFailed))
       return
     }
-    guard let modelURL = Bundle.main.url(forResource: "scan_any_page_character", withExtension: "usdz") else {
+    guard let modelURL = Bundle.main.url(forResource: modelAssetBaseName, withExtension: "usdz") else {
       finish(.failure(.modelMissing))
       return
     }
