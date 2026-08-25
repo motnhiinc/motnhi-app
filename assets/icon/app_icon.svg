@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" fill="#FFF3DF"/>
+  
+  <g transform="translate(512,512) scale(0.82) translate(-512,-512)">
+    <rect x="428" y="500" width="168" height="270" rx="84" fill="#8C7BFA"/>
+    <path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#4A3AD6" transform="translate(512,878) scale(1.0) translate(-512,-878)" /><g transform="translate(1024,0) scale(-1,1)"><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#4A3AD6" transform="translate(512,878) scale(1.0) translate(-512,-878)" /></g><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#3FBF98" transform="translate(512,878) scale(0.93) translate(-512,-878)" /><g transform="translate(1024,0) scale(-1,1)"><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#3FBF98" transform="translate(512,878) scale(0.93) translate(-512,-878)" /></g><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#FFFDF6" transform="translate(512,878) scale(0.85) translate(-512,-878)" /><g transform="translate(1024,0) scale(-1,1)"><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#FFFDF6" transform="translate(512,878) scale(0.85) translate(-512,-878)" /></g><circle cx="512" cy="866" r="30" fill="#3FBF98"/>
+    
+  <!-- antennae -->
+  <path d="M 452 244 C 430 190, 412 168, 392 150" stroke="#6354EC" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <path d="M 574 244 C 596 192, 616 170, 638 154" stroke="#6354EC" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <circle cx="386" cy="140" r="27" fill="#8C7BFA"/>
+  <circle cx="644" cy="146" r="27" fill="#8C7BFA"/>
+  <!-- head -->
+  <circle cx="512" cy="398" r="228" fill="#8C7BFA"/>
+  <!-- cheeks -->
+  <ellipse cx="358" cy="486" rx="38" ry="24" fill="#FF9BB4"/>
+  <ellipse cx="666" cy="486" rx="38" ry="24" fill="#FF9BB4"/>
+  <!-- glasses -->
+  <rect x="498" y="392" width="28" height="18" rx="9" fill="#2B2160"/>
+  <circle cx="420" cy="404" r="82" fill="#FFFFFF" stroke="#2B2160" stroke-width="22"/>
+  <circle cx="604" cy="404" r="82" fill="#FFFFFF" stroke="#2B2160" stroke-width="22"/>
+  <path d="M 338 396 L 300 380" stroke="#2B2160" stroke-width="20" stroke-linecap="round"/>
+  <path d="M 686 396 L 724 380" stroke="#2B2160" stroke-width="20" stroke-linecap="round"/>
+  <!-- eyes -->
+  <circle cx="432" cy="412" r="42" fill="#2B2160"/>
+  <circle cx="592" cy="412" r="42" fill="#2B2160"/>
+  <circle cx="418" cy="398" r="15" fill="#FFFFFF"/>
+  <circle cx="578" cy="398" r="15" fill="#FFFFFF"/>
+  <!-- mouth -->
+  <path d="M 476 516 Q 512 566 548 516 Z" fill="#2B2160"/>
+  <path d="M 492 540 Q 512 560 532 540 Z" fill="#FF9BB4"/>
+
+    <path d="M 772,188 C 783.16,232.64 789.36,238.84 834,250 C 789.36,261.16 783.16,267.36 772,312 C 760.84,267.36 754.64,261.16 710,250 C 754.64,238.84 760.84,232.64 772,188 Z" fill="#F2B01E"/>
+  </g>
+</svg>

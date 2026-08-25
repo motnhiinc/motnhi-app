@@ -68,6 +68,39 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   http_mock_adapter: ^0.6.1
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher icons are generated, never hand-edited. The three source layers come
+# from assets/icon/app_icon.svg via tools/generate-icon-layers.py; this block
+# turns them into every platform's icon set:
+#
+#   python3 tools/generate-icon-layers.py   # only when the artwork changes
+#   dart run flutter_launcher_icons
+#
+# The Android foreground is deliberately a separate, more inset image: an
+# adaptive icon only guarantees its centre 72dp, and the full-bleed art would
+# lose the corners of the book to a circular mask.
+#
+# Known package bug (v0.14.4): every run also rewrites
+# ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS to "AppIcon" in
+# ios/Runner.xcodeproj/project.pbxproj. That setting is a boolean and the edit
+# is pointless here — ASSETCATALOG_COMPILER_APPICON_NAME is already set — so
+# revert it after running:
+#     git checkout -- ios/Runner.xcodeproj/project.pbxproj
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  ios: true
+  # The App Store rejects a marketing icon carrying an alpha channel.
+  remove_alpha_ios: true
+  android: "ic_launcher"
+  min_sdk_android: 24
+  adaptive_icon_background: "#FFF3DF"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  # Android 13+ tints this layer's alpha to match the user's wallpaper.
+  adaptive_icon_monochrome: "assets/icon/app_icon_monochrome.png"
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

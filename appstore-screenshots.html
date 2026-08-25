@@ -62,7 +62,9 @@ body{
 
 /* ---------- document chrome (preview only) ---------- */
 .chrome{padding:30px 34px 6px;border-bottom:1px solid #2B2937}
-.chrome h1{font-family:var(--serif);font-weight:600;font-size:20px;margin:0 0 4px}
+.brand{display:flex;align-items:center;gap:12px;margin:0 0 4px}
+.brandmark{width:40px;height:40px;flex:none;border-radius:22%;display:block}
+.chrome h1{font-family:var(--serif);font-weight:600;font-size:20px;margin:0}
 .chrome p{margin:4px 0;font-size:13px;color:#9B96AB;max-width:760px;line-height:1.6}
 .chrome code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#BFADFF}
 .seg{display:inline-flex;border:1px solid #33313D;border-radius:999px;padding:3px;background:#201F27;margin-top:12px}
@@ -337,6 +339,44 @@ body.export[data-only="5"] .shot[data-n="5"]{display:block}
   <!-- Page art for "Bunny and the Moon", page 3. The app renders
        page.pageImageAssetId here; no such asset is bundled yet, so this
        stands in for the art that must ship before submission. -->
+  <!-- App icon, kept inline so this page stays self-contained.
+       Source of truth: assets/icon/app_icon.svg -->
+  <symbol id="appIcon" viewBox="0 0 1024 1024">
+    <rect width="1024" height="1024" fill="#FFF3DF"/>
+  
+  <g transform="translate(512,512) scale(0.82) translate(-512,-512)">
+    <rect x="428" y="500" width="168" height="270" rx="84" fill="#8C7BFA"/>
+    <path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#4A3AD6" transform="translate(512,878) scale(1.0) translate(-512,-878)" /><g transform="translate(1024,0) scale(-1,1)"><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#4A3AD6" transform="translate(512,878) scale(1.0) translate(-512,-878)" /></g><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#3FBF98" transform="translate(512,878) scale(0.93) translate(-512,-878)" /><g transform="translate(1024,0) scale(-1,1)"><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#3FBF98" transform="translate(512,878) scale(0.93) translate(-512,-878)" /></g><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#FFFDF6" transform="translate(512,878) scale(0.85) translate(-512,-878)" /><g transform="translate(1024,0) scale(-1,1)"><path d="M 512 720 C 430 668, 320 652, 205 682 C 188 686, 179 700, 183 716 L 222 850 C 226 866, 241 874, 257 869 C 350 845, 445 850, 512 878 Z" fill="#FFFDF6" transform="translate(512,878) scale(0.85) translate(-512,-878)" /></g><circle cx="512" cy="866" r="30" fill="#3FBF98"/>
+    
+  <!-- antennae -->
+  <path d="M 452 244 C 430 190, 412 168, 392 150" stroke="#6354EC" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <path d="M 574 244 C 596 192, 616 170, 638 154" stroke="#6354EC" stroke-width="26" fill="none" stroke-linecap="round"/>
+  <circle cx="386" cy="140" r="27" fill="#8C7BFA"/>
+  <circle cx="644" cy="146" r="27" fill="#8C7BFA"/>
+  <!-- head -->
+  <circle cx="512" cy="398" r="228" fill="#8C7BFA"/>
+  <!-- cheeks -->
+  <ellipse cx="358" cy="486" rx="38" ry="24" fill="#FF9BB4"/>
+  <ellipse cx="666" cy="486" rx="38" ry="24" fill="#FF9BB4"/>
+  <!-- glasses -->
+  <rect x="498" y="392" width="28" height="18" rx="9" fill="#2B2160"/>
+  <circle cx="420" cy="404" r="82" fill="#FFFFFF" stroke="#2B2160" stroke-width="22"/>
+  <circle cx="604" cy="404" r="82" fill="#FFFFFF" stroke="#2B2160" stroke-width="22"/>
+  <path d="M 338 396 L 300 380" stroke="#2B2160" stroke-width="20" stroke-linecap="round"/>
+  <path d="M 686 396 L 724 380" stroke="#2B2160" stroke-width="20" stroke-linecap="round"/>
+  <!-- eyes -->
+  <circle cx="432" cy="412" r="42" fill="#2B2160"/>
+  <circle cx="592" cy="412" r="42" fill="#2B2160"/>
+  <circle cx="418" cy="398" r="15" fill="#FFFFFF"/>
+  <circle cx="578" cy="398" r="15" fill="#FFFFFF"/>
+  <!-- mouth -->
+  <path d="M 476 516 Q 512 566 548 516 Z" fill="#2B2160"/>
+  <path d="M 492 540 Q 512 560 532 540 Z" fill="#FF9BB4"/>
+
+    <path d="M 772,188 C 783.16,232.64 789.36,238.84 834,250 C 789.36,261.16 783.16,267.36 772,312 C 760.84,267.36 754.64,261.16 710,250 C 754.64,238.84 760.84,232.64 772,188 Z" fill="#F2B01E"/>
+  </g>
+  </symbol>
+
   <symbol id="pageArt" viewBox="0 0 400 300">
     <defs>
       <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
@@ -406,7 +446,10 @@ body.export[data-only="5"] .shot[data-n="5"]{display:block}
 </svg>
 
 <div class="chrome">
-  <h1>Mọt Nhí · Storybook AR — App Store screenshots</h1>
+  <div class="brand">
+    <svg class="brandmark" viewBox="0 0 1024 1024" aria-hidden="true"><use href="#appIcon"/></svg>
+    <h1>Mọt Nhí · Storybook AR — App Store screenshots</h1>
+  </div>
   <p>Five marketing panels, each <code>430&times;932</code> CSS px. Run <code>tools/export-appstore-shots.sh</code> to write <code>build/appstore/screenshot-1…5.png</code> at 3&times; (<code>1290&times;2796</code>, the 6.7&Prime;/6.9&Prime; iPhone slot).</p>
   <p>Phone screens are drawn from <code>app-screens-wireframes.html</code>; colour and type come from <code>StitchTokens</code>. UI copy is the real <code>app_en.arb</code> / <code>app_vi.arb</code> values. Headlines are marketing copy — edit them in the <code>.head</code> blocks.</p>
   <p><b>Story content stays English in both sets.</b> Every bundled story is <code>language_code: "en"</code>; there is no Vietnamese catalogue yet, so translating titles and page text here would advertise content the app cannot show.</p>
