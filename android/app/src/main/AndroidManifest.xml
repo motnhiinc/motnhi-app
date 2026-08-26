@@ -8,7 +8,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.ar" android:required="false"/>
     <application
-        android:label="storybook_ar"
+        android:label="Mọt Nhí"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
