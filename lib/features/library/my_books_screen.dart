@@ -128,43 +128,6 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
                   ),
                 ],
                 const SizedBox(height: 28),
-                PaperCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: context.stitch.gold.withValues(alpha: .35),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          '✦',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: context.stitch.coralDeep,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(s.promoTitle,
-                          style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 4),
-                      Text(s.promoBody,
-                          style: Theme.of(context).textTheme.bodySmall),
-                      const SizedBox(height: 14),
-                      PressablePillButton(
-                        label: s.exploreNow,
-                        height: 44,
-                        onPressed: () => ScaffoldMessenger.of(context)
-                            .showSnackBar(SnackBar(content: Text(s.comingSoonToast))),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 28),
                 library.when(
                   loading: () => const Center(
                     child: Padding(

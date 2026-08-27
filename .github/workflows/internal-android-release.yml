@@ -1,0 +1,101 @@
+name: Internal Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Full Flutter version from pubspec.yaml, for example 1.0.1+2
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: internal-android-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish internal APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the selected revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.38.0
+          channel: stable
+
+      - name: Validate release version
+        id: version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$VERSION"
+          expected_version="$(awk '/^version:/ { print $2; exit }' pubspec.yaml)"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$ ]]; then
+            echo "Version must use the form major.minor.patch+build, for example 1.0.1+2."
+            exit 1
+          fi
+
+          if [[ "$version" != "$expected_version" ]]; then
+            echo "Requested version $version does not match pubspec.yaml version $expected_version."
+            exit 1
+          fi
+
+          tag="v$version"
+          tag_exists=false
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag"; then
+            tag_exists=true
+            tagged_commit="$(git ls-remote origin "refs/tags/$tag^{}" | awk '{print $1}')"
+            tagged_commit="${tagged_commit:-$(git ls-remote origin "refs/tags/$tag" | awk '{print $1}')}"
+            if [[ "$tagged_commit" != "$GITHUB_SHA" ]]; then
+              echo "Existing tag $tag points to $tagged_commit, not $GITHUB_SHA."
+              exit 1
+            fi
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "Release $tag already exists."
+              exit 1
+            fi
+          fi
+
+          echo "name=${version%%+*}" >> "$GITHUB_OUTPUT"
+          echo "number=${version##*+}" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag_exists=$tag_exists" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        run: |
+          flutter pub get
+          flutter build apk --release \
+            --build-name='${{ steps.version.outputs.name }}' \
+            --build-number='${{ steps.version.outputs.number }}'
+
+      - name: Create version tag
+        if: steps.version.outputs.tag_exists == 'false'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate '${{ steps.version.outputs.tag }}' \
+            --message 'Internal Android release ${{ steps.version.outputs.version }}'
+          git push origin '${{ steps.version.outputs.tag }}'
+
+      - name: Create GitHub prerelease and attach APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create '${{ steps.version.outputs.tag }}' \
+            'build/app/outputs/flutter-apk/app-release.apk#motnhi-${{ steps.version.outputs.tag }}.apk' \
+            --title 'Mọt Nhí ${{ steps.version.outputs.version }}' \
+            --notes 'Internal testing APK. This build is signed with the Android debug key and is not for production distribution.' \
+            --prerelease

@@ -71,11 +71,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.myBooks,
         builder: (_, _) => const MyBooksScreen(),
       ),
-      if (kDebugMode)
-        GoRoute(
-          path: AppRoutes.scanAnyPage,
-          builder: (_, _) => const ScanAnyPageScreen(),
-        ),
+      GoRoute(
+        path: AppRoutes.scanAnyPage,
+        builder: (_, _) => const ScanAnyPageScreen(),
+      ),
       // Not kDebugMode-gated: capture-to-story ships in release builds.
       GoRoute(
         path: AppRoutes.createStory,

@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -71,14 +70,12 @@ class ChildHomeScreen extends ConsumerWidget {
                 EyebrowLabel(s.forYou, color: Theme.of(context).colorScheme.onSurface),
                 const SizedBox(height: 10),
                 _ThemeFilterBar(selected: selectedTheme),
-                if (kDebugMode) ...[
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(AppRoutes.scanAnyPage),
-                    icon: const Icon(Icons.document_scanner_rounded, size: 18),
-                    label: Text(s.scanTitle),
-                  ),
-                ],
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => context.push(AppRoutes.scanAnyPage),
+                  icon: const Icon(Icons.document_scanner_rounded, size: 18),
+                  label: Text(s.scanTitle),
+                ),
                 const SizedBox(height: 22),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
