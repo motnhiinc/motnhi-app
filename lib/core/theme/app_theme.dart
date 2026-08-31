@@ -219,14 +219,14 @@ abstract final class AppTheme {
           displayColor: t.ink,
           fontFamily: sansFamily,
         ).copyWith(
-          displayLarge: _serif(57, FontWeight.w600),
-          displayMedium: _serif(45, FontWeight.w600),
-          displaySmall: _serif(36, FontWeight.w600),
-          headlineLarge: _serif(32, FontWeight.w600),
-          headlineMedium: _serif(28, FontWeight.w600, height: 1.2),
-          headlineSmall: _serif(20, FontWeight.w600, height: 1.3),
-          titleLarge: _serif(22, FontWeight.w600),
-          titleMedium: _serif(17, FontWeight.w600, height: 1.3),
+          displayLarge: _serif(57, FontWeight.w600, t.ink),
+          displayMedium: _serif(45, FontWeight.w600, t.ink),
+          displaySmall: _serif(36, FontWeight.w600, t.ink),
+          headlineLarge: _serif(32, FontWeight.w600, t.ink),
+          headlineMedium: _serif(28, FontWeight.w600, t.ink, height: 1.2),
+          headlineSmall: _serif(20, FontWeight.w600, t.ink, height: 1.3),
+          titleLarge: _serif(22, FontWeight.w600, t.ink),
+          titleMedium: _serif(17, FontWeight.w600, t.ink, height: 1.3),
           titleSmall: TextStyle(
             fontFamily: sansFamily,
             fontSize: 14,
@@ -399,12 +399,17 @@ abstract final class AppTheme {
     );
   }
 
-  static TextStyle _serif(double size, FontWeight weight, {double? height}) =>
+  static TextStyle _serif(
+    double size,
+    FontWeight weight,
+    Color color, {
+    double? height,
+  }) =>
       TextStyle(
         fontFamily: serifFamily,
         fontSize: size,
         fontWeight: weight,
         height: height,
-        color: null,
+        color: color,
       );
 }

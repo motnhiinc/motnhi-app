@@ -110,6 +110,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
 
             // Age range pills.
             PaperCard(
@@ -133,6 +134,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
 
             // Story language pills.
             PaperCard(
@@ -160,6 +162,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
 
             // Permissions.
             PaperCard(
@@ -173,6 +176,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     style: Theme.of(context).textTheme.bodySmall),
               ),
             ),
+            const SizedBox(height: 12),
             PaperCard(
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
