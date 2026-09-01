@@ -17,6 +17,29 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class PrivacySettings(Base):
+    __tablename__ = "privacy_settings"
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    accepted_policy_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    core_storage_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    progress_tracking_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    cloud_tts_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ConsentEvent(Base):
+    __tablename__ = "consent_events"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    scope: Mapped[str] = mapped_column(Text)
+    granted: Mapped[bool] = mapped_column(Boolean)
+    policy_version: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Device(Base):
     __tablename__ = "devices"
     id: Mapped[str] = mapped_column(String, primary_key=True)
