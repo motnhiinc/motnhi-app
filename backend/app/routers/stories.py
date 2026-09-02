@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.db import get_db
 from app.models import User
+from app.repositories import privacy as privacy_repo
 from app.repositories import stories as repo
 from app.schemas import (
     CreateStoryRequest,
@@ -11,6 +12,8 @@ from app.schemas import (
     StoryDetailResponse,
     StoryOut,
 )
+from app.services import privacy as privacy_service
+from app.services.privacy import PrivacyError
 
 router = APIRouter(prefix="/v1/stories", tags=["stories"])
 
@@ -43,12 +46,18 @@ def create(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> StoryOut:
-    if repo.count_authored(db, user.id) >= repo.MAX_AUTHORED_PER_USER:
-        raise HTTPException(status_code=409, detail="authored story limit reached")
     try:
+        privacy_service.lock_user(db, user.id)
+        settings = privacy_repo.get_settings(db, user.id)
+        privacy_service.require_core_storage(settings)
+        if repo.count_authored(db, user.id) >= repo.MAX_AUTHORED_PER_USER:
+            raise HTTPException(status_code=409, detail="authored story limit reached")
         story = repo.create_authored(db, user.id, body)
         db.commit()
         return story
+    except PrivacyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     except Exception:
         db.rollback()
         raise
