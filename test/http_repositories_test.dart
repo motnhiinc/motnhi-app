@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,10 +8,12 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/repositories/http_profile_repository.dart';
+import 'package:storybook_ar/data/repositories/http_privacy_repository.dart';
 import 'package:storybook_ar/data/repositories/http_session_repository.dart';
 import 'package:storybook_ar/data/repositories/authored_story_repository.dart';
 import 'package:storybook_ar/data/repositories/http_authored_story_repository.dart';
 import 'package:storybook_ar/data/repositories/http_story_repository.dart';
+import 'package:storybook_ar/data/repositories/privacy_repository.dart';
 import 'package:storybook_ar/data/sources/api_client.dart';
 import 'package:storybook_ar/data/sources/key_value_store.dart';
 import 'package:storybook_ar/features/story_composer/story_draft.dart';
@@ -523,6 +526,187 @@ void main() {
     await expectLater(
       HttpAuthoredStoryRepository(api).deleteStory('s1'),
       throwsA(isA<AuthoredStoryFailure>()),
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // HttpPrivacyRepository (Task 7 — privacy & consent)
+  // ---------------------------------------------------------------------------
+
+  test('fetchPrivacy GETs /v1/privacy and decodes the snake_case payload',
+      () async {
+    final api = await authedApi((a) {
+      a.onGet(
+          '/v1/privacy',
+          (s) => s.reply(200, {
+                'current_policy_version': '2026-09-01',
+                'accepted_policy_version': null,
+                'review_required': true,
+                'core_storage_accepted_at': null,
+                'progress_tracking_enabled': false,
+                'cloud_tts_enabled': true,
+                'effective_progress_tracking_enabled': false,
+                'effective_cloud_tts_enabled': true,
+                'last_active_at': '2026-09-01T10:00:00Z',
+                'updated_at': '2026-09-01T10:00:00Z',
+                'counts': {
+                  'child_profiles': 2,
+                  'authored_stories': 5,
+                  'story_sessions': 11,
+                  'interaction_events': 42,
+                },
+              }));
+    });
+
+    final state = await HttpPrivacyRepository(api).fetchPrivacy();
+
+    expect(state.currentPolicyVersion, '2026-09-01');
+    expect(state.acceptedPolicyVersion, isNull);
+    expect(state.reviewRequired, isTrue);
+    expect(state.progressTrackingEnabled, isFalse);
+    expect(state.cloudTtsEnabled, isTrue);
+    expect(state.effectiveProgressTrackingEnabled, isFalse);
+    expect(state.effectiveCloudTtsEnabled, isTrue);
+    expect(state.lastActiveAt, DateTime.parse('2026-09-01T10:00:00Z'));
+    expect(state.updatedAt, DateTime.parse('2026-09-01T10:00:00Z'));
+    expect(state.counts.childProfiles, 2);
+    expect(state.counts.authoredStories, 5);
+    expect(state.counts.storySessions, 11);
+    expect(state.counts.interactionEvents, 42);
+  });
+
+  test('updatePrivacy PUTs /v1/privacy with a snake_case body', () async {
+    Map<String, dynamic>? captured;
+    final api = await authedApi((a) {
+      a.onPut(
+        '/v1/privacy',
+        (s) => s.reply(200, {
+          'current_policy_version': '2026-09-01',
+          'accepted_policy_version': '2026-09-01',
+          'review_required': false,
+          'core_storage_accepted_at': '2026-09-01T10:00:00Z',
+          'progress_tracking_enabled': false,
+          'cloud_tts_enabled': true,
+          'effective_progress_tracking_enabled': false,
+          'effective_cloud_tts_enabled': true,
+          'last_active_at': '2026-09-01T10:00:00Z',
+          'updated_at': '2026-09-01T10:00:00Z',
+          'counts': {
+            'child_profiles': 0,
+            'authored_stories': 0,
+            'story_sessions': 0,
+            'interaction_events': 0,
+          },
+        }),
+        data: Matchers.any,
+      );
+    });
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      captured = options.data as Map<String, dynamic>;
+      handler.next(options);
+    }));
+
+    final state = await HttpPrivacyRepository(api).updatePrivacy(
+      policyVersion: '2026-09-01',
+      coreStorageAccepted: true,
+      progressTrackingEnabled: false,
+      cloudTtsEnabled: true,
+    );
+
+    expect(captured, {
+      'policy_version': '2026-09-01',
+      'core_storage_accepted': true,
+      'progress_tracking_enabled': false,
+      'cloud_tts_enabled': true,
+    });
+    expect(state.acceptedPolicyVersion, '2026-09-01');
+    expect(state.reviewRequired, isFalse);
+    expect(state.coreStorageAcceptedAt, DateTime.parse('2026-09-01T10:00:00Z'));
+  });
+
+  test('recordActivity POSTs /v1/privacy/activity', () async {
+    final api = await authedApi((a) {
+      a.onPost('/v1/privacy/activity', (s) => s.reply(204, null));
+    });
+
+    await expectLater(HttpPrivacyRepository(api).recordActivity(), completes);
+  });
+
+  test('deleteReadingHistory DELETEs /v1/privacy/reading-history', () async {
+    final api = await authedApi((a) {
+      a.onDelete('/v1/privacy/reading-history', (s) => s.reply(204, null));
+    });
+
+    await expectLater(
+        HttpPrivacyRepository(api).deleteReadingHistory(), completes);
+  });
+
+  test('deleteChildData DELETEs /v1/privacy/child-data', () async {
+    final api = await authedApi((a) {
+      a.onDelete('/v1/privacy/child-data', (s) => s.reply(204, null));
+    });
+
+    await expectLater(HttpPrivacyRepository(api).deleteChildData(), completes);
+  });
+
+  test('structured errors decode FastAPI detail into the PrivacyFailure code',
+      () async {
+    final api = await authedApi((a) {
+      a.onGet(
+          '/v1/privacy',
+          (s) =>
+              s.reply(422, {'detail': 'policy_version_required'}));
+    });
+
+    await expectLater(
+      HttpPrivacyRepository(api).fetchPrivacy(),
+      throwsA(isA<PrivacyFailure>()
+          .having((e) => e.code, 'code', 'policy_version_required')),
+    );
+  });
+
+  test('connection failures map to network', () async {
+    SharedPreferences.setMockInitialValues({
+      'device_id': 'd1',
+      'auth_token': 'tok',
+      'device_secret': 'sec',
+    });
+    final store = await KeyValueStore.create();
+    final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    dio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (options) async {
+        throw const SocketException('down');
+      },
+    );
+    final api = ApiClient(dio: dio, store: store, authDio: dio);
+
+    await expectLater(
+      HttpPrivacyRepository(api).fetchPrivacy(),
+      throwsA(isA<PrivacyFailure>().having((e) => e.code, 'code', 'network')),
+    );
+  });
+
+  test('non-map payloads map to invalid_response', () async {
+    final api = await authedApi((a) {
+      a.onGet('/v1/privacy', (s) => s.reply(200, 'not-a-map'));
+    });
+
+    await expectLater(
+      HttpPrivacyRepository(api).fetchPrivacy(),
+      throwsA(
+          isA<PrivacyFailure>().having((e) => e.code, 'code', 'invalid_response')),
+    );
+  });
+
+  test('deleteChildData surfaces PrivacyFailure with the server detail',
+      () async {
+    final api = await authedApi((a) {
+      a.onDelete('/v1/privacy/child-data', (s) => s.reply(500, {'detail': 'boom'}));
+    });
+
+    await expectLater(
+      HttpPrivacyRepository(api).deleteChildData(),
+      throwsA(isA<PrivacyFailure>().having((e) => e.code, 'code', 'boom')),
     );
   });
 

@@ -6,9 +6,11 @@ import 'package:flutter_tts/flutter_tts.dart';
 
 import '../data/repositories/authored_story_repository.dart';
 import '../data/repositories/http_authored_story_repository.dart';
+import '../data/repositories/http_privacy_repository.dart';
 import '../data/repositories/http_profile_repository.dart';
 import '../data/repositories/http_session_repository.dart';
 import '../data/repositories/http_story_repository.dart';
+import '../data/repositories/privacy_repository.dart';
 import '../data/repositories/profile_repository.dart';
 import '../data/repositories/session_repository.dart';
 import '../data/repositories/settings_repository.dart';
@@ -66,6 +68,11 @@ final profileRepositoryProvider = Provider<ProfileRepository>(
 
 final sessionRepositoryProvider = Provider<SessionRepository>(
   (ref) => HttpSessionRepository(ref.watch(apiClientProvider)),
+);
+
+/// Privacy & consent state (§14): policy acceptance, data toggles, deletion.
+final privacyRepositoryProvider = Provider<PrivacyRepository>(
+  (ref) => HttpPrivacyRepository(ref.watch(apiClientProvider)),
 );
 
 // Settings stay local — voice speed / volumes are app-local prefs, not in §10.
