@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.db import get_db
 from app.models import Story, User
+from app.repositories import privacy as privacy_repo
 from app.repositories import sessions as repo
 from app.schemas import (
     EventOut,
@@ -12,8 +13,15 @@ from app.schemas import (
     SessionOut,
     StartSessionRequest,
 )
+from app.services import privacy as privacy_service
+from app.services.privacy import PrivacyError
 
 router = APIRouter(prefix="/v1/story-sessions", tags=["story-sessions"])
+
+
+def _require_progress_tracking(db: Session, user_id: str) -> None:
+    privacy_service.lock_user(db, user_id)
+    privacy_service.require_progress(privacy_repo.get_settings(db, user_id))
 
 
 @router.post("", response_model=SessionOut)
@@ -27,9 +35,13 @@ def start_session(body: StartSessionRequest, db: Session = Depends(get_db),
     ):
         raise HTTPException(status_code=404, detail="story not found")
     try:
+        _require_progress_tracking(db, user.id)
         session = repo.start(db, body.story_id, body.child_profile_id, body.mode)
         db.commit()
         return session
+    except PrivacyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     except Exception:
         db.rollback()
         raise
@@ -48,9 +60,13 @@ def patch_session(session_id: str, body: PatchSessionRequest, db: Session = Depe
     if s is None:
         raise HTTPException(status_code=404, detail="session not found")
     try:
+        _require_progress_tracking(db, user.id)
         session = repo.patch(db, s, body.last_page_number, body.completed)
         db.commit()
         return session
+    except PrivacyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     except Exception:
         db.rollback()
         raise
@@ -63,9 +79,13 @@ def add_event(session_id: str, body: EventRequest, db: Session = Depends(get_db)
     if s is None:
         raise HTTPException(status_code=404, detail="session not found")
     try:
+        _require_progress_tracking(db, user.id)
         event = repo.record_event(db, session_id, body.event_type, body.page_id, body.payload)
         db.commit()
         return event
+    except PrivacyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
     except Exception:
         db.rollback()
         raise
