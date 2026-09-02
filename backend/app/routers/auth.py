@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth import create_token, generate_secret, hash_secret, verify_secret
 from app.db import get_db
 from app.models import Device, User
+from app.repositories import privacy as privacy_repo
 from app.schemas import DeviceAuthRequest, DeviceAuthResponse
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
@@ -25,6 +26,7 @@ def device_auth(body: DeviceAuthRequest, db: Session = Depends(get_db)) -> Devic
         device = Device(id=str(uuid.uuid4()), device_id=body.device_id, user_id=user.id,
                         secret_hash=hash_secret(secret), created_at=now)
         db.add(device)
+        privacy_repo.create_default_settings(db, user.id, now)
         db.commit()
         return DeviceAuthResponse(token=create_token(user.id), user_id=user.id, device_secret=secret)
     if not body.device_secret or not verify_secret(body.device_secret, device.secret_hash):
