@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,7 +9,7 @@ import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
 import '../../features/parental_gate/parental_gate_screen.dart';
 import '../../features/player/story_player_screen.dart';
-import '../../features/profile/profile_providers.dart';
+import '../../features/privacy/privacy_providers.dart';
 import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/story_composer/story_composer_screen.dart';
@@ -26,10 +26,35 @@ abstract final class AppRoutes {
   static const settings = '/parent/settings';
   static const scanAnyPage = '/scan-any-page';
   static const createStory = '/create-story';
+  static const privacyReview = '/privacy-review';
+  static const privacyNotice = '/privacy-notice';
 
   /// Story detail precedes the reader; the reader lives one hop deeper.
   static String storyDetail(String id) => '/story/$id/detail';
   static String storyRead(String id) => '/story/$id/read';
+}
+
+/// Pure access-redirect matrix (§14.2, fail-closed). The `/parent*` gate runs
+/// separately in [goRouterProvider] and stays as-is.
+String? appAccessRedirect(AppAccessState access, String loc) {
+  switch (access.status) {
+    case AppAccessStatus.loading:
+    case AppAccessStatus.unavailable:
+      return loc == AppRoutes.onboarding ? null : AppRoutes.onboarding;
+    case AppAccessStatus.setupRequired:
+      return loc == AppRoutes.onboarding || loc == AppRoutes.privacyNotice
+          ? null
+          : AppRoutes.onboarding;
+    case AppAccessStatus.policyReviewRequired:
+      return loc == AppRoutes.privacyReview || loc == AppRoutes.privacyNotice
+          ? null
+          : AppRoutes.privacyReview;
+    case AppAccessStatus.ready:
+      if (loc == AppRoutes.onboarding || loc == AppRoutes.privacyReview) {
+        return AppRoutes.home;
+      }
+  }
+  return null;
 }
 
 final goRouterProvider = Provider<GoRouter>((ref) {
@@ -40,14 +65,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: AppRoutes.home,
     refreshListenable: refresh,
     redirect: (context, state) {
-      final onboarded = ref.read(isOnboardedProvider);
+      final access = ref.read(appAccessProvider);
       final loc = state.matchedLocation;
 
-      // Onboarding gate (§7.2.1): nothing else is reachable until consent +
-      // profile exist.
-      final goingToOnboarding = loc == AppRoutes.onboarding;
-      if (!onboarded && !goingToOnboarding) return AppRoutes.onboarding;
-      if (onboarded && goingToOnboarding) return AppRoutes.home;
+      // Access gate (§14.2, fail-closed): derived from server truth only.
+      final accessRedirect = appAccessRedirect(access, loc);
+      if (accessRedirect != null) return accessRedirect;
 
       // Parental gate (§7.2.3): guard parent-only surfaces.
       if (loc.startsWith(AppRoutes.parent)) {
@@ -105,15 +128,43 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.settings,
         builder: (_, _) => const ReadingSettingsScreen(),
       ),
+      // Placeholder targets for the Task 8 routes. Task 9 replaces these with
+      // the real PrivacyReviewScreen / PrivacyNoticeScreen.
+      GoRoute(
+        path: AppRoutes.privacyReview,
+        builder: (_, _) => const _PrivacyReviewPlaceholder(),
+      ),
+      GoRoute(
+        path: AppRoutes.privacyNotice,
+        builder: (_, _) => const _PrivacyNoticePlaceholder(),
+      ),
     ],
   );
 });
 
 /// Bridges Riverpod state changes into a [Listenable] for go_router so guards
-/// re-evaluate when onboarding or gate state changes.
+/// re-evaluate when access or gate state changes.
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(Ref ref) {
-    ref.listen(isOnboardedProvider, (_, _) => notifyListeners());
+    ref.listen(appAccessProvider, (_, _) => notifyListeners());
     ref.listen(parentalGateUnlockedProvider, (_, _) => notifyListeners());
   }
+}
+
+/// TEMPORARY route target — replaced by PrivacyReviewScreen in Task 9.
+class _PrivacyReviewPlaceholder extends StatelessWidget {
+  const _PrivacyReviewPlaceholder();
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Privacy review (Task 9)')));
+}
+
+/// TEMPORARY route target — replaced by PrivacyNoticeScreen in Task 9.
+class _PrivacyNoticePlaceholder extends StatelessWidget {
+  const _PrivacyNoticePlaceholder();
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('Privacy notice (Task 9)')));
 }
