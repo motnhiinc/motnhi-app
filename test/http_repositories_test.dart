@@ -10,6 +10,7 @@ import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/repositories/http_profile_repository.dart';
 import 'package:storybook_ar/data/repositories/http_privacy_repository.dart';
 import 'package:storybook_ar/data/repositories/http_session_repository.dart';
+import 'package:storybook_ar/data/repositories/session_repository.dart';
 import 'package:storybook_ar/data/repositories/authored_story_repository.dart';
 import 'package:storybook_ar/data/repositories/http_authored_story_repository.dart';
 import 'package:storybook_ar/data/repositories/http_story_repository.dart';
@@ -707,6 +708,106 @@ void main() {
     await expectLater(
       HttpPrivacyRepository(api).deleteChildData(),
       throwsA(isA<PrivacyFailure>().having((e) => e.code, 'code', 'boom')),
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // HttpSessionRepository — SessionFailure decoding (Task 11)
+  // ---------------------------------------------------------------------------
+
+  test('startSession maps 403 progress_tracking_disabled to SessionFailure',
+      () async {
+    final api = await authedApi((a) {
+      a.onPost('/v1/story-sessions',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
+    });
+
+    await expectLater(
+      HttpSessionRepository(api).startSession(
+          childProfileId: 'p1',
+          storyId: 'story_bunny_forest',
+          mode: SessionMode.bedtime),
+      throwsA(isA<SessionFailure>()
+          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
+    );
+  });
+
+  test('recordEvent maps a progress_tracking_disabled 403 to SessionFailure',
+      () async {
+    final api = await authedApi((a) {
+      a.onPost('/v1/story-sessions/sess1/events',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
+    });
+
+    await expectLater(
+      HttpSessionRepository(api).recordEvent(
+          sessionId: 'sess1', eventType: 'page_viewed', pageId: 'page1'),
+      throwsA(isA<SessionFailure>()
+          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
+    );
+  });
+
+  test('updateLastPage maps a progress_tracking_disabled 403 to SessionFailure',
+      () async {
+    final api = await authedApi((a) {
+      a.onPatch('/v1/story-sessions/sess1',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
+    });
+
+    await expectLater(
+      HttpSessionRepository(api).updateLastPage('sess1', 3),
+      throwsA(isA<SessionFailure>()
+          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
+    );
+  });
+
+  test('completeSession maps a progress_tracking_disabled 403 to SessionFailure',
+      () async {
+    final api = await authedApi((a) {
+      a.onPatch('/v1/story-sessions/sess1',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
+    });
+
+    await expectLater(
+      HttpSessionRepository(api).completeSession('sess1'),
+      throwsA(isA<SessionFailure>()
+          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
+    );
+  });
+
+  test('session writes preserve non-consent upstream codes', () async {
+    final api = await authedApi((a) {
+      a.onPatch('/v1/story-sessions/sess1',
+          (s) => s.reply(500, {'detail': 'boom'}));
+    });
+
+    await expectLater(
+      HttpSessionRepository(api).updateLastPage('sess1', 3),
+      throwsA(isA<SessionFailure>().having((e) => e.code, 'code', 'boom')),
+    );
+  });
+
+  test('session writes map connection failures to network', () async {
+    SharedPreferences.setMockInitialValues({
+      'device_id': 'd1',
+      'auth_token': 'tok',
+      'device_secret': 'sec',
+    });
+    final store = await KeyValueStore.create();
+    final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    dio.httpClientAdapter = _CallCountAdapter(
+      onFetch: (options) async {
+        throw const SocketException('down');
+      },
+    );
+    final api = ApiClient(dio: dio, store: store, authDio: dio);
+
+    await expectLater(
+      HttpSessionRepository(api).startSession(
+          childProfileId: 'p1',
+          storyId: 'story_bunny_forest',
+          mode: SessionMode.library),
+      throwsA(isA<SessionFailure>().having((e) => e.code, 'code', 'network')),
     );
   });
 

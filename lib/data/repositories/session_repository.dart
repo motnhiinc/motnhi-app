@@ -30,6 +30,15 @@ abstract class SessionRepository {
   Future<List<InteractionEvent>> getEvents({String? sessionId});
 }
 
+/// Typed failure raised by session writes; `code` preserves the upstream
+/// detail (e.g. `progress_tracking_disabled`), or `network` /
+/// `invalid_response` when no detail is available.
+class SessionFailure implements Exception {
+  const SessionFailure(this.code);
+
+  final String code;
+}
+
 class LocalSessionRepository implements SessionRepository {
   LocalSessionRepository(this._store, {Uuid? uuid, DateTime Function()? clock})
       : _uuid = uuid ?? const Uuid(),
