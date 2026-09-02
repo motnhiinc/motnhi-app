@@ -60,10 +60,7 @@ final authoredStoryRepositoryProvider = Provider<AuthoredStoryRepository>(
 );
 
 final profileRepositoryProvider = Provider<ProfileRepository>(
-  (ref) => HttpProfileRepository(
-    ref.watch(apiClientProvider),
-    ref.watch(keyValueStoreProvider),
-  ),
+  (ref) => HttpProfileRepository(ref.watch(apiClientProvider)),
 );
 
 final sessionRepositoryProvider = Provider<SessionRepository>(

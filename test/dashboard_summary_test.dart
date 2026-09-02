@@ -83,15 +83,6 @@ class _FakeProfileRepository implements ProfileRepository {
 
   @override
   Future<void> saveProfile(ChildProfile profile) async {}
-
-  @override
-  bool get hasConsented => false;
-
-  @override
-  Future<void> setConsented(bool value) async {}
-
-  @override
-  bool get isOnboarded => false;
 }
 
 // ---------------------------------------------------------------------------

@@ -38,6 +38,16 @@ class HttpAuthoredStoryRepository implements AuthoredStoryRepository {
 }
 
 String _failureCode(DioException error) {
+  // A structured privacy-gate detail wins over the status-code mapping, so
+  // creation blocked pending policy review surfaces with its real code.
+  final response = error.response;
+  if (response != null) {
+    final detail = response.data is Map<String, dynamic>
+        ? (response.data as Map<String, dynamic>)['detail']
+        : null;
+    if (detail == 'privacy_policy_review_required') return detail;
+  }
+
   switch (error.response?.statusCode) {
     case 401:
     case 403:

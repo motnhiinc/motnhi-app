@@ -369,7 +369,7 @@ void main() {
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
-    final repo = HttpProfileRepository(api, store);
+    final repo = HttpProfileRepository(api);
     await repo.saveProfile(const ChildProfile(
         id: 'p1', nickname: 'Bun', ageBand: AgeBand.threeToFour));
     final got = await repo.getProfile();

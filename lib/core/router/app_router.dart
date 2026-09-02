@@ -9,7 +9,9 @@ import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
 import '../../features/parental_gate/parental_gate_screen.dart';
 import '../../features/player/story_player_screen.dart';
+import '../../features/privacy/privacy_notice_screen.dart';
 import '../../features/privacy/privacy_providers.dart';
+import '../../features/privacy/privacy_review_screen.dart';
 import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/story_composer/story_composer_screen.dart';
@@ -128,15 +130,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.settings,
         builder: (_, _) => const ReadingSettingsScreen(),
       ),
-      // Placeholder targets for the Task 8 routes. Task 9 replaces these with
-      // the real PrivacyReviewScreen / PrivacyNoticeScreen.
       GoRoute(
         path: AppRoutes.privacyReview,
-        builder: (_, _) => const _PrivacyReviewPlaceholder(),
+        builder: (_, _) => const PrivacyReviewScreen(),
       ),
       GoRoute(
         path: AppRoutes.privacyNotice,
-        builder: (_, _) => const _PrivacyNoticePlaceholder(),
+        builder: (_, _) => const PrivacyNoticeScreen(),
       ),
     ],
   );
@@ -149,22 +149,4 @@ class _RouterRefresh extends ChangeNotifier {
     ref.listen(appAccessProvider, (_, _) => notifyListeners());
     ref.listen(parentalGateUnlockedProvider, (_, _) => notifyListeners());
   }
-}
-
-/// TEMPORARY route target — replaced by PrivacyReviewScreen in Task 9.
-class _PrivacyReviewPlaceholder extends StatelessWidget {
-  const _PrivacyReviewPlaceholder();
-
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Privacy review (Task 9)')));
-}
-
-/// TEMPORARY route target — replaced by PrivacyNoticeScreen in Task 9.
-class _PrivacyNoticePlaceholder extends StatelessWidget {
-  const _PrivacyNoticePlaceholder();
-
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('Privacy notice (Task 9)')));
 }

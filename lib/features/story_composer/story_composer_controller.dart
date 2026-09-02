@@ -12,6 +12,8 @@ class StoryComposerState {
     this.draft = const StoryDraft(),
     this.failureCode,
     this.savedStoryId,
+    this.disclosureAcknowledged = false,
+    this.disclosurePending = false,
   });
 
   final StoryComposerPhase phase;
@@ -19,11 +21,21 @@ class StoryComposerState {
   final String? failureCode;
   final String? savedStoryId;
 
+  /// Cloud-storage disclosure state (§14.3): per-flow widget/controller state
+  /// only — never persisted. A fresh composer flow must confirm the
+  /// "stored in the app cloud" disclosure once before the first save.
+  final bool disclosureAcknowledged;
+
+  /// True while the first save attempt is waiting on the disclosure dialog.
+  final bool disclosurePending;
+
   StoryComposerState copyWith({
     StoryComposerPhase? phase,
     StoryDraft? draft,
     Object? failureCode = _unset,
     Object? savedStoryId = _unset,
+    bool? disclosureAcknowledged,
+    bool? disclosurePending,
   }) {
     return StoryComposerState(
       phase: phase ?? this.phase,
@@ -34,6 +46,9 @@ class StoryComposerState {
       savedStoryId: identical(savedStoryId, _unset)
           ? this.savedStoryId
           : savedStoryId as String?,
+      disclosureAcknowledged:
+          disclosureAcknowledged ?? this.disclosureAcknowledged,
+      disclosurePending: disclosurePending ?? this.disclosurePending,
     );
   }
 
@@ -43,11 +58,14 @@ class StoryComposerState {
         other.phase == phase &&
         other.draft == draft &&
         other.failureCode == failureCode &&
-        other.savedStoryId == savedStoryId;
+        other.savedStoryId == savedStoryId &&
+        other.disclosureAcknowledged == disclosureAcknowledged &&
+        other.disclosurePending == disclosurePending;
   }
 
   @override
-  int get hashCode => Object.hash(phase, draft, failureCode, savedStoryId);
+  int get hashCode => Object.hash(phase, draft, failureCode, savedStoryId,
+      disclosureAcknowledged, disclosurePending);
 }
 
 const _unset = Object();
@@ -148,8 +166,27 @@ class StoryComposerController extends Notifier<StoryComposerState> {
     }
   }
 
+  /// Parent confirmed the cloud-storage disclosure for this flow. Never
+  /// persisted — a fresh flow asks again.
+  void acknowledgeDisclosure() => state = state.copyWith(
+        disclosureAcknowledged: true,
+        disclosurePending: false,
+        failureCode: null,
+      );
+
+  /// Parent cancelled the disclosure; the draft stays as-is.
+  void cancelDisclosure() =>
+      state = state.copyWith(disclosurePending: false);
+
   Future<void> save() async {
     if (!state.draft.isSaveable) return;
+    // First save attempt in a fresh flow is gated behind the cloud-storage
+    // disclosure (§14.3); the screen shows the dialog when [disclosurePending]
+    // flips true.
+    if (!state.disclosureAcknowledged) {
+      state = state.copyWith(disclosurePending: true);
+      return;
+    }
     final generation = ++_generation;
     state = state.copyWith(
       phase: StoryComposerPhase.saving,

@@ -1,17 +1,24 @@
 import '../models/models.dart';
 import '../sources/key_value_store.dart';
 
-/// Stores the child profile and onboarding/consent state (§9.5.2, §7.2.1).
-/// One implicit local parent in this slice.
+/// Stores the child profile (§9.5.2, §7.2.1). One implicit local parent in
+/// this slice. Consent and privacy choices live in privacy state (§14), not
+/// here.
 abstract class ProfileRepository {
   Future<ChildProfile?> getProfile();
   Future<void> saveProfile(ChildProfile profile);
+}
 
-  /// Parent consent recorded during onboarding (§14.2).
-  bool get hasConsented;
-  Future<void> setConsented(bool value);
+/// Typed profile failure. [code] is the backend `detail` when the server sent
+/// one (e.g. `privacy_policy_review_required`), otherwise a client-side
+/// classification (`network`, `invalid_response`).
+final class ProfileFailure implements Exception {
+  const ProfileFailure(this.code);
 
-  bool get isOnboarded;
+  final String code;
+
+  @override
+  String toString() => 'ProfileFailure($code)';
 }
 
 class LocalProfileRepository implements ProfileRepository {
@@ -20,7 +27,6 @@ class LocalProfileRepository implements ProfileRepository {
   final KeyValueStore _store;
 
   static const _profileKey = 'child_profile';
-  static const _consentKey = 'parent_consent';
 
   @override
   Future<ChildProfile?> getProfile() async {
@@ -32,14 +38,4 @@ class LocalProfileRepository implements ProfileRepository {
   @override
   Future<void> saveProfile(ChildProfile profile) =>
       _store.writeJson(_profileKey, profile.toJson());
-
-  @override
-  bool get hasConsented => _store.getBool(_consentKey);
-
-  @override
-  Future<void> setConsented(bool value) => _store.setBool(_consentKey, value);
-
-  @override
-  bool get isOnboarded =>
-      hasConsented && _store.readJson(_profileKey) != null;
 }

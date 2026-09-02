@@ -26,10 +26,3 @@ class ChildProfileNotifier extends AsyncNotifier<ChildProfile?> {
     await save(mutate(current));
   }
 }
-
-/// Whether onboarding (consent + profile) is complete (§7.2.1, §14.2).
-final isOnboardedProvider = Provider<bool>((ref) {
-  final profile = ref.watch(childProfileProvider).value;
-  final consented = ref.watch(profileRepositoryProvider).hasConsented;
-  return consented && profile != null;
-});

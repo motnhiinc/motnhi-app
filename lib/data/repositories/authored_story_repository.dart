@@ -16,6 +16,11 @@ abstract interface class AuthoredStoryRepository {
   Future<void> deleteStory(String storyId);
 }
 
+/// Typed creation/deletion failure. [code] is the backend `detail` when the
+/// server sent one — notably `privacy_policy_review_required`, which the
+/// composer must surface distinctly — otherwise a client-side classification
+/// (`quota_reached`, `invalid_story`, `rate_limited`, `timeout`,
+/// `backend_unreachable`, `authentication`, `upstream_failed`).
 final class AuthoredStoryFailure implements Exception {
   const AuthoredStoryFailure(this.code);
 

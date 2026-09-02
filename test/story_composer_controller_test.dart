@@ -35,9 +35,11 @@ class _FakeRepo implements AuthoredStoryRepository {
 
   final AuthoredStoryFailure? failure;
   StoryDraft? saved;
+  var calls = 0;
 
   @override
   Future<Story> createStory(StoryDraft draft) async {
+    calls++;
     if (failure != null) throw failure!;
     saved = draft;
     return const Story(
@@ -173,6 +175,7 @@ void main() {
 
     await notifier.addPage();
     notifier.setTitle('My Book');
+    notifier.acknowledgeDisclosure();
     await notifier.save();
 
     final state = c.read(provider);
@@ -192,6 +195,7 @@ void main() {
 
     await notifier.addPage();
     notifier.setTitle('My Book');
+    notifier.acknowledgeDisclosure();
     await notifier.save();
 
     expect(c.read(provider).savedStoryId, 'new');
@@ -209,6 +213,76 @@ void main() {
 
     expect(repo.saved, isNull);
     expect(c.read(provider).phase, StoryComposerPhase.editing);
+  });
+
+  test('first save attempt is gated behind the cloud-storage disclosure',
+      () async {
+    final c = container();
+    final repo = _FakeRepo();
+    final provider =
+        storyComposerControllerProvider(deps(_FakeScanService(['one']), repo));
+    final notifier = c.read(provider.notifier);
+
+    await notifier.addPage();
+    notifier.setTitle('My Book');
+    await notifier.save();
+
+    final state = c.read(provider);
+    expect(state.disclosurePending, isTrue);
+    expect(state.disclosureAcknowledged, isFalse);
+    expect(state.phase, StoryComposerPhase.editing);
+    expect(repo.calls, 0);
+  });
+
+  test('cancelling the disclosure keeps the draft and clears the prompt',
+      () async {
+    final c = container();
+    final repo = _FakeRepo();
+    final provider =
+        storyComposerControllerProvider(deps(_FakeScanService(['one']), repo));
+    final notifier = c.read(provider.notifier);
+
+    await notifier.addPage();
+    notifier.setTitle('My Book');
+    await notifier.save();
+    notifier.cancelDisclosure();
+
+    final state = c.read(provider);
+    expect(state.disclosurePending, isFalse);
+    expect(state.disclosureAcknowledged, isFalse);
+    expect(state.phase, StoryComposerPhase.editing);
+    expect(state.draft.pages, hasLength(1));
+    expect(state.draft.title, 'My Book');
+    expect(repo.calls, 0);
+  });
+
+  test('after confirming, later saves in the same flow proceed without '
+      're-asking', () async {
+    final c = container();
+    final repo = _FakeRepo(
+        failure: const AuthoredStoryFailure('privacy_policy_review_required'));
+    final provider =
+        storyComposerControllerProvider(deps(_FakeScanService(['one']), repo));
+    final notifier = c.read(provider.notifier);
+
+    await notifier.addPage();
+    notifier.setTitle('My Book');
+    await notifier.save();
+    notifier.acknowledgeDisclosure();
+    await notifier.save();
+
+    var state = c.read(provider);
+    expect(state.phase, StoryComposerPhase.failure);
+    expect(state.failureCode, 'save:privacy_policy_review_required');
+    expect(state.disclosurePending, isFalse);
+    expect(repo.calls, 1);
+
+    await notifier.save();
+
+    state = c.read(provider);
+    expect(state.failureCode, 'save:privacy_policy_review_required');
+    expect(state.disclosurePending, isFalse);
+    expect(repo.calls, 2);
   });
 
   test('a scan resolving after reset does not write into the new draft',
