@@ -17,12 +17,14 @@ import '../ar/ar_preparing_dialog.dart';
 import '../ar/ar_reader_controller.dart';
 import '../ar/native_story_reader.dart';
 import '../player/narration_audio_fetcher.dart';
+import '../privacy/privacy_providers.dart';
 import '../profile/profile_providers.dart';
 import '../questions/question_sheet.dart';
 import '../settings/settings_providers.dart';
 import 'narration_player.dart';
 import 'page_text_view.dart';
 import 'player_providers.dart';
+import 'reading_session_tracker.dart';
 
 /// The main reading interface (§7.1.2). Loads the story, then hands off to a
 /// stateful body whose lifecycle owns the narration engine and the session.
@@ -74,7 +76,11 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   final PageController _pageController = PageController();
   int _pageIndex = 0;
   int _loadGeneration = 0;
-  String? _sessionId;
+
+  /// The single session write gateway for this read. Built once from the
+  /// effective privacy state: when progress tracking is off it never touches
+  /// the network, and a mid-story consent revocation latches writes off (§14).
+  late final ReadingSessionTracker _tracker;
   bool _storyCompleted = false;
   bool _storyReaderSupported = false;
   bool _arBusy = false;
@@ -97,9 +103,12 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       resolver: ref.read(assetUrlResolverProvider),
       fetcher: _fetcher,
     );
+    _tracker = ReadingSessionTracker(
+      repository: ref.read(sessionRepositoryProvider),
+      trackingEnabled: ref.read(effectiveProgressTrackingProvider),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startSession();
-      _loadPage(0, autoplay: false);
       _player.isComplete.addListener(_onMaybeComplete);
       _resolveArSupport();
     });
@@ -113,15 +122,24 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     setState(() => _storyReaderSupported = supported);
   }
 
+  /// Starts the tracked session, then performs the initial tracked page load.
+  /// Awaiting start() here removes the old start/load race where the first
+  /// page event could land before the session id existed. A failed start never
+  /// blocks reading — the tracker just stays untracked (§14).
   Future<void> _startSession() async {
     final profile = ref.read(childProfileProvider).value;
     final bedtime = ref.read(bedtimeModeProvider);
-    final session = await ref.read(sessionRepositoryProvider).startSession(
-          childProfileId: profile?.id ?? 'local',
-          storyId: _story.id,
-          mode: bedtime ? SessionMode.bedtime : SessionMode.library,
-        );
-    if (mounted) _sessionId = session.id;
+    try {
+      await _tracker.start(
+        childProfileId: profile?.id ?? 'local',
+        storyId: _story.id,
+        mode: bedtime ? SessionMode.bedtime : SessionMode.library,
+      );
+    } catch (_) {
+      // Reading stays available without a session.
+    }
+    if (!mounted) return;
+    await _loadPage(0, autoplay: false);
   }
 
   double _effectiveSpeed() {
@@ -146,19 +164,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     );
     if (!mounted || generation != _loadGeneration) return;
 
-    final sid = _sessionId;
-    if (sid != null) {
-      final repo = ref.read(sessionRepositoryProvider);
-      await repo.updateLastPage(sid, page.pageNumber);
-      if (!mounted || generation != _loadGeneration) return;
-      await repo.recordEvent(
-        sessionId: sid,
-        eventType: 'page_viewed',
-        pageId: page.id,
-        payload: {'page_number': page.pageNumber},
-      );
-      if (!mounted || generation != _loadGeneration) return;
-    }
+    await _tracker.pageViewed(pageId: page.id, pageNumber: page.pageNumber);
+    if (!mounted || generation != _loadGeneration) return;
     if (autoplay) await _player.play();
   }
 
@@ -283,17 +290,14 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   Future<void> _onArReturned(StoryReaderResult result) async {
     // Pages read inside AR never pass through _loadPage, so without this the
     // session and the parent dashboard would undercount them.
-    final sessionId = _sessionId;
-    if (sessionId != null && result.pagesRead.isNotEmpty) {
-      final repository = ref.read(sessionRepositoryProvider);
+    if (result.pagesRead.isNotEmpty) {
       for (final pageId in result.pagesRead) {
         final page = _pages.where((p) => p.id == pageId).firstOrNull;
         if (page == null) continue;
-        await repository.recordEvent(
-          sessionId: sessionId,
-          eventType: 'page_viewed',
+        await _tracker.pageViewed(
           pageId: page.id,
-          payload: {'page_number': page.pageNumber, 'mode': 'ar'},
+          pageNumber: page.pageNumber,
+          mode: 'ar',
         );
         if (!mounted) return;
       }
@@ -368,10 +372,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   }
 
   Future<void> _completeStory() async {
-    final sid = _sessionId;
-    if (sid != null) {
-      await ref.read(sessionRepositoryProvider).completeSession(sid);
-    }
+    await _tracker.complete();
     if (!mounted) return;
     final s = AppLocalizations.of(context)!;
     // Ask the story's questions, then a calm "well done" (no autoplay onward).
@@ -379,7 +380,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       context,
       ref,
       detail: widget.detail,
-      sessionId: sid,
+      onAnswered: _tracker.questionAnswered,
     );
     if (!mounted) return;
     await showDialog<void>(
@@ -534,7 +535,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
               ref,
               detail: widget.detail,
               pageId: page.id,
-              sessionId: _sessionId,
+              onAnswered: _tracker.questionAnswered,
             ),
           ),
         ],

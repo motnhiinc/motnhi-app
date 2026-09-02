@@ -20,15 +20,15 @@ class ParentDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = AppLocalizations.of(context)!;
-    final summary = ref.watch(dashboardSummaryProvider);
+    final state = ref.watch(dashboardStateProvider);
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: summary.when(
+        child: state.when(
           loading: () => const LoadingView(),
           error: (_, _) => ErrorView(message: s.libraryError),
-          data: (s2) => _Body(summary: s2),
+          data: (d) => _Body(state: d),
         ),
       ),
     );
@@ -36,14 +36,20 @@ class ParentDashboardScreen extends ConsumerWidget {
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.summary});
+  const _Body({required this.state});
 
-  final DashboardSummary summary;
+  final DashboardState state;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = AppLocalizations.of(context)!;
     final t = context.stitch;
+    final summary = state.summary;
+    // Retained history stays readable with tracking off; the no-history
+    // states (fresh start with tracking on, or tracking off with nothing ever
+    // saved) show the same gentle empty card instead of zero stats (§14).
+    final showStats = state.status == DashboardTrackingStatus.trackingOnWithHistory ||
+        state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
     final accuracy = (summary.questionAccuracy * 100).round();
     final recent = summary.recentStories.isEmpty ? null : summary.recentStories.first;
 
@@ -80,103 +86,127 @@ class _Body extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 18),
-        PaperCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${summary.storiesCompleted}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(color: t.coralDeep),
-                    ),
-                    Text(s.statStoriesCompleted,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.minutesShort(summary.totalReadingTime.inMinutes),
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(color: t.coralDeep, fontSize: 22),
-                    ),
-                    Text(s.statReadingTime,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        // Stories completed is not repeated here: it is already the headline
-        // figure in the summary card above.
-        Row(
-          children: [
-            _StatTile(
-              value: '${summary.questionsAnswered}',
-              label: s.statQuestionsAnswered,
-            ),
-            const SizedBox(width: 12),
-            _StatTile(
-              value: summary.questionsAnswered == 0 ? '—' : '$accuracy%',
-              label: s.statAccuracy,
-            ),
-          ],
-        ),
-        if (recent != null) ...[
-          const SizedBox(height: 24),
+        if (!showStats) ...[
+          const SizedBox(height: 18),
           PaperCard(
-            onTap: () => context.go(AppRoutes.storyDetail(recent.id)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_stories_rounded,
+                      size: 20, color: t.lavender),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      s.nothingYet,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 18),
+          PaperCard(
             child: Row(
               children: [
-                SizedBox(
-                  width: 48,
-                  height: 62,
-                  child: BookCoverFrame(child: StoryCover(story: recent)),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      EyebrowLabel(s.recentlyRead,
-                          color: Theme.of(context).colorScheme.onSurface),
-                      const SizedBox(height: 3),
                       Text(
-                        recent.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall,
+                        '${summary.storiesCompleted}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(color: t.coralDeep),
                       ),
+                      Text(s.statStoriesCompleted,
+                          style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
-                Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: t.coral,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.minutesShort(summary.totalReadingTime.inMinutes),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(color: t.coralDeep, fontSize: 22),
+                      ),
+                      Text(s.statReadingTime,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
                   ),
-                  child: const Icon(Icons.play_arrow_rounded,
-                      size: 20, color: Colors.white),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          // Stories completed is not repeated here: it is already the headline
+          // figure in the summary card above.
+          Row(
+            children: [
+              _StatTile(
+                value: '${summary.questionsAnswered}',
+                label: s.statQuestionsAnswered,
+              ),
+              const SizedBox(width: 12),
+              _StatTile(
+                value: summary.questionsAnswered == 0 ? '—' : '$accuracy%',
+                label: s.statAccuracy,
+              ),
+            ],
+          ),
+          if (recent != null) ...[
+            const SizedBox(height: 24),
+            PaperCard(
+              onTap: () => context.go(AppRoutes.storyDetail(recent.id)),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 48,
+                    height: 62,
+                    child: BookCoverFrame(child: StoryCover(story: recent)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        EyebrowLabel(s.recentlyRead,
+                            color: Theme.of(context).colorScheme.onSurface),
+                        const SizedBox(height: 3),
+                        Text(
+                          recent.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: t.coral,
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded,
+                        size: 20, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
         const SizedBox(height: 14),
         _LinkRow(

@@ -7,6 +7,7 @@ import 'package:storybook_ar/data/repositories/session_repository.dart';
 import 'package:storybook_ar/data/repositories/story_repository.dart';
 import 'package:storybook_ar/features/dashboard/dashboard_providers.dart';
 import 'package:storybook_ar/features/profile/profile_providers.dart';
+import 'package:storybook_ar/features/privacy/privacy_providers.dart';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -18,21 +19,30 @@ import 'package:storybook_ar/features/profile/profile_providers.dart';
 /// code path and PASSES after the fan-out fix.
 class _FakeSessionRepository implements SessionRepository {
   _FakeSessionRepository({
-    required List<StorySession> sessions,
-    required Map<String, List<InteractionEvent>> eventsBySession,
+    List<StorySession> sessions = const [],
+    Map<String, List<InteractionEvent>> eventsBySession = const {},
+    this.getSessionsError,
   })  : _sessions = sessions,
         _eventsBySession = eventsBySession;
 
   final List<StorySession> _sessions;
   final Map<String, List<InteractionEvent>> _eventsBySession;
 
+  /// When set, [getSessions] throws instead of returning sessions — simulates
+  /// a remote session-list failure (§14: must surface as an error, never as
+  /// empty history).
+  final Object? getSessionsError;
+
   @override
-  Future<List<StorySession>> getSessions({String? childProfileId}) async =>
-      childProfileId == null
-          ? _sessions
-          : _sessions
-              .where((s) => s.childProfileId == childProfileId)
-              .toList();
+  Future<List<StorySession>> getSessions({String? childProfileId}) async {
+    final error = getSessionsError;
+    if (error != null) throw error;
+    return childProfileId == null
+        ? _sessions
+        : _sessions
+            .where((s) => s.childProfileId == childProfileId)
+            .toList();
+  }
 
   @override
   Future<List<InteractionEvent>> getEvents({String? sessionId}) async {
@@ -66,11 +76,15 @@ class _FakeSessionRepository implements SessionRepository {
   Future<void> completeSession(String sessionId) => throw UnimplementedError();
 }
 
-/// Minimal [StoryRepository] that returns an empty library (not under test).
+/// Minimal [StoryRepository] that returns a configurable library.
 class _FakeStoryRepository implements StoryRepository {
+  _FakeStoryRepository({List<Story> library = const []}) : _library = library;
+
+  final List<Story> _library;
+
   @override
   Future<List<Story>> getLibrary({AgeBand? ageBand, String? language}) async =>
-      [];
+      _library;
 
   @override
   Future<StoryDetail?> getStory(String storyId) async => null;
@@ -111,6 +125,9 @@ StorySession _completedSession({required String id, required String storyId}) =>
       completedAt: DateTime(2026, 6, 18, 11),
       mode: SessionMode.library,
     );
+
+Story _story({required String id}) =>
+    Story(id: id, title: 'Story $id', slug: 'story-$id');
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -169,17 +186,142 @@ void main() {
       // creating an infinite loop.
       await container.read(childProfileProvider.future);
 
-      final summary = await container.read(dashboardSummaryProvider.future);
+      final state = await container.read(dashboardStateProvider.future);
 
       // 5 total question_answered events across both sessions.
-      expect(summary.questionsAnswered, 5,
+      expect(state.summary.questionsAnswered, 5,
           reason: 'must fan-out getEvents() per session, not call with no arg');
 
       // 3 correct (e1, e3, e4).
-      expect(summary.questionsCorrect, 3);
+      expect(state.summary.questionsCorrect, 3);
 
       // accuracy = 3/5.
-      expect(summary.questionAccuracy, closeTo(0.6, 0.001));
+      expect(state.summary.questionAccuracy, closeTo(0.6, 0.001));
+    });
+  });
+
+  group('dashboardStateProvider – privacy-aware states (§14)', () {
+    Future<(ProviderContainer, _FakeSessionRepository)> makeContainer({
+      required bool trackingEnabled,
+      _FakeSessionRepository? sessionRepo,
+      List<Story> library = const [],
+    }) async {
+      final repo = sessionRepo ?? _FakeSessionRepository();
+      final container = ProviderContainer(
+        // Riverpod 3 auto-retries failed builds with real timers; disable that
+        // so error-path tests resolve immediately.
+        retry: (_, _) => null,
+        overrides: [
+          profileRepositoryProvider
+              .overrideWithValue(_FakeProfileRepository()),
+          childProfileProvider.overrideWith(() => _NullChildProfileNotifier()),
+          effectiveProgressTrackingProvider.overrideWithValue(trackingEnabled),
+          sessionRepositoryProvider.overrideWithValue(repo),
+          storyRepositoryProvider.overrideWithValue(
+            _FakeStoryRepository(library: library),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      // Pre-warm childProfileProvider (see the fan-out test above).
+      await container.read(childProfileProvider.future);
+      return (container, repo);
+    }
+
+    test('trackingOnWithHistory: tracking on + sessions → live stats',
+        () async {
+      final sessions = [_completedSession(id: 'sess-1', storyId: 'story-a')];
+      final (container, _) = await makeContainer(
+        trackingEnabled: true,
+        sessionRepo: _FakeSessionRepository(
+          sessions: sessions,
+          eventsBySession: {
+            'sess-1': [
+              _questionEvent(id: 'e1', sessionId: 'sess-1', isCorrect: true),
+            ],
+          },
+        ),
+        library: [_story(id: 'story-a'), _story(id: 'story-b')],
+      );
+
+      final state = await container.read(dashboardStateProvider.future);
+
+      expect(state.status, DashboardTrackingStatus.trackingOnWithHistory);
+      expect(state.summary.storiesCompleted, 1);
+      expect(state.summary.questionsAnswered, 1);
+      expect(state.summary.recentStories.map((s) => s.id), ['story-a']);
+      // Recommendations stay available: only the completed story is excluded.
+      expect(state.summary.recommended.map((s) => s.id), ['story-b']);
+    });
+
+    test('trackingOnNoHistory: tracking on + no sessions → empty, '
+        'recommendations still available', () async {
+      final (container, _) = await makeContainer(
+        trackingEnabled: true,
+        library: [_story(id: 'story-a')],
+      );
+
+      final state = await container.read(dashboardStateProvider.future);
+
+      expect(state.status, DashboardTrackingStatus.trackingOnNoHistory);
+      expect(state.summary.storiesCompleted, 0);
+      expect(state.summary.recentStories, isEmpty);
+      expect(state.summary.recommended.map((s) => s.id), ['story-a']);
+    });
+
+    test('trackingOffNoHistory: tracking off + no sessions', () async {
+      final (container, _) = await makeContainer(
+        trackingEnabled: false,
+        library: [_story(id: 'story-a')],
+      );
+
+      final state = await container.read(dashboardStateProvider.future);
+
+      expect(state.status, DashboardTrackingStatus.trackingOffNoHistory);
+      expect(state.summary.recentStories, isEmpty);
+      // Library recommendations remain available in every state.
+      expect(state.summary.recommended.map((s) => s.id), ['story-a']);
+    });
+
+    test('trackingOffRetainedHistory: tracking off + retained sessions '
+        '(retained reads stay readable, no live-tracking claim)', () async {
+      final sessions = [_completedSession(id: 'sess-1', storyId: 'story-a')];
+      final (container, _) = await makeContainer(
+        trackingEnabled: false,
+        sessionRepo: _FakeSessionRepository(
+          sessions: sessions,
+          eventsBySession: {
+            'sess-1': [
+              _questionEvent(id: 'e1', sessionId: 'sess-1', isCorrect: false),
+            ],
+          },
+        ),
+        library: [_story(id: 'story-a'), _story(id: 'story-b')],
+      );
+
+      final state = await container.read(dashboardStateProvider.future);
+
+      expect(state.status, DashboardTrackingStatus.trackingOffRetainedHistory);
+      expect(state.summary.storiesCompleted, 1);
+      expect(state.summary.recentStories.map((s) => s.id), ['story-a']);
+      expect(state.summary.recommended, isNotEmpty);
+    });
+
+    test(
+        'remote session-list error surfaces as an error, never as empty '
+        'history', () async {
+      final (container, _) = await makeContainer(
+        trackingEnabled: true,
+        sessionRepo: _FakeSessionRepository(
+          getSessionsError: const SessionFailure('network'),
+        ),
+      );
+
+      await expectLater(
+        container.read(dashboardStateProvider.future),
+        throwsA(isA<SessionFailure>()
+            .having((e) => e.code, 'code', 'network')),
+      );
     });
   });
 }
