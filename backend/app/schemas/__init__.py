@@ -215,3 +215,31 @@ class ImageTargetManifest(BaseModel):
     story_id: str
     version: int
     targets: list[ImageTargetEntry]
+
+
+class PrivacyUpdateRequest(BaseModel):
+    policy_version: str
+    core_storage_accepted: bool
+    progress_tracking_enabled: bool
+    cloud_tts_enabled: bool
+
+
+class PrivacyDataCounts(BaseModel):
+    child_profiles: int
+    authored_stories: int
+    story_sessions: int
+    interaction_events: int
+
+
+class PrivacyStateResponse(BaseModel):
+    current_policy_version: str
+    accepted_policy_version: str | None
+    review_required: bool
+    core_storage_accepted_at: datetime | None
+    progress_tracking_enabled: bool
+    cloud_tts_enabled: bool
+    effective_progress_tracking_enabled: bool
+    effective_cloud_tts_enabled: bool
+    last_active_at: datetime
+    updated_at: datetime
+    counts: PrivacyDataCounts
