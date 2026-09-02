@@ -25,7 +25,7 @@ def upsert(db: Session, user_id: str, data: dict) -> ChildProfile:
                 setattr(existing, k, v)
         existing.updated_at = now
         profile = existing
-    db.commit()
+    db.flush()
     return profile
 
 

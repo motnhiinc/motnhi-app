@@ -1,5 +1,11 @@
 import uuid
 
+from sqlalchemy import select
+
+from app.auth import decode_token
+from app.models import ChildProfile
+from app.repositories import profiles as profiles_repo
+
 
 def _auth(client, device="p-dev"):
     token = client.post("/v1/auth/device", json={"device_id": device}).json()["token"]
@@ -46,3 +52,19 @@ def test_patch_invalid_bool_returns_422(client):
     resp = client.patch(f"/v1/child-profiles/{body['id']}",
                         json={"ar_enabled": "banana"}, headers=h)
     assert resp.status_code == 422
+
+
+def test_profile_upsert_flushes_without_committing(client, db, monkeypatch):
+    headers = _auth(client)
+    user_id = decode_token(headers["Authorization"].removeprefix("Bearer "))
+    body = _profile_body()
+
+    def fail_commit():
+        raise AssertionError("repository must not commit")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    profiles_repo.upsert(db, user_id, body)
+    db.expunge_all()
+
+    profile = db.scalar(select(ChildProfile).where(ChildProfile.id == body["id"]))
+    assert profile is not None

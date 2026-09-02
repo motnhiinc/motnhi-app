@@ -26,7 +26,13 @@ def start_session(body: StartSessionRequest, db: Session = Depends(get_db),
         story.owner_user_id is not None and story.owner_user_id != user.id
     ):
         raise HTTPException(status_code=404, detail="story not found")
-    return repo.start(db, body.story_id, body.child_profile_id, body.mode)
+    try:
+        session = repo.start(db, body.story_id, body.child_profile_id, body.mode)
+        db.commit()
+        return session
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("", response_model=list[SessionOut])
@@ -41,7 +47,13 @@ def patch_session(session_id: str, body: PatchSessionRequest, db: Session = Depe
     s = repo.get_owned(db, user.id, session_id)
     if s is None:
         raise HTTPException(status_code=404, detail="session not found")
-    return repo.patch(db, s, body.last_page_number, body.completed)
+    try:
+        session = repo.patch(db, s, body.last_page_number, body.completed)
+        db.commit()
+        return session
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.post("/{session_id}/events", response_model=EventOut)
@@ -50,7 +62,13 @@ def add_event(session_id: str, body: EventRequest, db: Session = Depends(get_db)
     s = repo.get_owned(db, user.id, session_id)
     if s is None:
         raise HTTPException(status_code=404, detail="session not found")
-    return repo.record_event(db, session_id, body.event_type, body.page_id, body.payload)
+    try:
+        event = repo.record_event(db, session_id, body.event_type, body.page_id, body.payload)
+        db.commit()
+        return event
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("/{session_id}/events", response_model=list[EventOut])

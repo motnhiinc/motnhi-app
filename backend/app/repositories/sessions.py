@@ -22,7 +22,7 @@ def record_event(db: Session, session_id: str, event_type: str,
                              event_type=event_type, page_id=page_id,
                              payload=payload or {}, created_at=_now())
     db.add(event)
-    db.commit()
+    db.flush()
     return event
 
 
@@ -30,7 +30,7 @@ def start(db: Session, story_id: str, child_profile_id: str, mode: str) -> Story
     s = StorySession(id=str(uuid.uuid4()), child_profile_id=child_profile_id,
                      story_id=story_id, started_at=_now(), mode=mode)
     db.add(s)
-    db.commit()
+    db.flush()
     record_event(db, s.id, "story_started", payload={"story_id": story_id, "mode": mode})
     return s
 
@@ -48,7 +48,7 @@ def patch(db: Session, s: StorySession, last_page_number: int | None, completed:
     newly_completed = bool(completed) and s.completed_at is None
     if newly_completed:
         s.completed_at = _now()
-    db.commit()
+    db.flush()
     if newly_completed:
         record_event(db, s.id, "story_completed")
     return s

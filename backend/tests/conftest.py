@@ -13,7 +13,12 @@ from app.models import User
 import app.models  # noqa: F401
 
 engine = create_engine(settings.test_database_url, future=True)
-TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+TestingSessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    expire_on_commit=False,
+    join_transaction_mode="create_savepoint",
+)
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -45,7 +45,13 @@ def create(
 ) -> StoryOut:
     if repo.count_authored(db, user.id) >= repo.MAX_AUTHORED_PER_USER:
         raise HTTPException(status_code=409, detail="authored story limit reached")
-    return repo.create_authored(db, user.id, body)
+    try:
+        story = repo.create_authored(db, user.id, body)
+        db.commit()
+        return story
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.delete("/{story_id}", status_code=204)
@@ -56,4 +62,9 @@ def delete(
 ) -> Response:
     if not repo.delete_authored(db, user.id, story_id):
         raise HTTPException(status_code=404, detail="story not found")
-    return Response(status_code=204)
+    try:
+        db.commit()
+        return Response(status_code=204)
+    except Exception:
+        db.rollback()
+        raise

@@ -10,6 +10,8 @@ from app.models import (
     StoryPage,
     StorySession,
 )
+from app.repositories import stories as stories_repo
+from app.schemas import CreateStoryRequest
 
 
 def _auth(client, device_id="d1"):
@@ -278,3 +280,34 @@ def test_delete_rejects_curated_story(client, seeded):
 def test_delete_unknown_story_404s(client, seeded):
     _, headers = _user_id_for(client, "owner-device")
     assert client.delete(f"/v1/stories/{_uuid.uuid4()}", headers=headers).status_code == 404
+
+
+def test_create_authored_flushes_without_committing(client, db, monkeypatch):
+    user_id, _ = _user_id_for(client, "owner-device")
+
+    def fail_commit():
+        raise AssertionError("repository must not commit")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    story = stories_repo.create_authored(
+        db, user_id, CreateStoryRequest.model_validate(_payload())
+    )
+    story_id = story.id
+    db.expunge_all()
+
+    assert db.scalar(select(Story).where(Story.id == story_id)) is not None
+
+
+def test_delete_authored_flushes_without_committing(client, db, monkeypatch):
+    user_id, _ = _user_id_for(client, "owner-device")
+    story = _make_authored(db, user_id)
+    story_id = story.id
+
+    def fail_commit():
+        raise AssertionError("repository must not commit")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    assert stories_repo.delete_authored(db, user_id, story_id) is True
+    db.expunge_all()
+
+    assert db.scalar(select(Story).where(Story.id == story_id)) is None
