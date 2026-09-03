@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/di.dart';
-
-const _storageKey = 'ui_locale_override';
+import '../../data/sources/persistence_keys.dart';
 
 /// UI-language override chosen in Settings. Null = follow the system locale.
 /// Story *content* language remains the child profile's `languageCode`.
@@ -15,7 +14,8 @@ final localeOverrideProvider =
 class LocaleOverrideNotifier extends Notifier<Locale?> {
   @override
   Locale? build() {
-    final code = ref.watch(keyValueStoreProvider).getString(_storageKey);
+    final code =
+        ref.watch(keyValueStoreProvider).getString(uiLocaleOverrideKey);
     return code == null ? null : Locale(code);
   }
 
@@ -23,9 +23,9 @@ class LocaleOverrideNotifier extends Notifier<Locale?> {
     state = locale;
     final store = ref.read(keyValueStoreProvider);
     if (locale == null) {
-      await store.remove(_storageKey);
+      await store.remove(uiLocaleOverrideKey);
     } else {
-      await store.setString(_storageKey, locale.languageCode);
+      await store.setString(uiLocaleOverrideKey, locale.languageCode);
     }
   }
 }

@@ -10,6 +10,11 @@ class KeyValueStore {
 
   final SharedPreferences _prefs;
 
+  /// Minimal inspection API: all keys currently persisted. Read-only; there
+  /// is intentionally no bulk-clear (it could erase preserved credentials —
+  /// see persistence_keys.dart).
+  Set<String> get keys => _prefs.getKeys();
+
   static Future<KeyValueStore> create() async =>
       KeyValueStore(await SharedPreferences.getInstance());
 

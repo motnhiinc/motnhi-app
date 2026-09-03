@@ -1,5 +1,6 @@
 import '../models/models.dart';
 import '../sources/key_value_store.dart';
+import '../sources/persistence_keys.dart';
 
 /// Stores the child profile (§9.5.2, §7.2.1). One implicit local parent in
 /// this slice. Consent and privacy choices live in privacy state (§14), not
@@ -26,16 +27,14 @@ class LocalProfileRepository implements ProfileRepository {
 
   final KeyValueStore _store;
 
-  static const _profileKey = 'child_profile';
-
   @override
   Future<ChildProfile?> getProfile() async {
-    final json = _store.readJson(_profileKey);
+    final json = _store.readJson(childProfileKey);
     if (json == null) return null;
     return ChildProfile.fromJson(json);
   }
 
   @override
   Future<void> saveProfile(ChildProfile profile) =>
-      _store.writeJson(_profileKey, profile.toJson());
+      _store.writeJson(childProfileKey, profile.toJson());
 }

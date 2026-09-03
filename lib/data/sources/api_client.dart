@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 
 import 'key_value_store.dart';
+import 'persistence_keys.dart';
 
 /// Wraps a [Dio] with anonymous device auth (spec §7): on first use it
 /// generates+persists a device id, exchanges it for a JWT, and attaches the
@@ -51,23 +52,18 @@ class ApiClient {
   final Uuid _uuid;
   Future<String>? _tokenBootstrap;
 
-  static const _deviceKey = 'device_id';
-  static const _tokenKey = 'auth_token';
-  static const _userKey = 'auth_user_id';
-  static const _secretKey = 'device_secret';
-
-  String? get userId => _store.getString(_userKey);
+  String? get userId => _store.getString(authUserIdKey);
 
   Future<String> _deviceId() async {
-    final existing = _store.getString(_deviceKey);
+    final existing = _store.getString(deviceIdKey);
     if (existing != null) return existing;
     final id = _uuid.v4();
-    await _store.setString(_deviceKey, id);
+    await _store.setString(deviceIdKey, id);
     return id;
   }
 
   Future<String> _ensureToken() async {
-    final cached = _store.getString(_tokenKey);
+    final cached = _store.getString(authTokenKey);
     if (cached != null) return cached;
 
     final inFlight = _tokenBootstrap;
@@ -83,18 +79,18 @@ class ApiClient {
   }
 
   Future<String> _bootstrapToken() async {
-    final secret = _store.getString(_secretKey);
+    final secret = _store.getString(deviceSecretKey);
     final body = <String, dynamic>{'device_id': await _deviceId()};
     if (secret != null) body['device_secret'] = secret;
 
     final resp = await _authDio.post('/v1/auth/device', data: body);
     final token = resp.data['token'] as String;
-    await _store.setString(_tokenKey, token);
-    await _store.setString(_userKey, resp.data['user_id'] as String);
+    await _store.setString(authTokenKey, token);
+    await _store.setString(authUserIdKey, resp.data['user_id'] as String);
 
     final returnedSecret = resp.data['device_secret'];
     if (returnedSecret != null) {
-      await _store.setString(_secretKey, returnedSecret as String);
+      await _store.setString(deviceSecretKey, returnedSecret as String);
     }
 
     return token;
@@ -110,7 +106,7 @@ class ApiClient {
       return await request();
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
-        await _store.remove(_tokenKey);
+        await _store.remove(authTokenKey);
         await _ensureToken();
         return await request();
       }

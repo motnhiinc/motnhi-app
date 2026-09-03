@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/di.dart';
 import '../../data/models/models.dart';
+import '../../data/sources/persistence_keys.dart';
 
 /// Parent-controlled reading settings (§7.2.4).
 final settingsProvider =
@@ -48,19 +49,22 @@ final dailyLimitMinutesProvider =
 );
 
 class DailyLimitMinutesNotifier extends Notifier<int> {
-  static const _key = 'settings_daily_limit_minutes';
   static const options = [15, 45, 120];
 
   @override
   int build() {
-    final raw = ref.watch(keyValueStoreProvider).getString(_key);
+    final raw = ref.watch(keyValueStoreProvider).getString(
+          settingsDailyLimitMinutesKey,
+        );
     final parsed = raw == null ? null : int.tryParse(raw);
     return parsed ?? 45;
   }
 
   Future<void> set(int minutes) async {
     state = minutes;
-    await ref.read(keyValueStoreProvider).setString(_key, '$minutes');
+    await ref
+        .read(keyValueStoreProvider)
+        .setString(settingsDailyLimitMinutesKey, '$minutes');
   }
 }
 
@@ -73,19 +77,20 @@ final contentFilterBandProvider =
 );
 
 class ContentFilterBandNotifier extends Notifier<ContentFilterBand> {
-  static const _key = 'settings_content_filter_band';
-
   @override
   ContentFilterBand build() {
-    final raw = ref.watch(keyValueStoreProvider).getString(_key);
-    return ContentFilterBand.values
-        .where((b) => b.name == raw)
-        .firstOrNull ?? ContentFilterBand.primary;
+    final raw = ref
+        .watch(keyValueStoreProvider)
+        .getString(settingsContentFilterBandKey);
+    return ContentFilterBand.values.where((b) => b.name == raw).firstOrNull ??
+        ContentFilterBand.primary;
   }
 
   Future<void> set(ContentFilterBand band) async {
     state = band;
-    await ref.read(keyValueStoreProvider).setString(_key, band.name);
+    await ref
+        .read(keyValueStoreProvider)
+        .setString(settingsContentFilterBandKey, band.name);
   }
 }
 
@@ -96,14 +101,15 @@ final notificationsEnabledProvider =
 );
 
 class NotificationsEnabledNotifier extends Notifier<bool> {
-  static const _key = 'settings_notifications_enabled';
-
   @override
-  bool build() =>
-      ref.watch(keyValueStoreProvider).getBool(_key, fallback: false);
+  bool build() => ref
+      .watch(keyValueStoreProvider)
+      .getBool(settingsNotificationsEnabledKey, fallback: false);
 
   Future<void> set(bool value) async {
     state = value;
-    await ref.read(keyValueStoreProvider).setBool(_key, value);
+    await ref
+        .read(keyValueStoreProvider)
+        .setBool(settingsNotificationsEnabledKey, value);
   }
 }

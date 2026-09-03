@@ -2,15 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/di.dart';
 import '../../data/models/models.dart';
+import '../../data/sources/persistence_keys.dart';
 import '../profile/profile_providers.dart';
-
-/// Local SharedPreferences key holding the last server privacy response.
-/// Display cache only — never consulted for authorization (§14).
-const _privacyStateCacheKey = 'privacy_state_cache';
-
-/// Local throttle key recording the last recorded activity instant. Cleared by
-/// [PrivacyNotifier.deleteChildData]; the full local cleaner lands in Task 20.
-const privacyActivityLastUtcDateKey = 'privacy_activity_last_utc_date';
 
 /// Fresh privacy & consent state from the server (§14). The single source of
 /// authorization truth: access derivation and the effective toggles below read
@@ -23,7 +16,7 @@ final privacyProvider =
 /// the fresh request is failing. Must never drive access, consent, or the
 /// effective toggles.
 final privacyStateCacheProvider = Provider<PrivacyState?>((ref) {
-  final json = ref.watch(keyValueStoreProvider).readJson(_privacyStateCacheKey);
+  final json = ref.watch(keyValueStoreProvider).readJson(privacyStateCacheKey);
   if (json == null) return null;
   try {
     return PrivacyState.fromJson(json);
@@ -150,8 +143,8 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
       }
       try {
         final fresh = await ref.read(privacyRepositoryProvider).updatePrivacy(
-              policyVersion: current.acceptedPolicyVersion ??
-                  current.currentPolicyVersion,
+              policyVersion:
+                  current.acceptedPolicyVersion ?? current.currentPolicyVersion,
               coreStorageAccepted: true,
               progressTrackingEnabled:
                   progressTrackingEnabled ?? current.progressTrackingEnabled,
@@ -176,7 +169,7 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
     try {
       await ref
           .read(keyValueStoreProvider)
-          .writeJson(_privacyStateCacheKey, fresh.toJson());
+          .writeJson(privacyStateCacheKey, fresh.toJson());
     } catch (_) {
       // Display cache only; losing it just means stale/unavailable retry UI.
     }
@@ -197,7 +190,13 @@ final effectiveCloudTtsProvider = Provider<bool>((ref) {
 });
 
 /// Fail-closed app access derived from server privacy truth + profile state.
-enum AppAccessStatus { loading, setupRequired, policyReviewRequired, ready, unavailable }
+enum AppAccessStatus {
+  loading,
+  setupRequired,
+  policyReviewRequired,
+  ready,
+  unavailable
+}
 
 class AppAccessState {
   const AppAccessState(this.status, {this.consentAlreadySubmitted = false});
