@@ -4,6 +4,7 @@ import '../../core/di.dart';
 import '../../data/models/models.dart';
 import '../../data/sources/persistence_keys.dart';
 import '../profile/profile_providers.dart';
+import 'privacy_activity_notifier.dart';
 
 /// Fresh privacy & consent state from the server (§14). The single source of
 /// authorization truth: access derivation and the effective toggles below read
@@ -172,6 +173,16 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
     }
   }
 }
+
+/// Daily foreground activity reporter (Task 22). Best-effort: reports at most
+/// once per UTC day and never touches [privacyProvider] or access state.
+final privacyActivityNotifierProvider = Provider<PrivacyActivityNotifier>(
+  (ref) => PrivacyActivityNotifier(
+    store: ref.watch(keyValueStoreProvider),
+    repository: ref.watch(privacyRepositoryProvider),
+    clock: DateTime.now,
+  ),
+);
 
 /// Effective progress-tracking consent (§14). Reads ONLY the fresh async
 /// server result: false while loading, on error, or when absent.
