@@ -26,6 +26,9 @@ import '../features/player/narration_audio_fetcher.dart';
 import '../features/scan_any_page/native_scan_service.dart';
 import '../features/scan_any_page/scan_any_page_controller.dart';
 import '../features/scan_any_page/tts_client.dart';
+import '../features/player/narration_source_selection.dart';
+import '../features/privacy/privacy_providers.dart';
+import '../features/scan_any_page/device_tts_client.dart';
 import '../features/story_composer/story_composer_controller.dart';
 import 'api_config.dart';
 
@@ -100,18 +103,43 @@ final arAudioDownloaderProvider = Provider<ArAudioDownloader>(
 final ttsTemporaryDirectoryProvider =
     Provider<Directory Function()?>((ref) => null);
 
+/// Per-flow narration client for Scan Any Page (§14). Effective cloud consent
+/// is read at construction time: a disabled flow builds only the device client
+/// (never the HTTP one), an enabled flow gets the cloud-first wrapper, and a
+/// mid-flow preference change only affects the next newly constructed flow.
 final ttsClientProvider = Provider.autoDispose.family<TtsClient, Object>(
-  (ref, flowId) => HttpTtsClient(
-    ref.watch(apiClientProvider),
-    temporaryDirectory: ref.watch(ttsTemporaryDirectoryProvider),
-  ),
+  (ref, flowId) {
+    final cloudEnabled = ref.read(effectiveCloudTtsProvider);
+    final temporaryDirectory = ref.watch(ttsTemporaryDirectoryProvider) ??
+        (() => Directory.systemTemp);
+    if (!cloudEnabled) {
+      return DeviceTtsClient(
+        ref.watch(ttsFileSynthesizerProvider),
+        directory: temporaryDirectory,
+      );
+    }
+    return selectNarrationSource(
+      cloudNarrationEnabled: cloudEnabled,
+      cloudClient: HttpTtsClient(
+        ref.watch(apiClientProvider),
+        temporaryDirectory: temporaryDirectory,
+      ),
+      deviceClient: DeviceTtsClient(
+        ref.watch(ttsFileSynthesizerProvider),
+        directory: temporaryDirectory,
+      ),
+    );
+  },
 );
 
 /// Per-story narration fetcher, used only by authored stories. autoDispose so
 /// the underlying TtsClient — and every temp clip it wrote — is torn down when
-/// the player leaves.
+/// the player leaves. Effective cloud consent is read at construction time:
+/// disabled stories get no fetcher at all (and no HTTP client), while active
+/// playback keeps its already-built fetcher (§14).
 final narrationAudioFetcherProvider =
-    Provider.autoDispose.family<NarrationAudioFetcher, String>((ref, storyId) {
+    Provider.autoDispose.family<NarrationAudioFetcher?, String>((ref, storyId) {
+  if (!ref.read(effectiveCloudTtsProvider)) return null;
   final fetcher = TtsNarrationAudioFetcher(
     HttpTtsClient(
       ref.watch(apiClientProvider),

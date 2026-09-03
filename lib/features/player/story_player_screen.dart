@@ -70,7 +70,9 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   /// Held rather than re-read: narrationAudioFetcherProvider is autoDispose and
   /// is read without a listener, so it is torn down after the first frame. A
   /// fresh read in the AR handler would build an empty-cache fetcher and
-  /// re-issue a TTS request for every page.
+  /// re-issue a TTS request for every page. Null when the story is curated or
+  /// when effective cloud-narration consent is off (§14) — the same null flows
+  /// into AR, which then falls back to on-device synthesis.
   NarrationAudioFetcher? _fetcher;
 
   final PageController _pageController = PageController();

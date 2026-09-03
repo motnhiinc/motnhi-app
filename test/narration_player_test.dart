@@ -1,11 +1,18 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:storybook_ar/core/di.dart';
 import 'package:storybook_ar/data/models/models.dart';
+import 'package:storybook_ar/data/sources/api_client.dart';
+import 'package:storybook_ar/data/sources/key_value_store.dart';
 import 'package:storybook_ar/features/player/narration_audio_fetcher.dart';
 import 'package:storybook_ar/features/player/narration_player.dart';
+import 'package:storybook_ar/features/privacy/privacy_providers.dart';
 
 NarrationSegment _seg(String id, {String? audioAssetId}) => NarrationSegment(
       id: id,
@@ -111,6 +118,40 @@ void main() {
 
     expect(player.debugFetchedPaths, isEmpty);
     expect(player.usingTtsFallback.value, isTrue);
+  });
+
+  test('consent-disabled authored stories receive no HTTP fetcher', () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer(overrides: [
+      effectiveCloudTtsProvider.overrideWithValue(false),
+      apiClientProvider.overrideWith(
+        (ref) => throw StateError('HTTP client must not be constructed'),
+      ),
+    ]);
+    addTearDown(container.dispose);
+
+    expect(container.read(narrationAudioFetcherProvider('story-1')), isNull);
+  });
+
+  test('consent-enabled authored stories receive the HTTP-backed fetcher',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+    final container = ProviderContainer(overrides: [
+      effectiveCloudTtsProvider.overrideWithValue(true),
+      apiClientProvider.overrideWith(
+        (ref) => ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://localhost')),
+          store: store,
+        ),
+      ),
+    ]);
+    addTearDown(container.dispose);
+
+    expect(
+      container.read(narrationAudioFetcherProvider('story-1')),
+      isA<TtsNarrationAudioFetcher>(),
+    );
   });
 }
 

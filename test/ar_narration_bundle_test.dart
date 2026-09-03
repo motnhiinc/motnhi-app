@@ -181,6 +181,29 @@ void main() {
     expect(pages.single.audioFilePaths.single, endsWith('ar_story1_p1_s0.wav'));
   });
 
+  test('with no fetcher (cloud disabled) every segment still synthesizes',
+      () async {
+    final tts = _FakeTts();
+    final detail = _detail(
+      pages: [const StoryPage(id: 'p1', storyId: 'story-1', pageNumber: 1)],
+      segments: [
+        _segment(id: 's1', pageId: 'p1', sortOrder: 0, text: 'first'),
+        _segment(id: 's2', pageId: 'p1', sortOrder: 1, text: 'second'),
+      ],
+    );
+    final pages = await prepareArNarration(
+      detail: detail,
+      resolver: _FakeResolver(const {}),
+      fetcher: null,
+      tts: tts,
+      downloader: _FakeDownloader(),
+      directory: dir,
+    );
+
+    expect(tts.synthesized, ['first', 'second']);
+    expect(pages.single.audioFilePaths, hasLength(2));
+  });
+
   test('falls back to device TTS when the download fails', () async {
     final tts = _FakeTts();
     final detail = _detail(

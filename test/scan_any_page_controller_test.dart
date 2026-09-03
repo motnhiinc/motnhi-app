@@ -1,8 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:storybook_ar/core/di.dart';
+import 'package:storybook_ar/data/sources/api_client.dart';
+import 'package:storybook_ar/data/sources/key_value_store.dart';
+import 'package:storybook_ar/features/ar/ar_narration_bundle.dart';
+import 'package:storybook_ar/features/player/narration_source_selection.dart';
+import 'package:storybook_ar/features/privacy/privacy_providers.dart';
+import 'package:storybook_ar/features/scan_any_page/device_tts_client.dart';
 import 'package:storybook_ar/features/scan_any_page/native_character_reader.dart';
 import 'package:storybook_ar/features/scan_any_page/native_scan_service.dart';
 import 'package:storybook_ar/features/scan_any_page/scan_any_page_controller.dart';
@@ -345,6 +354,77 @@ void main() {
     await expectLater(operation, completes);
     expect(ttsClient.disposeCount, 1);
   });
+
+  test('consent-disabled scan flow receives the device-only TtsClient',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer(overrides: [
+      effectiveCloudTtsProvider.overrideWithValue(false),
+      apiClientProvider.overrideWith(
+        (ref) => throw StateError('HTTP client must not be constructed'),
+      ),
+      ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
+    ]);
+    addTearDown(container.dispose);
+
+    final client = container.read(ttsClientProvider(Object()));
+
+    expect(client, isA<DeviceTtsClient>());
+    expect(client, isNot(isA<CloudFirstTtsClient>()));
+  });
+
+  test('consent-enabled scan flow receives the cloud-first TtsClient',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+    final container = ProviderContainer(overrides: [
+      effectiveCloudTtsProvider.overrideWithValue(true),
+      apiClientProvider.overrideWith(
+        (ref) => ApiClient(
+          dio: Dio(BaseOptions(baseUrl: 'http://localhost')),
+          store: store,
+        ),
+      ),
+      ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
+    ]);
+    addTearDown(container.dispose);
+
+    expect(
+      container.read(ttsClientProvider(Object())),
+      isA<CloudFirstTtsClient>(),
+    );
+  });
+
+  test('cloud consent rejection falls back to device audio', () async {
+    final file = File('/tmp/device.mp3');
+    final deviceClient = _FakeTtsClient()..results.add(Future.value(file));
+    final cloudClient = _RejectingCloudTtsClient();
+    final fallbackProvider =
+        NotifierProvider<ScanAnyPageController, ScanAnyPageState>(
+      () => ScanAnyPageController(
+        scanService: scanService,
+        ttsClient: CloudFirstTtsClient(cloud: cloudClient, device: deviceClient),
+        characterReader: characterReader,
+      ),
+    );
+    final fallbackContainer = ProviderContainer();
+    addTearDown(fallbackContainer.dispose);
+
+    await fallbackContainer
+        .read(fallbackProvider.notifier)
+        .confirmText('Read me');
+
+    expect(
+      fallbackContainer.read(fallbackProvider),
+      ScanAnyPageState(
+        phase: ScanAnyPagePhase.readyForAr,
+        confirmedText: 'Read me',
+        audioFile: file,
+      ),
+    );
+    expect(cloudClient.generatedTexts, ['Read me']);
+    expect(deviceClient.generatedTexts, ['Read me']);
+  });
 }
 
 final class _FakeScanService implements ScanService {
@@ -384,4 +464,25 @@ final class _FakeCharacterReader implements CharacterReader {
     openedPaths.add(audioFilePath);
     return results.removeAt(0);
   }
+}
+
+final class _RejectingCloudTtsClient implements TtsClient {
+  final generatedTexts = <String>[];
+
+  @override
+  Future<File> generate(String confirmedText, {String? fileName}) {
+    generatedTexts.add(confirmedText);
+    return Future.error(const TtsGenerationFailure('cloud_tts_disabled'));
+  }
+
+  @override
+  Future<void> dispose() async {}
+}
+
+final class _FakeSynthesizer implements TtsFileSynthesizer {
+  @override
+  String get fileExtension => 'wav';
+
+  @override
+  Future<bool> synthesizeToFile(String text, String filePath) async => true;
 }
