@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/di.dart';
 import '../../data/models/models.dart';
+import '../privacy/privacy_providers.dart';
 import '../profile/profile_providers.dart';
 
 /// Aggregated reading activity for the parent dashboard (§7.2.2, §16).
@@ -26,16 +27,46 @@ class DashboardSummary {
       questionsAnswered == 0 ? 0 : questionsCorrect / questionsAnswered;
 }
 
-/// Builds the dashboard summary by joining sessions + events with the library.
-/// Privacy-preserving: aggregates only, no per-event child profiling (§16.4).
-final dashboardSummaryProvider =
-    FutureProvider<DashboardSummary>((ref) async {
+/// Which privacy situation the dashboard renders (§14). History presence
+/// separates the paired states: tracking off → no-history vs retained-history;
+/// tracking on → empty vs active.
+enum DashboardTrackingStatus {
+  /// Progress tracking is off and no history exists — nothing was ever saved.
+  trackingOffNoHistory,
+
+  /// Progress tracking is on but the child has not read anything yet.
+  trackingOnNoHistory,
+
+  /// Progress tracking is on with readable history — live stats.
+  trackingOnWithHistory,
+
+  /// Progress tracking is off but previously saved (retained) history exists.
+  trackingOffRetainedHistory,
+}
+
+/// Privacy-aware dashboard state: the aggregate [summary] plus the [status]
+/// telling the screen how it may be presented.
+class DashboardState {
+  const DashboardState({required this.status, required this.summary});
+
+  final DashboardTrackingStatus status;
+  final DashboardSummary summary;
+}
+
+/// Builds the privacy-aware dashboard state by joining the effective privacy
+/// consent with sessions + events and the library (§14, §16). Privacy
+/// preserving: aggregates only, no per-event child profiling (§16.4).
+///
+/// A remote session-list failure surfaces as an error (retry UI) — never as an
+/// empty history, which would be indistinguishable from a tracking-off fresh
+/// start. Library recommendations stay available in every state.
+final dashboardStateProvider = FutureProvider<DashboardState>((ref) async {
   final profile = ref.watch(childProfileProvider).value;
   final sessionRepo = ref.watch(sessionRepositoryProvider);
   final storyRepo = ref.watch(storyRepositoryProvider);
+  final trackingEnabled = ref.watch(effectiveProgressTrackingProvider);
 
-  final sessions =
-      await sessionRepo.getSessions(childProfileId: profile?.id);
+  final sessions = await sessionRepo.getSessions(childProfileId: profile?.id);
   final eventLists = await Future.wait(
     sessions.map((s) => sessionRepo.getEvents(sessionId: s.id)),
   );
@@ -53,8 +84,7 @@ final dashboardSummaryProvider =
 
   final answers =
       events.where((e) => e.eventType == 'question_answered').toList();
-  final correct =
-      answers.where((e) => e.payload['is_correct'] == true).length;
+  final correct = answers.where((e) => e.payload['is_correct'] == true).length;
 
   // Recent: most-recently started stories (dedup, newest first).
   final recentIds = <String>[];
@@ -63,8 +93,7 @@ final dashboardSummaryProvider =
       recentIds.add(s.storyId);
     }
   }
-  final recent =
-      recentIds.take(5).map((id) => byId[id]!).toList();
+  final recent = recentIds.take(5).map((id) => byId[id]!).toList();
 
   // Recommendation (§25 simple rules): age-appropriate stories not yet
   // completed, newest library order.
@@ -74,12 +103,30 @@ final dashboardSummaryProvider =
       .take(5)
       .toList();
 
-  return DashboardSummary(
-    storiesCompleted: completedStoryIds.length,
-    totalReadingTime: totalTime,
-    questionsAnswered: answers.length,
-    questionsCorrect: correct,
-    recentStories: recent,
-    recommended: recommended,
+  final hasHistory = sessions.isNotEmpty;
+  final status = switch ((trackingEnabled, hasHistory)) {
+    (false, false) => DashboardTrackingStatus.trackingOffNoHistory,
+    (false, true) => DashboardTrackingStatus.trackingOffRetainedHistory,
+    (true, false) => DashboardTrackingStatus.trackingOnNoHistory,
+    (true, true) => DashboardTrackingStatus.trackingOnWithHistory,
+  };
+
+  return DashboardState(
+    status: status,
+    summary: DashboardSummary(
+      storiesCompleted: completedStoryIds.length,
+      totalReadingTime: totalTime,
+      questionsAnswered: answers.length,
+      questionsCorrect: correct,
+      recentStories: recent,
+      recommended: recommended,
+    ),
   );
+});
+
+/// Aggregate-only view for screens that just need recents/recommendations
+/// (child home, My Books). Derived from [dashboardStateProvider] so both share
+/// one session/event fetch.
+final dashboardSummaryProvider = FutureProvider<DashboardSummary>((ref) async {
+  return (await ref.watch(dashboardStateProvider.future)).summary;
 });

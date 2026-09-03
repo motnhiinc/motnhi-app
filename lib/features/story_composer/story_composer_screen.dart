@@ -7,6 +7,7 @@ import '../../core/router/app_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../library/library_providers.dart';
+import '../privacy/privacy_providers.dart';
 import '../profile/profile_providers.dart';
 import 'story_composer_controller.dart';
 
@@ -38,15 +39,24 @@ class StoryComposerScreen extends ConsumerWidget {
     final notifier = ref.read(provider.notifier);
 
     ref.listen(provider, (previous, next) {
-      if (next.savedStoryId == null ||
-          previous?.savedStoryId == next.savedStoryId) {
-        return;
+      if (next.savedStoryId != null &&
+          previous?.savedStoryId != next.savedStoryId) {
+        ref.invalidate(libraryProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(s.composerSavedToast)),
+        );
+        context.go(AppRoutes.home);
       }
-      ref.invalidate(libraryProvider);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.composerSavedToast)),
-      );
-      context.go(AppRoutes.home);
+      // First save attempt in a fresh flow: confirm cloud storage (§14.3).
+      if (next.disclosurePending && previous?.disclosurePending != true) {
+        _showCloudStorageDialog(context, s, notifier);
+      }
+      // Policy review required: refresh privacy state so the review screen
+      // (router redirect) shows fresh server truth.
+      if (next.failureCode == 'save:privacy_policy_review_required' &&
+          previous?.failureCode != next.failureCode) {
+        ref.invalidate(privacyProvider);
+      }
     });
 
     final busy = state.phase == StoryComposerPhase.scanning ||
@@ -169,8 +179,44 @@ String _messageFor(AppLocalizations s, String failureCode) {
   if (failureCode == 'save:quota_reached') {
     return s.composerTooManyPages;
   }
+  if (failureCode == 'save:privacy_policy_review_required') {
+    return s.composerPolicyReviewError;
+  }
   if (failureCode == 'save:backend_unreachable' || failureCode == 'save:timeout') {
     return s.composerOfflineError;
   }
   return s.composerOfflineError;
+}
+
+/// Confirmation before the first save in each fresh composer flow (§14.3):
+/// title and page text go to the app cloud; camera images never do. The
+/// acknowledgement is per-flow widget state only — nothing is persisted.
+Future<void> _showCloudStorageDialog(
+  BuildContext context,
+  AppLocalizations s,
+  StoryComposerController notifier,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(s.composerDisclosureTitle),
+      content: Text(s.composerDisclosureBody),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: Text(s.cancelLabel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: Text(s.composerDisclosureContinue),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true) {
+    notifier.acknowledgeDisclosure();
+    await notifier.save();
+  } else {
+    notifier.cancelDisclosure();
+  }
 }

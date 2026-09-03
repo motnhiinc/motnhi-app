@@ -4,6 +4,7 @@ export 'child_profile.dart';
 export 'enums.dart';
 export 'interaction_event.dart';
 export 'narration_segment.dart';
+export 'privacy_state.dart';
 export 'question.dart';
 export 'reading_settings.dart';
 export 'story.dart';

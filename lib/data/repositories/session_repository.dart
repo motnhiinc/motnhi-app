@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/models.dart';
 import '../sources/key_value_store.dart';
+import '../sources/persistence_keys.dart';
 
 /// Tracks story sessions and interaction events (§9.5.6). Backs
 /// `POST /v1/story-sessions` (§11.3) and `.../events` (§11.4). Persisted
@@ -30,6 +31,15 @@ abstract class SessionRepository {
   Future<List<InteractionEvent>> getEvents({String? sessionId});
 }
 
+/// Typed failure raised by session writes; `code` preserves the upstream
+/// detail (e.g. `progress_tracking_disabled`), or `network` /
+/// `invalid_response` when no detail is available.
+class SessionFailure implements Exception {
+  const SessionFailure(this.code);
+
+  final String code;
+}
+
 class LocalSessionRepository implements SessionRepository {
   LocalSessionRepository(this._store, {Uuid? uuid, DateTime Function()? clock})
       : _uuid = uuid ?? const Uuid(),
@@ -39,24 +49,21 @@ class LocalSessionRepository implements SessionRepository {
   final Uuid _uuid;
   final DateTime Function() _clock;
 
-  static const _sessionsKey = 'story_sessions';
-  static const _eventsKey = 'interaction_events';
-
   List<StorySession> _readSessions() =>
-      (_store.readJsonList(_sessionsKey) ?? const [])
+      (_store.readJsonList(storySessionsKey) ?? const [])
           .map((e) => StorySession.fromJson(e as Map<String, dynamic>))
           .toList();
 
-  Future<void> _writeSessions(List<StorySession> sessions) =>
-      _store.writeJson(_sessionsKey, sessions.map((s) => s.toJson()).toList());
+  Future<void> _writeSessions(List<StorySession> sessions) => _store.writeJson(
+      storySessionsKey, sessions.map((s) => s.toJson()).toList());
 
   List<InteractionEvent> _readEvents() =>
-      (_store.readJsonList(_eventsKey) ?? const [])
+      (_store.readJsonList(interactionEventsKey) ?? const [])
           .map((e) => InteractionEvent.fromJson(e as Map<String, dynamic>))
           .toList();
 
-  Future<void> _writeEvents(List<InteractionEvent> events) =>
-      _store.writeJson(_eventsKey, events.map((e) => e.toJson()).toList());
+  Future<void> _writeEvents(List<InteractionEvent> events) => _store.writeJson(
+      interactionEventsKey, events.map((e) => e.toJson()).toList());
 
   @override
   Future<StorySession> startSession({
@@ -121,9 +128,7 @@ class LocalSessionRepository implements SessionRepository {
   Future<List<StorySession>> getSessions({String? childProfileId}) async {
     final sessions = _readSessions();
     if (childProfileId == null) return sessions;
-    return sessions
-        .where((s) => s.childProfileId == childProfileId)
-        .toList();
+    return sessions.where((s) => s.childProfileId == childProfileId).toList();
   }
 
   @override

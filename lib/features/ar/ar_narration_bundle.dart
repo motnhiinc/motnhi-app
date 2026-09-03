@@ -91,6 +91,12 @@ String _storyFilePrefix(String storyId) {
 /// authored-story TTS fetcher, then on-device speech synthesis. Preparation is
 /// all-or-nothing: a partial bundle would break the page-id mapping and risk
 /// playing a stale clip.
+///
+/// [isCancelled] is polled before every file write (and before each remaining
+/// unit). When it turns true, preparation throws
+/// `ArNarrationFailure('cancelled')` without writing anything further — the
+/// hook is what lets child-data cleanup pre-empt a live preparation without
+/// the preparation re-creating swept audio files.
 Future<List<ArNarrationPage>> prepareArNarration({
   required StoryDetail detail,
   required AssetUrlResolver resolver,
@@ -99,6 +105,7 @@ Future<List<ArNarrationPage>> prepareArNarration({
   required ArAudioDownloader downloader,
   required Directory directory,
   void Function(int done, int total)? onProgress,
+  bool Function()? isCancelled,
 }) async {
   final storyId = detail.story.id;
   final pages = detail.orderedPages;
@@ -129,6 +136,7 @@ Future<List<ArNarrationPage>> prepareArNarration({
   final pathsByPageId = <String, List<String>>{};
   var done = 0;
   for (final unit in units) {
+    _throwIfCancelled(isCancelled);
     final path = await _prepareUnit(
       unit: unit,
       storyId: storyId,
@@ -137,6 +145,7 @@ Future<List<ArNarrationPage>> prepareArNarration({
       tts: tts,
       downloader: downloader,
       directory: directory,
+      isCancelled: isCancelled,
     );
     pathsByPageId.putIfAbsent(unit.page.id, () => <String>[]).add(path);
     onProgress?.call(++done, units.length);
@@ -162,6 +171,14 @@ class _Unit {
   int get sortOrder => segment?.sortOrder ?? 0;
 }
 
+/// Throws `ArNarrationFailure('cancelled')` when the caller cancelled, so a
+/// cancelled preparation never writes another owned audio file.
+void _throwIfCancelled(bool Function()? isCancelled) {
+  if (isCancelled?.call() ?? false) {
+    throw const ArNarrationFailure('cancelled');
+  }
+}
+
 Future<String> _prepareUnit({
   required _Unit unit,
   required String storyId,
@@ -170,6 +187,7 @@ Future<String> _prepareUnit({
   required TtsFileSynthesizer tts,
   required ArAudioDownloader downloader,
   required Directory directory,
+  required bool Function()? isCancelled,
 }) async {
   String target(String extension) => '${directory.path}/'
       '${arSegmentFileName(
@@ -187,8 +205,10 @@ Future<String> _prepareUnit({
   if (url != null) {
     try {
       final bytes = await downloader.download(url);
+      _throwIfCancelled(isCancelled);
       if (bytes.isNotEmpty) return _writeAtomically(target('mp3'), bytes);
-    } catch (_) {
+    } catch (error) {
+      if (error is ArNarrationFailure) rethrow;
       // Fall through: a failed download must not lose the page.
     }
   }
@@ -198,10 +218,12 @@ Future<String> _prepareUnit({
   if (segment != null && fetcher != null) {
     try {
       final source = await fetcher.pathFor(segment);
+      _throwIfCancelled(isCancelled);
       if (source != null && await File(source).exists()) {
         return _copyAtomically(source, target('mp3'));
       }
-    } catch (_) {
+    } catch (error) {
+      if (error is ArNarrationFailure) rethrow;
       // Fall through to speech synthesis.
     }
   }
@@ -209,6 +231,7 @@ Future<String> _prepareUnit({
   // 3. On-device speech.
   final text = unit.text.trim();
   if (text.isNotEmpty) {
+    _throwIfCancelled(isCancelled);
     final path = target(tts.fileExtension);
     final ok = await tts.synthesizeToFile(text, path);
     if (ok && await File(path).exists()) return path;

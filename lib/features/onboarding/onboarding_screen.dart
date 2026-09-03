@@ -3,16 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/di.dart';
 import '../../core/router/app_router.dart';
 import '../../data/models/models.dart';
+import '../../data/repositories/profile_repository.dart';
+import '../../data/repositories/privacy_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
+import '../privacy/privacy_providers.dart';
 import '../profile/profile_providers.dart';
 
-/// Parent onboarding (§7.2.1). Creates a data-minimized child profile and
-/// records explicit parental consent (§14.2). Nickname optional, age band not
-/// birthdate, no photo (§14.3). Microphone OFF by default (§14.1).
+/// Parent onboarding (§7.2.1). Consent-first: privacy acknowledgement and the
+/// two optional choices are submitted before the profile is saved (§14.2,
+/// §14.3). Nickname optional, age band not birthdate, no photo (§14.3).
+/// Microphone OFF by default (§14.1).
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -27,7 +30,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String _language = 'en';
   bool _arEnabled = true;
   bool _microphoneEnabled = false; // off by default (§14.1)
-  bool _consented = false;
+  bool _consented = false; // required acknowledgement, starts unchecked
+  bool _progressTracking = false; // optional, off by default (§14.2)
+  bool _cloudNarration = false; // optional, off by default (§14.2)
   bool _saving = false;
 
   @override
@@ -36,12 +41,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     super.dispose();
   }
 
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Future<void> _finish() async {
     if (_saving) return;
     setState(() => _saving = true);
+    final s = AppLocalizations.of(context)!;
     try {
-      final profileRepo = ref.read(profileRepositoryProvider);
-      await profileRepo.setConsented(true);
+      // Consent-first (§14.2): submit the four privacy fields, then save the
+      // profile. When a prior attempt already recorded the current acceptance
+      // (profile save failed afterwards), retry only the profile save.
+      final privacy = ref.read(privacyProvider).value;
+      final consentCurrent = privacy != null &&
+          privacy.acceptedPolicyVersion != null &&
+          privacy.acceptedPolicyVersion == privacy.currentPolicyVersion;
+      if (!consentCurrent) {
+        final policyVersion = privacy?.currentPolicyVersion;
+        if (policyVersion == null) {
+          // No server truth for the required policy version — do not guess.
+          ref.invalidate(privacyProvider);
+          _showError(s.privacySaveError);
+          return;
+        }
+        await ref.read(privacyProvider.notifier).updatePrivacy(
+              policyVersion: policyVersion,
+              coreStorageAccepted: true,
+              progressTrackingEnabled: _progressTracking,
+              cloudTtsEnabled: _cloudNarration,
+            );
+      }
       await ref.read(childProfileProvider.notifier).save(
             ChildProfile(
               id: _profileId,
@@ -54,15 +87,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           );
       if (mounted) context.go(AppRoutes.home);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text(AppLocalizations.of(context)!.setupError),
-          ),
-        );
+    } on PrivacyFailure {
+      // Refresh policy state so the next retry uses fresh server truth.
+      ref.invalidate(privacyProvider);
+      _showError(s.privacySaveError);
+    } on ProfileFailure catch (e) {
+      if (e.code == 'privacy_policy_review_required') {
+        // Refresh policy state; the router redirects to the review screen.
+        ref.invalidate(privacyProvider);
+        return;
       }
+      _showError(s.profileSaveError);
+    } catch (_) {
+      _showError(s.setupError);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -186,6 +223,47 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     style: Theme.of(context).textTheme.titleSmall),
                 subtitle: Text(s.micSub,
                     style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
+
+            // Optional privacy choices — both off by default (§14.2).
+            const SizedBox(height: 12),
+            PaperCard(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _progressTracking,
+                onChanged: (v) => setState(() => _progressTracking = v),
+                title: Text(s.privacyTrackingTitle,
+                    style: Theme.of(context).textTheme.titleSmall),
+                subtitle: Text(s.privacyTrackingBody,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
+            const SizedBox(height: 12),
+            PaperCard(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _cloudNarration,
+                onChanged: (v) => setState(() => _cloudNarration = v),
+                title: Text(s.privacyCloudTitle,
+                    style: Theme.of(context).textTheme.titleSmall),
+                subtitle: Text(s.privacyCloudBody,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Required storage disclosure.
+            PaperCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.privacyStorageRequiredTitle,
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 6),
+                  Text(s.privacyStorageRequiredBody,
+                      style: Theme.of(context).textTheme.bodySmall),
+                ],
               ),
             ),
 

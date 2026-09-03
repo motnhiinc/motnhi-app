@@ -106,7 +106,7 @@ def create_authored(db: Session, user_id: str, payload) -> Story:
             voice_id=settings.openai_tts_voice, emotion=None, speed=1.0,
             audio_asset_id=None, start_ms=0, end_ms=0, sort_order=0,
         ))
-    db.commit()
+    db.flush()
     db.refresh(story)
     return story
 
@@ -140,5 +140,5 @@ def delete_authored(db: Session, user_id: str, story_id: str) -> bool:
     # pages / segments / ar_scenes / questions go via the cascade="all,
     # delete-orphan" relationships declared on the Story model.
     db.delete(story)
-    db.commit()
+    db.flush()
     return True

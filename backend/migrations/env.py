@@ -13,8 +13,10 @@ import app.models  # noqa: F401  (registers tables on Base.metadata)
 # access to the values within the .ini file in use.
 config = context.config
 
-# Inject the database URL from our settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Inject the database URL from our settings. configparser uses interpolation,
+# so a literal % (e.g. percent-encoded query options or passwords) must be
+# escaped as %% before being set here.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

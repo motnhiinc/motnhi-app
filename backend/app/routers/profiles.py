@@ -4,8 +4,11 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.db import get_db
 from app.models import User
+from app.repositories import privacy as privacy_repo
 from app.repositories import profiles as repo
 from app.schemas import ChildProfileIn, ChildProfileOut, ChildProfilePatch
+from app.services import privacy as privacy_service
+from app.services.privacy import PrivacyError
 
 router = APIRouter(prefix="/v1/child-profiles", tags=["child-profiles"])
 
@@ -18,7 +21,19 @@ def list_profiles(db: Session = Depends(get_db), user: User = Depends(get_curren
 @router.post("", response_model=ChildProfileOut)
 def create_profile(body: ChildProfileIn, db: Session = Depends(get_db),
                    user: User = Depends(get_current_user)):
-    return repo.upsert(db, user.id, body.model_dump())
+    try:
+        privacy_service.lock_user(db, user.id)
+        settings = privacy_repo.get_settings(db, user.id)
+        privacy_service.require_core_storage(settings)
+        result = repo.upsert(db, user.id, body.model_dump())
+        db.commit()
+        return result
+    except PrivacyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.patch("/{profile_id}", response_model=ChildProfileOut)
@@ -36,4 +51,16 @@ def patch_profile(profile_id: str, body: ChildProfilePatch, db: Session = Depend
         "microphone_enabled": body.microphone_enabled if body.microphone_enabled is not None else existing.microphone_enabled,
         "ar_enabled": body.ar_enabled if body.ar_enabled is not None else existing.ar_enabled,
     }
-    return repo.upsert(db, user.id, merged)
+    try:
+        privacy_service.lock_user(db, user.id)
+        settings = privacy_repo.get_settings(db, user.id)
+        privacy_service.require_core_storage(settings)
+        profile = repo.upsert(db, user.id, merged)
+        db.commit()
+        return profile
+    except PrivacyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    except Exception:
+        db.rollback()
+        raise

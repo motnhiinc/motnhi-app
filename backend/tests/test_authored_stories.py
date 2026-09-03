@@ -1,15 +1,57 @@
 import uuid as _uuid
+from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.auth import decode_token
 from app.models import (
     InteractionEvent,
     NarrationSegment,
+    PrivacySettings,
     Story,
     StoryPage,
     StorySession,
 )
+from app.repositories import stories as stories_repo
+from app.schemas import CreateStoryRequest
+
+POLICY_VERSION = "2026-08-28"
+
+
+def _uid_from_headers(headers):
+    return decode_token(headers["Authorization"].removeprefix("Bearer "))
+
+
+def _grant_consent(db, user_id):
+    now = datetime.now(timezone.utc)
+    settings = db.get(PrivacySettings, user_id)
+    if settings is None:
+        settings = PrivacySettings(user_id=user_id)
+        db.add(settings)
+    settings.accepted_policy_version = POLICY_VERSION
+    settings.core_storage_accepted_at = now
+    # Story playback/reading routes require effective progress tracking, so a
+    # consent grant that lets these tests read stories must enable it.
+    settings.progress_tracking_enabled = True
+    settings.cloud_tts_enabled = False
+    settings.last_active_at = now
+    settings.updated_at = now
+    db.flush()
+
+
+def _stale_consent(db, user_id):
+    settings = db.get(PrivacySettings, user_id)
+    assert settings is not None
+    settings.accepted_policy_version = "2026-01-01"
+    settings.core_storage_accepted_at = datetime.now(timezone.utc)
+    db.flush()
+
+
+def _drop_consent(db, user_id):
+    settings = db.get(PrivacySettings, user_id)
+    if settings is not None:
+        db.delete(settings)
+        db.flush()
 
 
 def _auth(client, device_id="d1"):
@@ -100,6 +142,7 @@ def test_other_user_cannot_start_session_on_authored_story(client, db, seeded):
     owner_uid, _ = _user_id_for(client, "owner-device")
     story = _make_authored(db, owner_uid)
     _, other_headers = _user_id_for(client, "other-device")
+    _grant_consent(db, _uid_from_headers(other_headers))
     profile = _profile_for(client, other_headers)
     resp = client.post(
         "/v1/story-sessions",
@@ -111,6 +154,7 @@ def test_other_user_cannot_start_session_on_authored_story(client, db, seeded):
 
 def test_owner_can_start_session_on_own_authored_story(client, db, seeded):
     uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     story = _make_authored(db, uid)
     profile = _profile_for(client, headers)
     resp = client.post(
@@ -139,8 +183,9 @@ def _payload(pages=None, title="My Book", language="en"):
     return {"title": title, "language_code": language, "pages": pages}
 
 
-def test_create_story_returns_it_and_sets_owner(client, seeded):
-    _, headers = _user_id_for(client, "owner-device")
+def test_create_story_returns_it_and_sets_owner(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     resp = client.post("/v1/stories", json=_payload(), headers=headers)
     assert resp.status_code == 201
     body = resp.json()
@@ -150,8 +195,9 @@ def test_create_story_returns_it_and_sets_owner(client, seeded):
     assert body["duration_seconds"] >= 60
 
 
-def test_created_story_round_trips_with_one_segment_per_page(client, seeded):
-    _, headers = _user_id_for(client, "owner-device")
+def test_created_story_round_trips_with_one_segment_per_page(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
     detail = client.get(f"/v1/stories/{story_id}", headers=headers).json()
     assert len(detail["pages"]) == 2
@@ -164,8 +210,9 @@ def test_created_story_round_trips_with_one_segment_per_page(client, seeded):
     assert "The fox found a red balloon." in {s["text"] for s in detail["segments"]}
 
 
-def test_created_story_appears_in_library(client, seeded):
-    _, headers = _user_id_for(client, "owner-device")
+def test_created_story_appears_in_library(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     client.post("/v1/stories", json=_payload(), headers=headers)
     titles = [s["title"] for s in client.get("/v1/stories", headers=headers).json()["stories"]]
     assert "My Book" in titles
@@ -216,6 +263,7 @@ def test_create_rejects_unsupported_language(client, seeded):
 
 def test_create_enforces_story_cap(client, db, seeded):
     uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     for _ in range(100):
         _make_authored(db, uid)
     db.flush()
@@ -223,7 +271,8 @@ def test_create_enforces_story_cap(client, db, seeded):
 
 
 def test_delete_after_reading_succeeds_and_clears_sessions(client, db, seeded):
-    _, headers = _user_id_for(client, "owner-device")
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
     profile = _profile_for(client, headers)
 
@@ -249,7 +298,8 @@ def test_delete_after_reading_succeeds_and_clears_sessions(client, db, seeded):
 
 
 def test_delete_cascades_pages_and_segments(client, db, seeded):
-    _, headers = _user_id_for(client, "owner-device")
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
     story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
     assert client.delete(f"/v1/stories/{story_id}", headers=headers).status_code == 204
     assert list(db.scalars(
@@ -260,8 +310,9 @@ def test_delete_cascades_pages_and_segments(client, db, seeded):
     )) == []
 
 
-def test_delete_is_owner_only(client, seeded):
-    _, owner_headers = _user_id_for(client, "owner-device")
+def test_delete_is_owner_only(client, db, seeded):
+    owner_uid, owner_headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, owner_uid)
     story_id = client.post("/v1/stories", json=_payload(), headers=owner_headers).json()["id"]
     _, other_headers = _user_id_for(client, "other-device")
     assert client.delete(f"/v1/stories/{story_id}", headers=other_headers).status_code == 404
@@ -278,3 +329,86 @@ def test_delete_rejects_curated_story(client, seeded):
 def test_delete_unknown_story_404s(client, seeded):
     _, headers = _user_id_for(client, "owner-device")
     assert client.delete(f"/v1/stories/{_uuid.uuid4()}", headers=headers).status_code == 404
+
+
+def test_create_authored_flushes_without_committing(client, db, monkeypatch):
+    user_id, _ = _user_id_for(client, "owner-device")
+
+    def fail_commit():
+        raise AssertionError("repository must not commit")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    story = stories_repo.create_authored(
+        db, user_id, CreateStoryRequest.model_validate(_payload())
+    )
+    story_id = story.id
+    db.expunge_all()
+
+    assert db.scalar(select(Story).where(Story.id == story_id)) is not None
+
+
+def test_delete_authored_flushes_without_committing(client, db, monkeypatch):
+    user_id, _ = _user_id_for(client, "owner-device")
+    story = _make_authored(db, user_id)
+    story_id = story.id
+
+    def fail_commit():
+        raise AssertionError("repository must not commit")
+
+    monkeypatch.setattr(db, "commit", fail_commit)
+    assert stories_repo.delete_authored(db, user_id, story_id) is True
+    db.expunge_all()
+
+    assert db.scalar(select(Story).where(Story.id == story_id)) is None
+
+
+def _owned_story_count(db, user_id):
+    return db.scalar(
+        select(func.count()).select_from(Story).where(Story.owner_user_id == user_id)
+    )
+
+
+def test_create_story_missing_privacy_row_returns_428_and_writes_nothing(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _drop_consent(db, uid)
+    resp = client.post("/v1/stories", json=_payload(), headers=headers)
+    assert resp.status_code == 428
+    assert resp.json() == {"detail": "privacy_policy_review_required"}
+    assert _owned_story_count(db, uid) == 0
+
+
+def test_create_story_stale_consent_returns_428_and_writes_nothing(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _stale_consent(db, uid)
+    resp = client.post("/v1/stories", json=_payload(), headers=headers)
+    assert resp.status_code == 428
+    assert resp.json() == {"detail": "privacy_policy_review_required"}
+    assert _owned_story_count(db, uid) == 0
+
+
+def test_create_story_current_consent_succeeds(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
+    resp = client.post("/v1/stories", json=_payload(), headers=headers)
+    assert resp.status_code == 201
+    assert resp.json()["is_authored"] is True
+
+
+def test_create_story_owner_without_profile_succeeds_with_consent(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
+    resp = client.post("/v1/stories", json=_payload(), headers=headers)
+    assert resp.status_code == 201
+
+
+def test_story_reads_and_delete_available_without_consent(client, db, seeded):
+    uid, headers = _user_id_for(client, "owner-device")
+    _grant_consent(db, uid)
+    story_id = client.post("/v1/stories", json=_payload(), headers=headers).json()["id"]
+    _drop_consent(db, uid)
+
+    assert client.get("/v1/stories", headers=headers).status_code == 200
+    detail = client.get(f"/v1/stories/{story_id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["story"]["id"] == story_id
+    assert client.delete(f"/v1/stories/{story_id}", headers=headers).status_code == 204

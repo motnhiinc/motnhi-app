@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -129,6 +130,9 @@ final class HttpTtsClient implements TtsClient {
 }
 
 String _failureCode(DioException error) {
+  final detail = _fastApiDetail(error.response);
+  if (detail == 'cloud_tts_disabled') return 'cloud_tts_disabled';
+
   switch (error.response?.statusCode) {
     case 401:
     case 403:
@@ -153,6 +157,35 @@ String _failureCode(DioException error) {
           ? 'backend_unreachable'
           : 'upstream_failed';
   }
+}
+
+String? _fastApiDetail(Response<dynamic>? response) {
+  final data = response?.data;
+  if (data is List<int>) {
+    try {
+      return _detailFromBody(utf8.decode(data));
+    } on FormatException {
+      return null;
+    }
+  }
+  if (data is String) return _detailFromBody(data);
+  if (data is Map<String, dynamic>) return _detailFromDecoded(data);
+  return null;
+}
+
+String? _detailFromBody(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) return _detailFromDecoded(decoded);
+  } catch (_) {
+    return null;
+  }
+  return null;
+}
+
+String? _detailFromDecoded(Map<String, dynamic> decoded) {
+  final detail = decoded['detail'];
+  return detail is String ? detail : null;
 }
 
 bool _hasValidContentType(Headers headers) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +30,23 @@ class _FakeTts implements TtsFileSynthesizer {
   @override
   Future<bool> synthesizeToFile(String text, String filePath) async {
     if (!succeeds) return false;
+    await File(filePath).writeAsBytes([1]);
+    return true;
+  }
+}
+
+/// TTS that parks on a gate so a test can cancel mid-preparation.
+class _GatedTts implements TtsFileSynthesizer {
+  final gate = Completer<void>();
+  var synthesizeCalls = 0;
+
+  @override
+  String get fileExtension => 'wav';
+
+  @override
+  Future<bool> synthesizeToFile(String text, String filePath) async {
+    synthesizeCalls++;
+    await gate.future;
     await File(filePath).writeAsBytes([1]);
     return true;
   }
@@ -104,6 +122,7 @@ void main() {
   ArReaderController build({
     required StoryReader reader,
     bool ttsSucceeds = true,
+    TtsFileSynthesizer? tts,
     int initialPageIndex = 0,
     ArCharacter character = const ArCharacter(
       id: 'fox_default',
@@ -117,7 +136,7 @@ void main() {
         character: character,
         resolver: _FakeResolver(),
         fetcher: null,
-        tts: _FakeTts(succeeds: ttsSucceeds),
+        tts: tts ?? _FakeTts(succeeds: ttsSucceeds),
         downloader: _FakeDownloader(),
         directory: dir,
         initialPageIndex: initialPageIndex,
@@ -228,5 +247,94 @@ void main() {
     await first;
     expect(await second, isNull);
     expect(reader.openCalls, 1);
+  });
+
+  group('cancel (Task 20 resource disposal)', () {
+    test('cancelling mid-preparation aborts before opening the reader',
+        () async {
+      final reader = _FakeReader();
+      final tts = _GatedTts();
+      final controller = build(reader: reader, tts: tts);
+      final running = controller.start();
+
+      while (tts.synthesizeCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      unawaited(controller.cancel());
+      tts.gate.complete();
+
+      expect(await running, isNull);
+      expect(reader.openCalls, 0,
+          reason: 'a cancelled preparation never opens the reader');
+      expect(controller.value.phase, ArReaderPhase.preparing,
+          reason: 'no failure state is minted for a deliberate cancel');
+    });
+
+    test('a start after cancel runs normally again', () async {
+      final reader = _FakeReader();
+      final tts = _GatedTts();
+      final controller = build(reader: reader, tts: tts);
+      final cancelledRun = controller.start();
+
+      while (tts.synthesizeCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      unawaited(controller.cancel());
+      tts.gate.complete();
+      expect(await cancelledRun, isNull);
+
+      final result = await controller.start();
+
+      expect(result?.terminalCode, 'completed');
+      expect(reader.openCalls, 1);
+    });
+
+    test('cancelling mid-preparation stops further file writes', () async {
+      final reader = _FakeReader();
+      final tts = _GatedTts();
+      final controller = build(reader: reader, tts: tts);
+      final running = controller.start();
+
+      while (tts.synthesizeCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      // cancel() settles only after the run does, so awaiting it first also
+      // proves no owned file is written after it returns.
+      tts.gate.complete();
+      await controller.cancel();
+
+      expect(reader.openCalls, 0);
+      expect(await running, isNull);
+      expect(
+        dir.listSync().whereType<File>().map((f) => f.uri.pathSegments.last),
+        ['ar_story1_p1_s0.wav'],
+        reason: 'only the clip already in flight survives; nothing written '
+            'after the cancel',
+      );
+    });
+
+    test('awaiting the cancel disposer settles the in-flight preparation',
+        () async {
+      final reader = _FakeReader();
+      final tts = _GatedTts();
+      final controller = build(reader: reader, tts: tts);
+      var runSettled = false;
+      final running =
+          controller.start().whenComplete(() => runSettled = true);
+
+      while (tts.synthesizeCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      // The shape the player registers into liveResourceDisposersProvider:
+      // Future<void> Function() that the child-data cleaner awaits.
+      final Future<void> Function() disposer = controller.cancel;
+      tts.gate.complete();
+      await disposer();
+
+      expect(runSettled, isTrue,
+          reason: 'after the disposer completes, cleanup can sweep owned '
+              'files with no further writes coming');
+      expect(await running, isNull);
+    });
   });
 }

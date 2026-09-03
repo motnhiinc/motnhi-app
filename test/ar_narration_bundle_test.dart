@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +46,26 @@ class _FakeTts implements TtsFileSynthesizer {
   Future<bool> synthesizeToFile(String text, String filePath) async {
     if (!succeeds) return false;
     synthesized.add(text);
+    await File(filePath).writeAsBytes([9]);
+    return true;
+  }
+}
+
+/// TTS that parks on a gate so a test can cancel mid-preparation. Records
+/// every path it was asked to write.
+class _GatedTts implements TtsFileSynthesizer {
+  final gate = Completer<void>();
+  final written = <String>[];
+  var calls = 0;
+
+  @override
+  String get fileExtension => 'wav';
+
+  @override
+  Future<bool> synthesizeToFile(String text, String filePath) async {
+    calls++;
+    if (calls == 1) await gate.future;
+    written.add(filePath);
     await File(filePath).writeAsBytes([9]);
     return true;
   }
@@ -179,6 +200,29 @@ void main() {
 
     expect(tts.synthesized, ['spoken']);
     expect(pages.single.audioFilePaths.single, endsWith('ar_story1_p1_s0.wav'));
+  });
+
+  test('with no fetcher (cloud disabled) every segment still synthesizes',
+      () async {
+    final tts = _FakeTts();
+    final detail = _detail(
+      pages: [const StoryPage(id: 'p1', storyId: 'story-1', pageNumber: 1)],
+      segments: [
+        _segment(id: 's1', pageId: 'p1', sortOrder: 0, text: 'first'),
+        _segment(id: 's2', pageId: 'p1', sortOrder: 1, text: 'second'),
+      ],
+    );
+    final pages = await prepareArNarration(
+      detail: detail,
+      resolver: _FakeResolver(const {}),
+      fetcher: null,
+      tts: tts,
+      downloader: _FakeDownloader(),
+      directory: dir,
+    );
+
+    expect(tts.synthesized, ['first', 'second']);
+    expect(pages.single.audioFilePaths, hasLength(2));
   });
 
   test('falls back to device TTS when the download fails', () async {
@@ -331,5 +375,46 @@ void main() {
       'pageNumber': 3,
       'audioFilePaths': ['/a.mp3', '/b.wav'],
     });
+  });
+
+  test('stops writing clips once cancelled mid-preparation', () async {
+    final tts = _GatedTts();
+    final detail = _detail(
+      pages: [const StoryPage(id: 'p1', storyId: 'story-1', pageNumber: 1)],
+      segments: [
+        _segment(id: 's1', pageId: 'p1', sortOrder: 0, text: 'one'),
+        _segment(id: 's2', pageId: 'p1', sortOrder: 1, text: 'two'),
+      ],
+    );
+    var cancelled = false;
+    final preparation = prepareArNarration(
+      detail: detail,
+      resolver: _FakeResolver(const {}),
+      fetcher: null,
+      tts: tts,
+      downloader: _FakeDownloader(),
+      directory: dir,
+      isCancelled: () => cancelled,
+    );
+
+    while (tts.calls == 0) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    cancelled = true;
+    tts.gate.complete();
+
+    await expectLater(
+      preparation,
+      throwsA(
+        isA<ArNarrationFailure>().having((e) => e.code, 'code', 'cancelled'),
+      ),
+    );
+    // Only the clip already in flight was written; the units after the
+    // cancel produced nothing, so the disposer's cleanup guarantee holds.
+    expect(tts.written, hasLength(1));
+    expect(
+      dir.listSync().whereType<File>().map((f) => f.uri.pathSegments.last),
+      ['ar_story1_p1_s0.wav'],
+    );
   });
 }

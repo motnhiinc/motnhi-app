@@ -326,6 +326,66 @@ void main() {
     );
   });
 
+  test('maps a 403 cloud_tts_disabled detail before status mapping', () async {
+    final client = await _clientWithAdapter(
+      temporaryDirectory,
+      _StubAdapter(
+        (_) => ResponseBody.fromString(
+          jsonEncode({'detail': 'cloud_tts_disabled'}),
+          403,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.generate('Read me'),
+      throwsA(_failureWithCode('cloud_tts_disabled')),
+    );
+  });
+
+  test('maps a 401 cloud_tts_disabled detail before status mapping', () async {
+    final client = await _clientWithAdapter(
+      temporaryDirectory,
+      _StubAdapter(
+        (_) => ResponseBody.fromBytes(
+          utf8.encode(jsonEncode({'detail': 'cloud_tts_disabled'})),
+          401,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.generate('Read me'),
+      throwsA(_failureWithCode('cloud_tts_disabled')),
+    );
+  });
+
+  test('maps an unrelated 403 detail to authentication', () async {
+    final client = await _clientWithAdapter(
+      temporaryDirectory,
+      _StubAdapter(
+        (_) => ResponseBody.fromString(
+          jsonEncode({'detail': 'expired'}),
+          403,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        ),
+      ),
+    );
+
+    await expectLater(
+      client.generate('Read me'),
+      throwsA(_failureWithCode('authentication')),
+    );
+  });
+
   for (final (statusCode, code) in [
     (403, 'authentication'),
     (429, 'rate_limited'),

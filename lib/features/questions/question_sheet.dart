@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/di.dart';
 import '../../data/models/models.dart';
-import '../../data/repositories/session_repository.dart';
 import '../../l10n/app_localizations.dart';
+
+/// Invoked after the child answers a question. The caller (the player's
+/// session tracker) owns whether a network write is allowed (§14); the sheet
+/// always advances regardless of the write outcome.
+typedef QuestionAnsweredCallback = Future<void> Function({
+  required String pageId,
+  required String questionId,
+  required String answerId,
+  required bool isCorrect,
+});
 
 /// Show the questions attached to a single page.
 Future<void> showPageQuestions(
@@ -12,10 +20,10 @@ Future<void> showPageQuestions(
   WidgetRef ref, {
   required StoryDetail detail,
   required String pageId,
-  required String? sessionId,
+  QuestionAnsweredCallback? onAnswered,
 }) {
   final questions = detail.questionsForPage(pageId);
-  return _present(context, ref, questions, sessionId);
+  return _present(context, questions, onAnswered);
 }
 
 /// Show every question in the story (used at the calm completion moment).
@@ -23,16 +31,15 @@ Future<void> showStoryQuestions(
   BuildContext context,
   WidgetRef ref, {
   required StoryDetail detail,
-  required String? sessionId,
+  QuestionAnsweredCallback? onAnswered,
 }) {
-  return _present(context, ref, detail.questions, sessionId);
+  return _present(context, detail.questions, onAnswered);
 }
 
 Future<void> _present(
   BuildContext context,
-  WidgetRef ref,
   List<Question> questions,
-  String? sessionId,
+  QuestionAnsweredCallback? onAnswered,
 ) {
   if (questions.isEmpty) return Future.value();
   return showModalBottomSheet<void>(
@@ -41,8 +48,7 @@ Future<void> _present(
     showDragHandle: true,
     builder: (_) => _QuestionFlowSheet(
       questions: questions,
-      sessionId: sessionId,
-      sessionRepo: ref.read(sessionRepositoryProvider),
+      onAnswered: onAnswered,
     ),
   );
 }
@@ -50,13 +56,11 @@ Future<void> _present(
 class _QuestionFlowSheet extends StatefulWidget {
   const _QuestionFlowSheet({
     required this.questions,
-    required this.sessionId,
-    required this.sessionRepo,
+    required this.onAnswered,
   });
 
   final List<Question> questions;
-  final String? sessionId;
-  final SessionRepository sessionRepo;
+  final QuestionAnsweredCallback? onAnswered;
 
   @override
   State<_QuestionFlowSheet> createState() => _QuestionFlowSheetState();
@@ -71,21 +75,18 @@ class _QuestionFlowSheetState extends State<_QuestionFlowSheet> {
 
   Future<void> _choose(AnswerChoice choice) async {
     if (_answered) return;
+    // The UI always advances; the callback (tracker) owns the network write.
     setState(() {
       _selectedId = choice.id;
       _answered = true;
     });
-    final sid = widget.sessionId;
-    if (sid != null) {
-      await widget.sessionRepo.recordEvent(
-        sessionId: sid,
-        eventType: 'question_answered',
+    final onAnswered = widget.onAnswered;
+    if (onAnswered != null) {
+      await onAnswered(
         pageId: _q.pageId,
-        payload: {
-          'question_id': _q.id,
-          'answer_id': choice.id,
-          'is_correct': choice.isCorrect,
-        },
+        questionId: _q.id,
+        answerId: choice.id,
+        isCorrect: choice.isCorrect,
       );
     }
   }

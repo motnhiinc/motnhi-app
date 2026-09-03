@@ -20,15 +20,15 @@ class ParentDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = AppLocalizations.of(context)!;
-    final summary = ref.watch(dashboardSummaryProvider);
+    final state = ref.watch(dashboardStateProvider);
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
-        child: summary.when(
+        child: state.when(
           loading: () => const LoadingView(),
           error: (_, _) => ErrorView(message: s.libraryError),
-          data: (s2) => _Body(summary: s2),
+          data: (d) => _Body(state: d),
         ),
       ),
     );
@@ -36,16 +36,32 @@ class ParentDashboardScreen extends ConsumerWidget {
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.summary});
+  const _Body({required this.state});
 
-  final DashboardSummary summary;
+  final DashboardState state;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = AppLocalizations.of(context)!;
     final t = context.stitch;
+    final summary = state.summary;
+    // Retained history stays readable with tracking off; the no-history
+    // states (fresh start with tracking on, or tracking off with nothing ever
+    // saved) show the same gentle empty card instead of zero stats (§14).
+    final showStats =
+        state.status == DashboardTrackingStatus.trackingOnWithHistory ||
+            state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
+    // The two no-history states get their own copy: tracking off (nothing is
+    // being saved) vs tracking on but nothing read yet.
+    final emptyMessage =
+        state.status == DashboardTrackingStatus.trackingOffNoHistory
+            ? s.dashboardTrackingOffEmpty
+            : s.nothingYet;
+    final retainedHistory =
+        state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
     final accuracy = (summary.questionAccuracy * 100).round();
-    final recent = summary.recentStories.isEmpty ? null : summary.recentStories.first;
+    final recent =
+        summary.recentStories.isEmpty ? null : summary.recentStories.first;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -80,103 +96,138 @@ class _Body extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 18),
-        PaperCard(
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${summary.storiesCompleted}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(color: t.coralDeep),
-                    ),
-                    Text(s.statStoriesCompleted,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.minutesShort(summary.totalReadingTime.inMinutes),
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineMedium
-                          ?.copyWith(color: t.coralDeep, fontSize: 22),
-                    ),
-                    Text(s.statReadingTime,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        // Stories completed is not repeated here: it is already the headline
-        // figure in the summary card above.
-        Row(
-          children: [
-            _StatTile(
-              value: '${summary.questionsAnswered}',
-              label: s.statQuestionsAnswered,
-            ),
-            const SizedBox(width: 12),
-            _StatTile(
-              value: summary.questionsAnswered == 0 ? '—' : '$accuracy%',
-              label: s.statAccuracy,
-            ),
-          ],
-        ),
-        if (recent != null) ...[
-          const SizedBox(height: 24),
+        if (!showStats) ...[
+          const SizedBox(height: 18),
           PaperCard(
-            onTap: () => context.go(AppRoutes.storyDetail(recent.id)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.auto_stories_rounded, size: 20, color: t.lavender),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      emptyMessage,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 18),
+          PaperCard(
             child: Row(
               children: [
-                SizedBox(
-                  width: 48,
-                  height: 62,
-                  child: BookCoverFrame(child: StoryCover(story: recent)),
-                ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      EyebrowLabel(s.recentlyRead,
-                          color: Theme.of(context).colorScheme.onSurface),
-                      const SizedBox(height: 3),
                       Text(
-                        recent.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall,
+                        '${summary.storiesCompleted}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(color: t.coralDeep),
                       ),
+                      Text(s.statStoriesCompleted,
+                          style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),
                 ),
-                Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: t.coral,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.minutesShort(summary.totalReadingTime.inMinutes),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(color: t.coralDeep, fontSize: 22),
+                      ),
+                      Text(s.statReadingTime,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
                   ),
-                  child: const Icon(Icons.play_arrow_rounded,
-                      size: 20, color: Colors.white),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          // Retained history with tracking off: say so, without claiming the
+          // child is being tracked now.
+          if (retainedHistory) ...[
+            Text(
+              s.dashboardRetainedNote,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: t.inkMuted),
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Stories completed is not repeated here: it is already the headline
+          // figure in the summary card above.
+          Row(
+            children: [
+              _StatTile(
+                value: '${summary.questionsAnswered}',
+                label: s.statQuestionsAnswered,
+              ),
+              const SizedBox(width: 12),
+              _StatTile(
+                value: summary.questionsAnswered == 0 ? '—' : '$accuracy%',
+                label: s.statAccuracy,
+              ),
+            ],
+          ),
+          if (recent != null) ...[
+            const SizedBox(height: 24),
+            PaperCard(
+              onTap: () => context.go(AppRoutes.storyDetail(recent.id)),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 48,
+                    height: 62,
+                    child: BookCoverFrame(child: StoryCover(story: recent)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        EyebrowLabel(s.recentlyRead,
+                            color: Theme.of(context).colorScheme.onSurface),
+                        const SizedBox(height: 3),
+                        Text(
+                          recent.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: t.coral,
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded,
+                        size: 20, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
         const SizedBox(height: 14),
         _LinkRow(
@@ -258,10 +309,8 @@ class _StatTile extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(fontSize: 11),
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
             ),
           ],
         ),
@@ -295,8 +344,7 @@ class _LinkRow extends StatelessWidget {
             Icon(icon, size: 21, color: iconColor),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(label,
-                  style: Theme.of(context).textTheme.titleSmall),
+              child: Text(label, style: Theme.of(context).textTheme.titleSmall),
             ),
             Icon(Icons.chevron_right_rounded,
                 size: 22, color: context.stitch.inkMuted),
