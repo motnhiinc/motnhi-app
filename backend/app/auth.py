@@ -5,11 +5,13 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
 from app.models import User
+from app.services import privacy as privacy_service
 
 
 def generate_secret() -> str:
@@ -51,4 +53,9 @@ def get_current_user(
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=401, detail="unknown user")
+    try:
+        if privacy_service.touch_activity_if_due(db, user.id, privacy_service.utc_now()):
+            db.commit()
+    except SQLAlchemyError:
+        db.rollback()
     return user

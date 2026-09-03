@@ -67,6 +67,20 @@ def update_privacy_state(
     return _build_response(db, user.id)
 
 
+@router.post("/activity", status_code=204)
+def report_privacy_activity(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    try:
+        if privacy_service.touch_activity_if_due(db, user.id, privacy_service.utc_now()):
+            db.commit()
+    except privacy_service.PrivacyError as error:
+        db.rollback()
+        raise HTTPException(status_code=error.status_code, detail=error.code)
+    return Response(status_code=204)
+
+
 @router.delete("/reading-history", status_code=204)
 def delete_reading_history(
     db: Session = Depends(get_db),

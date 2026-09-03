@@ -20,6 +20,16 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def touch_activity_if_due(db: Session, user_id: str, now: datetime) -> bool:
+    settings = privacy_repo.get_settings(db, user_id)
+    if settings is None or settings.last_active_at.astimezone(timezone.utc).date() >= now.date():
+        return False
+    settings.last_active_at = now
+    settings.updated_at = now
+    db.flush()
+    return True
+
+
 def lock_user(db: Session, user_id: str) -> User:
     user = db.scalar(
         select(User).where(User.id == user_id).with_for_update()
