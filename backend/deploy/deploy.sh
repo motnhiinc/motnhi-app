@@ -2,17 +2,22 @@
 #
 # Deploy the Interactive Storybook API to an Ubuntu VPS behind HTTPS (Caddy).
 #
-# Run this ON THE VPS, after cloning the repo, from backend/deploy:
-#     cd app-book/backend/deploy && ./deploy.sh
+# Run this ON THE VPS, from backend/deploy, with exactly ONE action:
+#     cd app-book/backend/deploy && ./deploy.sh <action>
 #
-# It will:
-#   1. Ensure Docker is installed (offers to install on Ubuntu).
-#   2. Create ./.env with generated secrets if missing, then stop so you can
-#      set DOMAIN + ACME_EMAIL + OPENAI_API_KEY.
-#   3. Refuse to run with dev-default / placeholder secrets.
-#   4. Build and start caddy + api + db.
-#   5. Wait for the API to become healthy.
-#   6. Seed the 5 stories (idempotent).
+# Actions:
+#   build           Build the API image only (no containers started).
+#   maintenance-up  Stop Caddy + API while keeping the DB running.
+#   migrate         Run `alembic upgrade head` in a one-off API container.
+#   api-up          Start only the API on the internal Compose network.
+#   reconcile       Run privacy_reconcile.py in a one-off API container
+#                   (backfills one privacy_settings row per user, verifies).
+#   verify-internal Check API health and rerun the exact-one-row verification
+#                   (count(users) == count(privacy_settings)). Caddy stays down.
+#   traffic-up      Start Caddy only (public HTTPS traffic resumes).
+#
+# Every action first validates secrets/config in .env; nothing runs while a
+# placeholder or dev-default secret remains.
 set -euo pipefail
 
 cd "$(dirname "$0")" # -> backend/deploy
@@ -28,9 +33,31 @@ DEV_ASSET="dev-asset-secret-0123456789abcdef0123456789abcdef"
 log()  { printf '\033[1;36m[deploy]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[deploy] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
+usage() {
+  cat >&2 <<EOF
+Usage: ./deploy.sh <action>
+
+Actions:
+  build           Build the API image only
+  maintenance-up  Stop Caddy + API, keep the DB running
+  migrate         Run 'alembic upgrade head' in a one-off API container
+  api-up          Start only the API on the internal network
+  reconcile       Run privacy_reconcile.py in a one-off API container
+  verify-internal Check API health + exact-one-row verification (Caddy stays down)
+  traffic-up      Start Caddy only
+EOF
+}
+
 compose() { docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"; }
 
-# --- 1. Docker present? -------------------------------------------------------
+# --- 1. Exactly one action argument ------------------------------------------
+if [ "$#" -ne 1 ]; then
+  usage
+  exit 2
+fi
+ACTION="$1"
+
+# --- 2. Docker present? -------------------------------------------------------
 if ! command -v docker >/dev/null 2>&1; then
   log "Docker is not installed."
   read -rp "Install Docker Engine now via get.docker.com? [y/N] " ans
@@ -41,7 +68,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 docker compose version >/dev/null 2>&1 || die "The Docker Compose v2 plugin is required."
 
-# --- 2. .env present? Create with generated secrets if not. -------------------
+# --- 3. .env present? Create with generated secrets if not. -------------------
 if [ ! -f "$ENV_FILE" ]; then
   log "No $ENV_FILE found — creating from $EXAMPLE_FILE with generated secrets."
   cp "$EXAMPLE_FILE" "$ENV_FILE"
@@ -51,10 +78,10 @@ if [ ! -f "$ENV_FILE" ]; then
   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   log "Secrets generated into $ENV_FILE."
-  die "Now edit $ENV_FILE — set DOMAIN, ACME_EMAIL and OPENAI_API_KEY — then re-run ./deploy.sh"
+  die "Now edit $ENV_FILE — set DOMAIN, ACME_EMAIL and OPENAI_API_KEY — then re-run ./deploy.sh <action>"
 fi
 
-# --- 3. Validate secrets/config ----------------------------------------------
+# --- 4. Validate secrets/config (every action) --------------------------------
 # Lock down perms regardless of how .env got here (auto-generated or manual cp).
 chmod 600 "$ENV_FILE"
 set -a; . "./$ENV_FILE"; set +a
@@ -68,31 +95,76 @@ set -a; . "./$ENV_FILE"; set +a
 # credential. Checked here so a bad deploy fails now, not silently at /v1/tts.
 [ -n "${OPENAI_API_KEY:-}" ]    && [ "$OPENAI_API_KEY" != "CHANGE_ME" ] || die "OPENAI_API_KEY is unset or CHANGE_ME. Required by POST /v1/tts (scan-any-page narration); there is no default. Get one at https://platform.openai.com/api-keys"
 
-log "Config looks good. Deploying to https://${DOMAIN}"
+log "Config looks good. Running action: $ACTION"
 
-# --- 4. Build + start --------------------------------------------------------
-log "Building and starting containers (this can take a few minutes first time)..."
-compose up -d --build
+# --- 5. Actions ---------------------------------------------------------------
+case "$ACTION" in
+  build)
+    log "Building the API image (no containers started)..."
+    compose build
+    ;;
 
-# --- 5. Wait for API health --------------------------------------------------
-log "Waiting for the API to become healthy..."
-for i in $(seq 1 45); do
-  if compose exec -T api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" >/dev/null 2>&1; then
-    log "API is healthy."
-    break
-  fi
-  [ "$i" = "45" ] && die "API did not become healthy. Check logs: docker compose -f $COMPOSE_FILE logs api"
-  sleep 2
-done
+  maintenance-up)
+    log "Entering maintenance: DB stays up, Caddy + API stop..."
+    compose up -d db
+    compose stop caddy api
+    log "Maintenance mode. Public traffic is down; DB is running."
+    ;;
 
-# --- 6. Seed content (idempotent: seed.py uses db.merge) ----------------------
-log "Seeding stories..."
-compose exec -T api python seed.py
+  migrate)
+    log "Running 'alembic upgrade head' in a one-off API container..."
+    compose run --rm api alembic upgrade head
+    ;;
 
-log "-----------------------------------------------------------------"
-log "Done. API live at:  https://${DOMAIN}"
-log "Smoke test:         curl -sS https://${DOMAIN}/health"
-log "Build the Android app against it:"
-printf '   flutter build apk --dart-define=API_BASE_URL=https://%s\n' "$DOMAIN"
-log "(Later) add narration audio: scp *.m4a to backend/storage/audio, then:"
-printf '   docker compose -f %s exec -T api python register_assets.py\n' "$COMPOSE_FILE"
+  api-up)
+    log "Starting the API on the internal Compose network (Caddy stays down)..."
+    compose up -d api
+    ;;
+
+  reconcile)
+    log "Running privacy_reconcile.py in a one-off API container..."
+    compose run --rm api python privacy_reconcile.py
+    ;;
+
+  verify-internal)
+    if compose ps --status running --services | grep -qx caddy; then
+      die "verify-internal requires Caddy to be stopped. Run './deploy.sh maintenance-up' first."
+    fi
+    log "Waiting for the API to become healthy (internal only)..."
+    for i in $(seq 1 45); do
+      if compose exec -T api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" >/dev/null 2>&1; then
+        log "API is healthy."
+        break
+      fi
+      [ "$i" = "45" ] && die "API did not become healthy. Check logs: docker compose -f $COMPOSE_FILE logs api"
+      sleep 2
+    done
+    log "Verifying exactly one privacy_settings row per user..."
+    compose exec -T api python -c "
+import sys
+from sqlalchemy import func, select
+from app.db import SessionLocal
+from app.models import PrivacySettings, User
+db = SessionLocal()
+try:
+    users = db.scalar(select(func.count()).select_from(User))
+    rows = db.scalar(select(func.count()).select_from(PrivacySettings))
+finally:
+    db.close()
+print(f'users={users} privacy_rows={rows}')
+sys.exit(0 if users == rows else 1)
+"
+    log "Verification passed and Caddy is down. Resume traffic with: ./deploy.sh traffic-up"
+    ;;
+
+  traffic-up)
+    log "Starting Caddy only (API must already be up and verified)..."
+    compose up -d caddy
+    log "Public traffic resumed at: https://${DOMAIN}"
+    ;;
+
+  *)
+    usage
+    die "Unknown action: $ACTION"
+    ;;
+esac

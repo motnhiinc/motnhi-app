@@ -4,8 +4,10 @@ Stack: **Caddy** (public `:80`/`:443`, automatic Let's Encrypt HTTPS) → **API*
 (FastAPI/uvicorn, internal) → **Postgres 16** (internal). Only Caddy is exposed
 to the internet.
 
-Everything is driven by `deploy.sh`. You run it on the VPS; nothing here
-touches your server automatically.
+Everything is driven by `deploy.sh <action>`. You run it on the VPS; nothing
+here touches your server automatically. The API entrypoint **starts uvicorn
+only** — migrations and reconciliation never run at container startup, so an
+API restart cannot bypass the coordinated sequence below.
 
 ## Prerequisites
 
@@ -23,31 +25,84 @@ touches your server automatically.
    TLS all stay green — so the break is invisible until someone scans a page on
    a device. Use a restricted project key scoped to `/v1/audio/speech`.
 
-## Steps
+## Actions
 
 ```bash
-# On the VPS
-git clone <your-repo-url> app-book
 cd app-book/backend/deploy
 
-./deploy.sh
+./deploy.sh build            # build the API image only
+./deploy.sh maintenance-up   # stop Caddy + API, keep the DB running
+./deploy.sh migrate          # alembic upgrade head in a one-off API container
+./deploy.sh api-up           # start only the API on the internal network
+./deploy.sh reconcile        # backfill one privacy_settings row per user
+./deploy.sh verify-internal  # API health + one-row check; Caddy stays down
+./deploy.sh traffic-up       # start Caddy only
 ```
 
-First run creates `.env` with **generated secrets** and stops so you can set the
-three values only you know:
+First run (with any action) creates `.env` with **generated secrets** and stops
+so you can set the three values only you know:
 
 ```bash
 nano .env        # DOMAIN=api.yourdomain.com, ACME_EMAIL=you@..., OPENAI_API_KEY=sk-...
-./deploy.sh      # run again — builds, starts, waits for health, seeds stories
+./deploy.sh <action>   # run again — secrets are validated before every action
 ```
 
-`deploy.sh` refuses to deploy while any of the three is still a placeholder.
+`deploy.sh` refuses to run any action while a secret is still a placeholder or
+a dev default. A missing or unknown action prints usage and exits nonzero.
 
-When it finishes:
+## Roll-forward release sequence
+
+Run the actions **in this exact order**. Each step must succeed before the
+next; if one fails, the server stays in maintenance mode until it is resolved.
 
 ```bash
-curl -sS https://api.yourdomain.com/health   # -> {"status":"ok"}
+cd app-book/backend/deploy
+
+# 1. Maintenance: public traffic stops, DB keeps running
+./deploy.sh maintenance-up
+
+# 2. Build the new image (e.g. after a git pull)
+git pull
+./deploy.sh build
+
+# 3. Migrate + backfill the DB with the new code
+./deploy.sh migrate
+
+# 4. Start the backend (internal network only, Caddy still down)
+./deploy.sh api-up
+
+# 5. Reconcile, then verify health + the one-row invariant — before any traffic
+./deploy.sh reconcile
+./deploy.sh verify-internal
+
+# 6. Only now resume public API traffic
+./deploy.sh traffic-up
+
+# 7. Release the Flutter clients that require the new API
+flutter build apk --dart-define=API_BASE_URL=https://api.yourdomain.com
+flutter build ipa --dart-define=API_BASE_URL=https://api.yourdomain.com
 ```
+
+Then start the retention job: first a **dry run** (reports candidates without
+deleting anything), and only after reviewing its output **enable daily
+retention** by scheduling the real run (e.g. host cron):
+
+```bash
+# dry run:
+docker compose -f docker-compose.prod.yml run --rm api python privacy_retention.py --dry-run
+# daily (crontab -e), real deletions:
+15 4 * * * cd /path/to/app-book/backend/deploy && docker compose -f docker-compose.prod.yml run --rm api python privacy_retention.py
+```
+
+### No old-backend rollback after enforcement begins
+
+Once the new backend is live and enforcement (consent gating, retention
+deletes) has begun, **the safe response to a problem is maintenance mode
+(`./deploy.sh maintenance-up`) plus a roll-forward** — fix forward with the
+same sequence above. Do **not** roll back to the old backend image: the
+database has already been migrated and reconciled, old code cannot serve the
+new schema, and rolling back would bypass consent enforcement for data that is
+now subject to it.
 
 ## Point the app at it
 
@@ -87,9 +142,9 @@ COMPOSE="docker compose -f docker-compose.prod.yml"
 $COMPOSE ps            # status
 $COMPOSE logs -f api   # tail API logs
 $COMPOSE logs -f caddy # TLS / cert issues show here
-$COMPOSE restart api   # restart just the API
+$COMPOSE restart api   # restart just the API (migrations do NOT run — by design)
 $COMPOSE down          # stop everything (Postgres data + certs persist in volumes)
-$COMPOSE up -d --build # redeploy after a git pull
+./deploy.sh build && ./deploy.sh migrate && ./deploy.sh api-up   # redeploy after a git pull
 ```
 
 ## Notes / limitations

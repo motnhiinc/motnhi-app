@@ -5,6 +5,16 @@ name: storybook-prod
 # Only Caddy is exposed to the internet; api + db stay on the compose network.
 # All secrets come from ./.env (see .env.production.example). Required vars use
 # ${VAR:?...} so compose refuses to start if any is missing.
+#
+# Services are targeted independently during a coordinated release (see
+# README.md) — none of the patterns below require changes to this file:
+#   docker compose stop caddy api                 # maintenance: DB keeps running
+#   docker compose run --rm api alembic upgrade head
+#   docker compose up -d api                      # backend only, Caddy stays down
+#   docker compose run --rm api python privacy_reconcile.py
+#   docker compose up -d caddy                    # traffic resumes last
+# One-off `compose run` commands work because the image ENTRYPOINT execs any
+# arguments it receives (backend/deploy/entrypoint.sh).
 
 services:
   db:
