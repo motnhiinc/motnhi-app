@@ -88,6 +88,11 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   bool _arBusy = false;
   bool _suppressNextAutoplay = false;
 
+  /// Registered into liveResourceDisposersProvider while an AR preparation is
+  /// in flight (Task 20): child-data cleanup awaits it before deleting owned
+  /// audio files, so a cancelled preparation never re-writes a swept file.
+  Future<void> Function()? _arLiveDisposer;
+
   List<StoryPage> get _pages => widget.detail.orderedPages;
   Story get _story => widget.detail.story;
 
@@ -276,6 +281,16 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
         initialPageIndex: _pageIndex,
       );
 
+      // Same register/unregister pattern as the TTS clients and narration
+      // fetchers in di.dart: an in-flight preparation must be cancellable by
+      // child-data cleanup before the file sweep deletes the clips it targets.
+      // cancel() resolves only after the cancelled run has settled, so the
+      // cleaner's await also guarantees no further owned-file writes.
+      final liveDisposers = ref.read(liveResourceDisposersProvider);
+      Future<void> disposer() => controller.cancel();
+      _arLiveDisposer = disposer;
+      liveDisposers.add(disposer);
+
       final result = await showArPreparingDialog(context, controller: controller);
       if (!mounted) return;
 
@@ -285,8 +300,16 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       }
       await _onArReturned(result);
     } finally {
+      _unregisterArLiveDisposer();
       _arBusy = false;
     }
+  }
+
+  void _unregisterArLiveDisposer() {
+    final disposer = _arLiveDisposer;
+    if (disposer == null) return;
+    _arLiveDisposer = null;
+    ref.read(liveResourceDisposersProvider).remove(disposer);
   }
 
   Future<void> _onArReturned(StoryReaderResult result) async {
@@ -406,6 +429,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
 
   @override
   void dispose() {
+    // If cleanup navigation tears this screen down mid-preparation, cancel the
+    // AR controller and drop it from the live-disposer registry first.
+    _arLiveDisposer?.call();
+    _unregisterArLiveDisposer();
     _player.isComplete.removeListener(_onMaybeComplete);
     _player.dispose();
     _pageController.dispose();

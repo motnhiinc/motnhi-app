@@ -104,20 +104,17 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
     return task;
   }
 
-  /// Full child-data deletion on the server, then removal of the local
-  /// tracking throttle key when present (display-state cleanup only; the full
-  /// local cleaner lands in Task 20). Provider invalidation happens at the
-  /// call site, matching the deletion flow in the review screen.
+  /// Full child-data deletion (Task 20). The server deletion must commit
+  /// first: a failed request rethrows and leaves every local key and file
+  /// untouched. Only after confirmation does the local cleaner run —
+  /// marker-first ordered removal of every child key (including
+  /// [privacyActivityLastUtcDateKey]) and owned generated-audio file,
+  /// followed by provider invalidation so access routing re-derives from the
+  /// fresh null-policy server state.
   Future<void> deleteChildData() {
     final task = _mutationQueue.then((_) async {
       await ref.read(privacyRepositoryProvider).deleteChildData();
-      try {
-        await ref
-            .read(keyValueStoreProvider)
-            .remove(privacyActivityLastUtcDateKey);
-      } catch (_) {
-        // Best-effort local cleanup; the server deletion already committed.
-      }
+      await ref.read(childDataCleanerProvider).clean();
     });
     _mutationQueue = task.then<void>((_) {}, onError: (_) {});
     return task;
