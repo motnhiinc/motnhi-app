@@ -7,6 +7,7 @@ import '../../data/models/models.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../profile/profile_providers.dart';
+import '../privacy/privacy_providers.dart';
 import 'locale_providers.dart';
 import 'settings_providers.dart';
 
@@ -313,25 +314,48 @@ class ReadingSettingsScreen extends ConsumerWidget {
               ),
             ),
 
-            // Privacy note (existing).
+            // Privacy & data (live server state; opens /parent/privacy).
             const SizedBox(height: 12),
             PaperCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+              onTap: () => context.push(AppRoutes.parentPrivacy),
+              child: Builder(
+                builder: (context) {
+                  final s = AppLocalizations.of(context)!;
+                  final privacy = ref.watch(privacyProvider).value;
+                  final trackingSummary = (privacy?.progressTrackingEnabled ??
+                          false)
+                      ? s.privacySettingsSummaryTrackingOn
+                      : s.privacySettingsSummaryTrackingOff;
+                  final cloudSummary =
+                      (privacy?.cloudTtsEnabled ?? false)
+                          ? s.privacySettingsSummaryCloudOn
+                          : s.privacySettingsSummaryCloudOff;
+                  return Row(
                     children: [
-                      Icon(Icons.privacy_tip_outlined,
-                          size: 20, color: t.sage),
-                      const SizedBox(width: 8),
-                      Text(s.privacyTitle,
-                          style: Theme.of(context).textTheme.titleSmall),
+                      Icon(Icons.privacy_tip_outlined, size: 22, color: t.sage),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(s.privacyTitle,
+                                style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 2),
+                            Text(
+                              privacy == null
+                                  ? s.privacySettingsManageBody
+                                  : '$trackingSummary · $cloudSummary',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 22, color: t.inkMuted),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(s.privacyBody,
-                      style: Theme.of(context).textTheme.bodySmall),
-                ],
+                  );
+                },
               ),
             ),
 

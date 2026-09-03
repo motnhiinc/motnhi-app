@@ -12,6 +12,7 @@ import '../../features/player/story_player_screen.dart';
 import '../../features/privacy/privacy_notice_screen.dart';
 import '../../features/privacy/privacy_providers.dart';
 import '../../features/privacy/privacy_review_screen.dart';
+import '../../features/privacy/privacy_screen.dart';
 import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/story_composer/story_composer_screen.dart';
@@ -26,6 +27,7 @@ abstract final class AppRoutes {
   static const gate = '/gate';
   static const parent = '/parent';
   static const settings = '/parent/settings';
+  static const parentPrivacy = '/parent/privacy';
   static const scanAnyPage = '/scan-any-page';
   static const createStory = '/create-story';
   static const privacyReview = '/privacy-review';
@@ -129,6 +131,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.settings,
         builder: (_, _) => const ReadingSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.parentPrivacy,
+        builder: (_, _) => const PrivacyScreen(),
       ),
       GoRoute(
         path: AppRoutes.privacyReview,

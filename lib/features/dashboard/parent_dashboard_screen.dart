@@ -48,10 +48,20 @@ class _Body extends ConsumerWidget {
     // Retained history stays readable with tracking off; the no-history
     // states (fresh start with tracking on, or tracking off with nothing ever
     // saved) show the same gentle empty card instead of zero stats (§14).
-    final showStats = state.status == DashboardTrackingStatus.trackingOnWithHistory ||
+    final showStats =
+        state.status == DashboardTrackingStatus.trackingOnWithHistory ||
+            state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
+    // The two no-history states get their own copy: tracking off (nothing is
+    // being saved) vs tracking on but nothing read yet.
+    final emptyMessage =
+        state.status == DashboardTrackingStatus.trackingOffNoHistory
+            ? s.dashboardTrackingOffEmpty
+            : s.nothingYet;
+    final retainedHistory =
         state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
     final accuracy = (summary.questionAccuracy * 100).round();
-    final recent = summary.recentStories.isEmpty ? null : summary.recentStories.first;
+    final recent =
+        summary.recentStories.isEmpty ? null : summary.recentStories.first;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -94,12 +104,11 @@ class _Body extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.auto_stories_rounded,
-                      size: 20, color: t.lavender),
+                  Icon(Icons.auto_stories_rounded, size: 20, color: t.lavender),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
-                      s.nothingYet,
+                      emptyMessage,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
@@ -149,6 +158,18 @@ class _Body extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
+          // Retained history with tracking off: say so, without claiming the
+          // child is being tracked now.
+          if (retainedHistory) ...[
+            Text(
+              s.dashboardRetainedNote,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: t.inkMuted),
+            ),
+            const SizedBox(height: 8),
+          ],
           // Stories completed is not repeated here: it is already the headline
           // figure in the summary card above.
           Row(
@@ -288,10 +309,8 @@ class _StatTile extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(fontSize: 11),
+              style:
+                  Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
             ),
           ],
         ),
@@ -325,8 +344,7 @@ class _LinkRow extends StatelessWidget {
             Icon(icon, size: 21, color: iconColor),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(label,
-                  style: Theme.of(context).textTheme.titleSmall),
+              child: Text(label, style: Theme.of(context).textTheme.titleSmall),
             ),
             Icon(Icons.chevron_right_rounded,
                 size: 22, color: context.stitch.inkMuted),

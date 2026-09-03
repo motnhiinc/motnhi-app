@@ -8,6 +8,10 @@ import '../profile/profile_providers.dart';
 /// Display cache only — never consulted for authorization (§14).
 const _privacyStateCacheKey = 'privacy_state_cache';
 
+/// Local throttle key recording the last recorded activity instant. Cleared by
+/// [PrivacyNotifier.deleteChildData]; the full local cleaner lands in Task 20.
+const privacyActivityLastUtcDateKey = 'privacy_activity_last_utc_date';
+
 /// Fresh privacy & consent state from the server (§14). The single source of
 /// authorization truth: access derivation and the effective toggles below read
 /// this provider, never the display-only [privacyStateCacheProvider].
@@ -68,6 +72,96 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
         // Restore the last server response for retry UI and surface the
         // failure to the caller instead.
         if (previous != null) state = AsyncData(previous);
+        rethrow;
+      }
+    });
+    _mutationQueue = task.then<void>((_) {}, onError: (_) {});
+    return task;
+  }
+
+  /// Parent data control: updates the progress-tracking choice. Resends the
+  /// complete current-policy body and resolves only after the server
+  /// response lands (post-commit), so the UI opens any follow-up
+  /// retain/delete dialog only after the server confirmed the change.
+  Future<void> setProgressTracking(bool enabled) =>
+      _updateCurrent(progressTrackingEnabled: enabled);
+
+  /// Parent data control: updates the cloud-narration choice. Same contract
+  /// as [setProgressTracking].
+  Future<void> setCloudTts(bool enabled) =>
+      _updateCurrent(cloudTtsEnabled: enabled);
+
+  /// Deletes all reading history (sessions + interaction events) on the
+  /// server, then refetches privacy state so the stored-data counts change.
+  /// A failure keeps the last server response and rethrows.
+  Future<void> deleteReadingHistory() {
+    final task = _mutationQueue.then((_) async {
+      final previous = state.value;
+      try {
+        await ref.read(privacyRepositoryProvider).deleteReadingHistory();
+        final fresh = await ref.read(privacyRepositoryProvider).fetchPrivacy();
+        await _writeCache(fresh);
+        state = AsyncData(fresh);
+      } catch (error) {
+        if (previous != null) state = AsyncData(previous);
+        rethrow;
+      }
+    });
+    _mutationQueue = task.then<void>((_) {}, onError: (_) {});
+    return task;
+  }
+
+  /// Full child-data deletion on the server, then removal of the local
+  /// tracking throttle key when present (display-state cleanup only; the full
+  /// local cleaner lands in Task 20). Provider invalidation happens at the
+  /// call site, matching the deletion flow in the review screen.
+  Future<void> deleteChildData() {
+    final task = _mutationQueue.then((_) async {
+      await ref.read(privacyRepositoryProvider).deleteChildData();
+      try {
+        await ref
+            .read(keyValueStoreProvider)
+            .remove(privacyActivityLastUtcDateKey);
+      } catch (_) {
+        // Best-effort local cleanup; the server deletion already committed.
+      }
+    });
+    _mutationQueue = task.then<void>((_) {}, onError: (_) {});
+    return task;
+  }
+
+  /// Shared body for the parent option toggles: every PUT resends the
+  /// complete current-policy body (policy version, required core-storage
+  /// acceptance) plus the one changed choice, built from the latest server
+  /// response at execution time. Queued on [_mutationQueue] so rapid toggles
+  /// reach the server in order.
+  Future<void> _updateCurrent({
+    bool? progressTrackingEnabled,
+    bool? cloudTtsEnabled,
+  }) {
+    final task = _mutationQueue.then((_) async {
+      // Read at execution time, not call time, so a queued mutation always
+      // builds its body from the previous mutation's server response.
+      final current = state.value;
+      if (current == null) {
+        throw StateError(
+          'Privacy state unavailable; cannot update privacy choices.',
+        );
+      }
+      try {
+        final fresh = await ref.read(privacyRepositoryProvider).updatePrivacy(
+              policyVersion: current.acceptedPolicyVersion ??
+                  current.currentPolicyVersion,
+              coreStorageAccepted: true,
+              progressTrackingEnabled:
+                  progressTrackingEnabled ?? current.progressTrackingEnabled,
+              cloudTtsEnabled: cloudTtsEnabled ?? current.cloudTtsEnabled,
+            );
+        await _writeCache(fresh);
+        state = AsyncData(fresh);
+      } catch (error) {
+        // Keep the last server response for retry UI and surface the failure.
+        state = AsyncData(current);
         rethrow;
       }
     });
