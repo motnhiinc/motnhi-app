@@ -3,11 +3,13 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 
 from app.models import ChildProfile, ConsentEvent, InteractionEvent, PrivacySettings, Story, StorySession
 from app.repositories import privacy as privacy_repo
 from app.repositories import sessions as sessions_repo
+from app.services import child_data_deletion
 from app.services import privacy as privacy_service
 
 WAIT_TIMEOUT = 10.0
@@ -170,3 +172,155 @@ def test_no_session_write_commits_after_revocation_returns(independent_session_f
         writer_done.wait(WAIT_TIMEOUT)
         revocation_done.wait(WAIT_TIMEOUT)
         _cleanup(revoker, user_id, profile_id)
+
+
+def _add_profile(db, user_id, profile_id):
+    now = datetime.now(timezone.utc)
+    db.add(ChildProfile(
+        id=profile_id,
+        user_id=user_id,
+        nickname=None,
+        age_band="3-4",
+        language_code="en",
+        bedtime_mode_default=False,
+        microphone_enabled=False,
+        ar_enabled=True,
+        created_at=now,
+        updated_at=now,
+    ))
+    db.flush()
+
+
+def _add_authored_story(db, user_id, story_id):
+    now = datetime.now(timezone.utc)
+    db.add(Story(
+        id=story_id,
+        title=story_id,
+        slug=story_id,
+        description=None,
+        age_min=3,
+        age_max=8,
+        language_code="en",
+        duration_seconds=60,
+        cover_asset_id=None,
+        content_status="published",
+        rights_owner_id=None,
+        themes=[],
+        owner_user_id=user_id,
+    ))
+    db.flush()
+
+
+@pytest.mark.parametrize("write_kind", ["profile", "story", "session", "event"])
+def test_no_child_data_write_commits_after_deletion_returns(
+    independent_session_factory, write_kind
+):
+    user_id = f"child-delete-race-{write_kind}"
+    setup = independent_session_factory(user_id=user_id)
+    writer = independent_session_factory()
+    deleter = independent_session_factory()
+    profile_id, story_id = _setup_enabled_user(setup, user_id)
+
+    preexisting_session_id = None
+    if write_kind in ("session", "event"):
+        preexisting = sessions_repo.start(setup, story_id, profile_id, "library")
+        setup.commit()
+        preexisting_session_id = preexisting.id
+
+    write_id = str(uuid.uuid4())
+    lock_held = threading.Event()
+    write_released = threading.Event()
+    writer_done = threading.Event()
+    deletion_done = threading.Event()
+    failures = []
+
+    def writer_body():
+        try:
+            privacy_service.lock_user(writer, user_id)
+            if write_kind == "profile":
+                _add_profile(writer, user_id, write_id)
+            elif write_kind == "story":
+                _add_authored_story(writer, user_id, write_id)
+            elif write_kind == "session":
+                sessions_repo.start(writer, story_id, profile_id, "bedtime")
+            else:
+                sessions_repo.record_event(
+                    writer, preexisting_session_id, "page_turn"
+                )
+        except Exception as exc:
+            failures.append(exc)
+            lock_held.set()
+            writer_done.set()
+            return
+        lock_held.set()
+        if not write_released.wait(WAIT_TIMEOUT):
+            failures.append(RuntimeError("writer was never released"))
+            writer.rollback()
+            writer_done.set()
+            return
+        try:
+            writer.commit()
+        except Exception as exc:
+            failures.append(exc)
+        finally:
+            writer_done.set()
+
+    def deleter_body():
+        try:
+            privacy_service.lock_user(deleter, user_id)
+            child_data_deletion.delete_child_data(deleter, user_id)
+            deleter.commit()
+        except Exception as exc:
+            failures.append(exc)
+            deleter.rollback()
+        finally:
+            deletion_done.set()
+
+    try:
+        writer_thread = threading.Thread(target=writer_body, name="writer")
+        writer_thread.start()
+        assert lock_held.wait(WAIT_TIMEOUT), "writer never acquired the user lock"
+        assert not failures, failures
+
+        deleter_thread = threading.Thread(target=deleter_body, name="deleter")
+        deleter_thread.start()
+        assert not deletion_done.wait(BLOCK_PROBE), (
+            "child-data deletion returned while the writer still held the user lock"
+        )
+
+        write_released.set()
+        assert writer_done.wait(WAIT_TIMEOUT), "writer never committed"
+        assert deletion_done.wait(WAIT_TIMEOUT), "deletion never completed"
+        assert not failures, failures
+
+        verifier = independent_session_factory()
+        assert verifier.scalar(select(func.count(ChildProfile.id)).where(
+            ChildProfile.user_id == user_id
+        )) == 0
+        assert verifier.scalar(select(func.count(Story.id)).where(
+            Story.owner_user_id == user_id
+        )) == 0
+        assert verifier.scalar(select(func.count(StorySession.id)).where(
+            StorySession.child_profile_id == profile_id
+        )) == 0
+        if preexisting_session_id is not None:
+            assert verifier.scalar(select(func.count(InteractionEvent.id)).where(
+                InteractionEvent.story_session_id == preexisting_session_id
+            )) == 0
+        if write_kind == "profile":
+            assert verifier.get(ChildProfile, write_id) is None
+        elif write_kind == "story":
+            assert verifier.get(Story, write_id) is None
+
+        with pytest.raises(IntegrityError):
+            sessions_repo.start(verifier, story_id, profile_id, "library")
+            verifier.flush()
+        verifier.rollback()
+        assert verifier.scalar(select(func.count(StorySession.id)).where(
+            StorySession.child_profile_id == profile_id
+        )) == 0
+    finally:
+        write_released.set()
+        writer_done.wait(WAIT_TIMEOUT)
+        deletion_done.wait(WAIT_TIMEOUT)
+        _cleanup(setup, user_id, profile_id)

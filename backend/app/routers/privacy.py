@@ -6,6 +6,7 @@ from app.db import get_db
 from app.models import User
 from app.repositories import privacy as privacy_repo
 from app.schemas import PrivacyStateResponse, PrivacyUpdateRequest
+from app.services import child_data_deletion
 from app.services import privacy as privacy_service
 
 router = APIRouter(prefix="/v1/privacy", tags=["privacy"])
@@ -74,6 +75,21 @@ def delete_reading_history(
     try:
         privacy_service.lock_user(db, user.id)
         privacy_service.delete_reading_history(db, user.id)
+        db.commit()
+    except privacy_service.PrivacyError as error:
+        db.rollback()
+        raise HTTPException(status_code=error.status_code, detail=error.code)
+    return Response(status_code=204)
+
+
+@router.delete("/child-data", status_code=204)
+def delete_child_data(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    try:
+        privacy_service.lock_user(db, user.id)
+        child_data_deletion.delete_child_data(db, user.id)
         db.commit()
     except privacy_service.PrivacyError as error:
         db.rollback()
