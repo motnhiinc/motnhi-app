@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -64,3 +64,18 @@ def update_privacy_state(
         db.rollback()
         raise HTTPException(status_code=error.status_code, detail=error.code)
     return _build_response(db, user.id)
+
+
+@router.delete("/reading-history", status_code=204)
+def delete_reading_history(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    try:
+        privacy_service.lock_user(db, user.id)
+        privacy_service.delete_reading_history(db, user.id)
+        db.commit()
+    except privacy_service.PrivacyError as error:
+        db.rollback()
+        raise HTTPException(status_code=error.status_code, detail=error.code)
+    return Response(status_code=204)

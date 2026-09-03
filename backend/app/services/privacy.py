@@ -29,6 +29,10 @@ def lock_user(db: Session, user_id: str) -> User:
     return user
 
 
+def delete_reading_history(db: Session, user_id: str) -> int:
+    return privacy_repo.delete_reading_history(db, user_id)
+
+
 def effective_progress(settings: PrivacySettings | None) -> bool:
     return bool(
         settings

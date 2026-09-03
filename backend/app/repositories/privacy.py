@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import distinct, exists, func, or_, select
+from sqlalchemy import delete, distinct, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -92,6 +92,31 @@ def data_counts(db: Session, user_id: str) -> dict[str, int]:
         "story_sessions": story_sessions or 0,
         "interaction_events": interaction_events or 0,
     }
+
+
+def delete_reading_history(db: Session, user_id: str) -> int:
+    owned_session = or_(
+        ChildProfile.user_id == user_id,
+        Story.owner_user_id == user_id,
+    )
+    session_ids = list(db.scalars(
+        select(StorySession.id)
+        .join(ChildProfile, ChildProfile.id == StorySession.child_profile_id)
+        .join(Story, Story.id == StorySession.story_id)
+        .where(owned_session)
+    ))
+    if not session_ids:
+        return 0
+    db.execute(
+        delete(InteractionEvent).where(
+            InteractionEvent.story_session_id.in_(session_ids)
+        )
+    )
+    result = db.execute(
+        delete(StorySession).where(StorySession.id.in_(session_ids))
+    )
+    db.flush()
+    return result.rowcount
 
 
 def retention_candidate_ids(db: Session, cutoff: datetime) -> list[str]:
