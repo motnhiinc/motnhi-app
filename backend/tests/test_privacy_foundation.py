@@ -25,6 +25,10 @@ def _add_user(db, user_id: str, now: datetime) -> None:
         created_at=now,
         updated_at=now,
     ))
+    # Flush parent rows immediately: with no ORM relationship between User and
+    # its dependents, the unit of work orders per-mapper inserts alphabetically
+    # by class name (ChildProfile < User), not by FK dependency.
+    db.flush()
 
 
 def _add_profile(db, profile_id: str, user_id: str, now: datetime) -> None:
@@ -76,6 +80,7 @@ def _add_session_with_event(
         last_page_number=0,
         mode="library",
     ))
+    db.flush()
     db.add(InteractionEvent(
         id=f"event-{session_id}",
         story_session_id=session_id,

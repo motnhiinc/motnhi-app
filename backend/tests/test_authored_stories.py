@@ -30,7 +30,9 @@ def _grant_consent(db, user_id):
         db.add(settings)
     settings.accepted_policy_version = POLICY_VERSION
     settings.core_storage_accepted_at = now
-    settings.progress_tracking_enabled = False
+    # Story playback/reading routes require effective progress tracking, so a
+    # consent grant that lets these tests read stories must enable it.
+    settings.progress_tracking_enabled = True
     settings.cloud_tts_enabled = False
     settings.last_active_at = now
     settings.updated_at = now
@@ -408,5 +410,5 @@ def test_story_reads_and_delete_available_without_consent(client, db, seeded):
     assert client.get("/v1/stories", headers=headers).status_code == 200
     detail = client.get(f"/v1/stories/{story_id}", headers=headers)
     assert detail.status_code == 200
-    assert detail.json()["id"] == story_id
+    assert detail.json()["story"]["id"] == story_id
     assert client.delete(f"/v1/stories/{story_id}", headers=headers).status_code == 204

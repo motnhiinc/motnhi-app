@@ -22,15 +22,18 @@ def _uid(headers):
 
 def _write_consent(db, user_id, *, cloud_tts_enabled, policy_version=POLICY_VERSION):
     now = datetime.now(timezone.utc)
-    db.add(PrivacySettings(
-        user_id=user_id,
-        accepted_policy_version=policy_version,
-        core_storage_accepted_at=now,
-        progress_tracking_enabled=False,
-        cloud_tts_enabled=cloud_tts_enabled,
-        last_active_at=now,
-        updated_at=now,
-    ))
+    # /v1/auth/device already creates a default privacy_settings row for the
+    # user, so update it instead of inserting a duplicate.
+    settings = db.get(PrivacySettings, user_id)
+    if settings is None:
+        settings = PrivacySettings(user_id=user_id)
+        db.add(settings)
+    settings.accepted_policy_version = policy_version
+    settings.core_storage_accepted_at = now
+    settings.progress_tracking_enabled = False
+    settings.cloud_tts_enabled = cloud_tts_enabled
+    settings.last_active_at = now
+    settings.updated_at = now
     db.flush()
 
 
@@ -119,11 +122,13 @@ def test_tts_rejects_empty_and_over_limit_without_upstream_call(client, monkeypa
     assert fake.calls == []
 
 
-def test_tts_forwards_mixed_text_once_and_returns_non_cacheable_mp3(client, monkeypatch):
+def test_tts_forwards_mixed_text_once_and_returns_non_cacheable_mp3(client, db, monkeypatch):
     fake = FakeTtsService()
     monkeypatch.setattr(tts_router, "get_tts_service", lambda: fake)
+    headers = _auth(client)
+    _write_consent(db, _uid(headers), cloud_tts_enabled=True)
     text = "The moon is bright. Một đêm thật đẹp."
-    response = client.post("/v1/tts", json={"text": text}, headers=_auth(client))
+    response = client.post("/v1/tts", json={"text": text}, headers=headers)
     assert response.status_code == 200
     assert response.content == b"ID3demo"
     assert response.headers["content-type"] == "audio/mpeg"
@@ -131,22 +136,26 @@ def test_tts_forwards_mixed_text_once_and_returns_non_cacheable_mp3(client, monk
     assert fake.calls == [text]
 
 
-def test_tts_maps_upstream_failure_without_leaking_details(client, monkeypatch):
+def test_tts_maps_upstream_failure_without_leaking_details(client, db, monkeypatch):
     fake = FakeTtsService(error=TtsUpstreamError("secret upstream detail"))
     monkeypatch.setattr(tts_router, "get_tts_service", lambda: fake)
-    response = client.post("/v1/tts", json={"text": "Hello"}, headers=_auth(client))
+    headers = _auth(client)
+    _write_consent(db, _uid(headers), cloud_tts_enabled=True)
+    response = client.post("/v1/tts", json={"text": "Hello"}, headers=headers)
     assert response.status_code == 502
     assert response.json() == {"detail": "narration generation failed"}
     assert "secret upstream detail" not in response.text
 
 
-def test_tts_maps_service_construction_failure_without_leaking_details(client, monkeypatch):
+def test_tts_maps_service_construction_failure_without_leaking_details(client, db, monkeypatch):
     def fail_to_construct():
         raise TtsUpstreamError("secret configuration detail")
 
     monkeypatch.setattr(tts_router, "get_openai_tts_service", fail_to_construct)
 
-    response = client.post("/v1/tts", json={"text": "Hello"}, headers=_auth(client))
+    headers = _auth(client)
+    _write_consent(db, _uid(headers), cloud_tts_enabled=True)
+    response = client.post("/v1/tts", json={"text": "Hello"}, headers=headers)
 
     assert response.status_code == 502
     assert response.json() == {"detail": "narration generation failed"}
