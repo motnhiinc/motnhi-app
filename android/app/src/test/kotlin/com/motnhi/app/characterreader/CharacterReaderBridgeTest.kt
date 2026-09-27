@@ -145,10 +145,16 @@ class CharacterReaderBridgeTest {
     @Test
     fun releasesTheInProgressGateAfterAFailureSoALaterCallIsAccepted() {
         arCore.availability = ArCoreAvailabilityDecision.Unsupported
+        arCore.rawAvailability = "UNSUPPORTED_DEVICE_NOT_CAPABLE"
         val bridge = bridge()
 
         bridge.open()
         assertEquals("ar_unsupported", result.errorCode)
+        assertEquals(
+            "UNSUPPORTED_DEVICE_NOT_CAPABLE",
+            (result.errorDetails as Map<*, *>)["availability"],
+        )
+        assertEquals("Unsupported", (result.errorDetails as Map<*, *>)["decision"])
 
         val second = RecordingResult()
         arCore.availability = ArCoreAvailabilityDecision.Supported
@@ -463,7 +469,10 @@ class CharacterReaderBridgeTest {
         bridge.handle(MethodCall("isStoryReaderSupported", null), result)
 
         assertEquals(1, result.replies)
-        assertEquals(true, result.successValue)
+        val response = result.successValue as Map<*, *>
+        assertEquals(true, response["supported"])
+        val diagnostics = response["diagnostics"] as Map<*, *>
+        assertEquals("Supported", diagnostics["decision"])
 
         // The probe must not have consumed the single-flight gate.
         val second = RecordingResult()
@@ -474,13 +483,19 @@ class CharacterReaderBridgeTest {
     @Test
     fun isStoryReaderSupportedIsFalseOnlyWhenArCoreIsUnsupported() {
         arCore.availability = ArCoreAvailabilityDecision.Unsupported
+        arCore.rawAvailability = "UNSUPPORTED_DEVICE_NOT_CAPABLE"
         bridge().handle(MethodCall("isStoryReaderSupported", null), result)
-        assertEquals(false, result.successValue)
+        val response = result.successValue as Map<*, *>
+        assertEquals(false, response["supported"])
+        assertEquals(
+            "UNSUPPORTED_DEVICE_NOT_CAPABLE",
+            (response["diagnostics"] as Map<*, *>)["availability"],
+        )
 
         val transient = RecordingResult()
         arCore.availability = ArCoreAvailabilityDecision.Retry
         bridge().handle(MethodCall("isStoryReaderSupported", null), transient)
-        assertEquals(true, transient.successValue)
+        assertEquals(true, (transient.successValue as Map<*, *>)["supported"])
     }
 
     @Test
@@ -497,11 +512,18 @@ class CharacterReaderBridgeTest {
 
 private class FakeArCoreGateway : ArCoreGateway {
     var availability = ArCoreAvailabilityDecision.Supported
+    var rawAvailability: String? = null
     var defaultOutcome = ArCoreInstallOutcome.Requested
     var outcomes = mutableListOf<ArCoreInstallOutcome>()
+    var installFailureCause: String? = null
     val installCalls = mutableListOf<Boolean>()
 
     override fun checkAvailability() = availability
+
+    override fun checkAvailabilityDiagnostic() =
+        ArCoreAvailabilityDiagnostic(rawAvailability ?: availability.name, availability)
+
+    override fun lastInstallFailureCause() = installFailureCause
 
     override fun requestInstall(userRequestedInstall: Boolean): ArCoreInstallOutcome {
         installCalls += userRequestedInstall
@@ -552,6 +574,7 @@ private class RecordingResult : MethodChannel.Result {
     var replies = 0
     var successValue: Any? = null
     var errorCode: String? = null
+    var errorDetails: Any? = null
     var notImplementedCalls = 0
 
     override fun success(result: Any?) {
@@ -562,6 +585,7 @@ private class RecordingResult : MethodChannel.Result {
     override fun error(code: String, message: String?, details: Any?) {
         replies++
         errorCode = code
+        errorDetails = details
     }
 
     override fun notImplemented() {

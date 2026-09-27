@@ -51,4 +51,25 @@ void main() {
       ),
     );
   });
+
+  test('retains ARCore diagnostics attached to native errors', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async {
+      throw PlatformException(
+        code: 'ar_unsupported',
+        details: {
+          'availability': 'UNSUPPORTED_DEVICE_NOT_CAPABLE',
+          'decision': 'Unsupported',
+        },
+      );
+    });
+
+    try {
+      await NativeCharacterReader().open('/tmp/narration.mp3');
+      fail('expected CharacterReaderFailure');
+    } on CharacterReaderFailure catch (error) {
+      expect(error.code, 'ar_unsupported');
+      expect(error.diagnostic?.availability, 'UNSUPPORTED_DEVICE_NOT_CAPABLE');
+      expect(error.diagnostic?.decision, 'Unsupported');
+    }
+  });
 }

@@ -40,6 +40,8 @@ class CharacterReaderBridge internal constructor(
      * the single-clip scan-any-page flow keeps the fox, so this stays at the default there.
      */
     private var pendingModelAssetFileName: String = CharacterReaderActivity.MODEL_FILENAME
+    private var latestArDiagnostic: ArCoreAvailabilityDiagnostic? = null
+    private var latestArCause: String? = null
 
     internal fun attachTo(messenger: BinaryMessenger) {
         channel = MethodChannel(messenger, CHANNEL_NAME).apply {
@@ -54,10 +56,16 @@ class CharacterReaderBridge internal constructor(
                 // player asks it once on open so an unsupported device never shows the AR button
                 // and then fails after a long preparation. Retry is transient, so only an
                 // outright Unsupported answers false.
-                "isStoryReaderSupported" ->
+                "isStoryReaderSupported" -> {
+                    val diagnostic = arCore.checkAvailabilityDiagnostic()
                     result.success(
-                        arCore.checkAvailability() != ArCoreAvailabilityDecision.Unsupported,
+                        mapOf(
+                            "supported" to
+                                (diagnostic.decision != ArCoreAvailabilityDecision.Unsupported),
+                            "diagnostics" to diagnostic.toWireMap(),
+                        ),
                     )
+                }
 
                 "openCharacterReader" -> start(call, result, storyMode = false)
                 "openStoryReader" -> start(call, result, storyMode = true)
@@ -149,7 +157,9 @@ class CharacterReaderBridge internal constructor(
         }
 
     private fun checkArAvailability(remainingTransientPolls: Int) {
-        when (arCore.checkAvailability()) {
+        val diagnostic = arCore.checkAvailabilityDiagnostic()
+        latestArDiagnostic = diagnostic
+        when (diagnostic.decision) {
             ArCoreAvailabilityDecision.Supported -> launchReader()
             ArCoreAvailabilityDecision.NeedsInstall -> requestArCoreInstall()
             ArCoreAvailabilityDecision.Unsupported -> finishError("ar_unsupported")
@@ -173,7 +183,9 @@ class CharacterReaderBridge internal constructor(
             return
         }
         installAttempts++
-        when (arCore.requestInstall(step == ArCoreInstallStep.Prompt)) {
+        val outcome = arCore.requestInstall(step == ArCoreInstallStep.Prompt)
+        latestArCause = arCore.lastInstallFailureCause()
+        when (outcome) {
             ArCoreInstallOutcome.Installed -> {
                 awaitingInstallResume = false
                 checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
@@ -309,8 +321,10 @@ class CharacterReaderBridge internal constructor(
         val result = pendingResult ?: return
         val gate = replyGate ?: return
         if (!gate.claim()) return
+        val diagnostics = latestArDiagnostic?.toWireMap()?.toMutableMap()
+        latestArCause?.let { diagnostics?.put("cause", it) }
         clearPending()
-        scheduler.runOnMain { result.error(code, null, null) }
+        scheduler.runOnMain { result.error(code, null, diagnostics) }
     }
 
     private fun clearPending() {
@@ -323,8 +337,13 @@ class CharacterReaderBridge internal constructor(
         pendingModelAssetFileName = CharacterReaderActivity.MODEL_FILENAME
         installAttempts = 0
         awaitingInstallResume = false
+        latestArDiagnostic = null
+        latestArCause = null
         inProgressGate.finish()
     }
+
+    private fun ArCoreAvailabilityDiagnostic.toWireMap(): Map<String, String> =
+        mapOf("availability" to availability, "decision" to decision.name)
 
     companion object {
         const val CHANNEL_NAME = "storybook_ar/character_reader"

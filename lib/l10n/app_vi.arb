@@ -322,5 +322,9 @@
   "scanArErrAudioFailedTitle": "Nhân vật chưa phát được giọng đọc",
   "scanArErrAudioFailedBody": "Cần thử phát lại ngay trong trình đọc nhân vật để giữ nguyên vị trí đã đặt. Từ đây, hãy quét trang khác hoặc đóng.",
   "scanArErrGenericTitle": "Không mở được trình đọc nhân vật",
-  "scanArErrGenericBody": "Trình đọc nhân vật đã dừng trước khi hoàn tất. Giọng đọc đã tạo vẫn còn dùng được."
+  "scanArErrGenericBody": "Trình đọc nhân vật đã dừng trước khi hoàn tất. Giọng đọc đã tạo vẫn còn dùng được.",
+  "arTechnicalDetails": "Chi tiết kỹ thuật",
+  "arDiagnosticAvailability": "Trạng thái ARCore",
+  "arDiagnosticDecision": "Quyết định của ứng dụng",
+  "arDiagnosticCause": "Nguyên nhân khởi động"
 }

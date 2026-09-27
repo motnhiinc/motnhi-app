@@ -13,7 +13,9 @@ import '../../shared/widgets/big_play_button.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../ar/ar_character.dart';
 import '../ar/ar_character_providers.dart';
+import '../ar/ar_diagnostics_disclosure.dart';
 import '../ar/ar_preparing_dialog.dart';
+import '../ar/ar_reader_diagnostic.dart';
 import '../ar/ar_reader_controller.dart';
 import '../ar/native_story_reader.dart';
 import '../player/narration_audio_fetcher.dart';
@@ -85,6 +87,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   late final ReadingSessionTracker _tracker;
   bool _storyCompleted = false;
   bool _storyReaderSupported = false;
+  ArReaderDiagnostic? _arSupportDiagnostic;
   bool _arBusy = false;
   bool _suppressNextAutoplay = false;
 
@@ -124,9 +127,17 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   /// Asked once, before any AR button is shown, so an unsupported device never
   /// offers AR and then fails after a multi-second narration preparation.
   Future<void> _resolveArSupport() async {
-    final supported = await ref.read(storyReaderProvider).isSupported();
-    if (!mounted || supported == _storyReaderSupported) return;
-    setState(() => _storyReaderSupported = supported);
+    final support = await ref.read(storyReaderProvider).isSupported();
+    final supported = support.supported;
+    if (!mounted) return;
+    if (supported == _storyReaderSupported &&
+        support.diagnostic == _arSupportDiagnostic) {
+      return;
+    }
+    setState(() {
+      _storyReaderSupported = supported;
+      _arSupportDiagnostic = support.diagnostic;
+    });
   }
 
   /// Starts the tracked session, then performs the initial tracked page load.
@@ -295,7 +306,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       if (!mounted) return;
 
       if (result == null) {
-        await _showArFailure(controller.value.failureCode ?? 'ar_failed');
+        await _showArFailure(
+          controller.value.failureCode ?? 'ar_failed',
+          diagnostic: controller.value.diagnostic,
+        );
         return;
       }
       await _onArReturned(result);
@@ -339,7 +353,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
 
   /// AR is an enhancement; losing it must never block reading, so every branch
   /// keeps the child in the book.
-  Future<void> _showArFailure(String code) async {
+  Future<void> _showArFailure(
+    String code, {
+    ArReaderDiagnostic? diagnostic,
+  }) async {
     // A reader is already open — never a child-facing condition.
     if (code == 'reader_in_progress') return;
 
@@ -348,7 +365,17 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(s.arNotReadyTitle),
-        content: Text(_arFailureMessage(s, code)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_arFailureMessage(s, code)),
+            if (diagnostic != null) ...[
+              const SizedBox(height: 8),
+              ArDiagnosticsDisclosure(diagnostic: diagnostic),
+            ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
@@ -550,6 +577,24 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
               ),
             ),
           ),
+          if ((profile?.arEnabled ?? true) &&
+              !_storyReaderSupported &&
+              _arSupportDiagnostic != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    s.arErrUnsupported,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  ArDiagnosticsDisclosure(diagnostic: _arSupportDiagnostic!),
+                ],
+              ),
+            ),
           _PlayerControls(
             player: _player,
             pageIndex: _pageIndex,

@@ -1,7 +1,15 @@
 import 'package:flutter/services.dart';
 
 import 'ar_character.dart';
+import 'ar_reader_diagnostic.dart';
 import 'ar_narration_bundle.dart';
+
+class StoryReaderSupport {
+  const StoryReaderSupport({required this.supported, this.diagnostic});
+
+  final bool supported;
+  final ArReaderDiagnostic? diagnostic;
+}
 
 /// How an AR reading ended, and how far it got.
 ///
@@ -26,9 +34,10 @@ class StoryReaderResult {
 }
 
 final class StoryReaderFailure implements Exception {
-  const StoryReaderFailure(this.code);
+  const StoryReaderFailure(this.code, {this.diagnostic});
 
   final String code;
+  final ArReaderDiagnostic? diagnostic;
 
   @override
   String toString() => 'StoryReaderFailure($code)';
@@ -37,7 +46,7 @@ final class StoryReaderFailure implements Exception {
 abstract interface class StoryReader {
   /// Cheap capability probe, asked before any narration is prepared so an
   /// unsupported device never shows the AR button at all.
-  Future<bool> isSupported();
+  Future<StoryReaderSupport> isSupported();
 
   /// Opens the native AR reader on [pages], starting at [initialPageIndex].
   /// [character] is the doll the child picked: [ArCharacter.assetBaseName]
@@ -60,16 +69,29 @@ final class NativeStoryReader implements StoryReader {
   final MethodChannel _channel;
 
   @override
-  Future<bool> isSupported() async {
+  Future<StoryReaderSupport> isSupported() async {
     try {
-      return await _channel.invokeMethod<bool>('isStoryReaderSupported') ??
-          false;
-    } on PlatformException {
-      return false;
+      final response =
+          await _channel.invokeMethod<Object?>('isStoryReaderSupported');
+      if (response is bool) {
+        return StoryReaderSupport(supported: response);
+      }
+      if (response is Map) {
+        return StoryReaderSupport(
+          supported: response['supported'] == true,
+          diagnostic: ArReaderDiagnostic.fromWire(response['diagnostics']),
+        );
+      }
+      return const StoryReaderSupport(supported: false);
+    } on PlatformException catch (error) {
+      return StoryReaderSupport(
+        supported: false,
+        diagnostic: ArReaderDiagnostic.fromWire(error.details),
+      );
     } on MissingPluginException {
       // Desktop, or a build without the native reader. Not an error worth
       // surfacing — it just means no AR button.
-      return false;
+      return const StoryReaderSupport(supported: false);
     }
   }
 
@@ -98,7 +120,10 @@ final class NativeStoryReader implements StoryReader {
             (raw?['pagesRead'] as List?)?.cast<String>() ?? const <String>[],
       );
     } on PlatformException catch (error) {
-      throw StoryReaderFailure(error.code);
+      throw StoryReaderFailure(
+        error.code,
+        diagnostic: ArReaderDiagnostic.fromWire(error.details),
+      );
     } on MissingPluginException {
       throw const StoryReaderFailure('ar_unavailable');
     }

@@ -70,6 +70,16 @@ class NativeFailureMappingTest {
     }
 
     @Test
+    fun diagnosticRetainsRawAvailabilityAndMappedDecision() {
+        val diagnostic = ArCoreAvailabilityMapper.diagnostic(
+            ArCoreApk.Availability.UNSUPPORTED_DEVICE_NOT_CAPABLE,
+        )
+
+        assertEquals("UNSUPPORTED_DEVICE_NOT_CAPABLE", diagnostic.availability)
+        assertEquals(ArCoreAvailabilityDecision.Unsupported, diagnostic.decision)
+    }
+
+    @Test
     fun promptsForArCoreInstallOnceThenConfirmsOnResumeWithinABound() {
         // requestInstall() reports an install by being called again after the host resumes, so the
         // first call is the only one allowed to prompt.

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/sources/asset_url_resolver.dart';
 import 'package:storybook_ar/features/ar/ar_character.dart';
+import 'package:storybook_ar/features/ar/ar_reader_diagnostic.dart';
 import 'package:storybook_ar/features/ar/ar_narration_bundle.dart';
 import 'package:storybook_ar/features/ar/ar_reader_controller.dart';
 import 'package:storybook_ar/features/ar/native_story_reader.dart';
@@ -53,10 +54,11 @@ class _GatedTts implements TtsFileSynthesizer {
 }
 
 class _FakeReader implements StoryReader {
-  _FakeReader({this.supported = true, this.failureCode});
+  _FakeReader({this.supported = true, this.failureCode, this.diagnostic});
 
   final bool supported;
   final String? failureCode;
+  final ArReaderDiagnostic? diagnostic;
 
   int openCalls = 0;
   List<ArNarrationPage>? openedWith;
@@ -64,7 +66,10 @@ class _FakeReader implements StoryReader {
   ArCharacter? openedWithCharacter;
 
   @override
-  Future<bool> isSupported() async => supported;
+  Future<StoryReaderSupport> isSupported() async => StoryReaderSupport(
+        supported: supported,
+        diagnostic: diagnostic,
+      );
 
   @override
   Future<StoryReaderResult> open({
@@ -76,7 +81,9 @@ class _FakeReader implements StoryReader {
     openedWith = pages;
     openedAtIndex = initialPageIndex;
     openedWithCharacter = character;
-    if (failureCode != null) throw StoryReaderFailure(failureCode!);
+    if (failureCode != null) {
+      throw StoryReaderFailure(failureCode!, diagnostic: diagnostic);
+    }
     return const StoryReaderResult(
       terminalCode: 'completed',
       lastPageId: 'p1',
@@ -178,7 +185,13 @@ void main() {
   });
 
   test('fails as ar_unsupported without preparing anything', () async {
-    final reader = _FakeReader(supported: false);
+    final reader = _FakeReader(
+      supported: false,
+      diagnostic: const ArReaderDiagnostic(
+        availability: 'UNSUPPORTED_DEVICE_NOT_CAPABLE',
+        decision: 'Unsupported',
+      ),
+    );
     final controller = build(reader: reader);
 
     final result = await controller.start();
@@ -186,6 +199,10 @@ void main() {
     expect(result, isNull);
     expect(controller.value.phase, ArReaderPhase.failure);
     expect(controller.value.failureCode, 'ar_unsupported');
+    expect(
+      controller.value.diagnostic?.availability,
+      'UNSUPPORTED_DEVICE_NOT_CAPABLE',
+    );
     expect(reader.openCalls, 0);
     // Nothing should have been written for a device that cannot show AR.
     expect(dir.listSync(), isEmpty);
@@ -204,14 +221,23 @@ void main() {
   });
 
   test('surfaces a reader failure code', () async {
-    final controller =
-        build(reader: _FakeReader(failureCode: 'model_missing'));
+    final controller = build(
+      reader: _FakeReader(
+        failureCode: 'ar_failed',
+        diagnostic: const ArReaderDiagnostic(
+          availability: 'SUPPORTED_INSTALLED',
+          decision: 'Supported',
+          cause: 'SessionException',
+        ),
+      ),
+    );
 
     final result = await controller.start();
 
     expect(result, isNull);
     expect(controller.value.phase, ArReaderPhase.failure);
-    expect(controller.value.failureCode, 'model_missing');
+    expect(controller.value.failureCode, 'ar_failed');
+    expect(controller.value.diagnostic?.cause, 'SessionException');
   });
 
   test('passes the initial page index through to the reader', () async {

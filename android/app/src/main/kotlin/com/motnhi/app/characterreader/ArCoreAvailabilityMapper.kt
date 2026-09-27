@@ -10,7 +10,18 @@ enum class ArCoreAvailabilityDecision {
     Failed,
 }
 
+data class ArCoreAvailabilityDiagnostic(
+    val availability: String,
+    val decision: ArCoreAvailabilityDecision,
+)
+
 object ArCoreAvailabilityMapper {
+    fun diagnostic(availability: ArCoreApk.Availability): ArCoreAvailabilityDiagnostic =
+        ArCoreAvailabilityDiagnostic(
+            availability = availability.name,
+            decision = map(availability),
+        )
+
     fun map(availability: ArCoreApk.Availability): ArCoreAvailabilityDecision {
         return when (availability) {
             ArCoreApk.Availability.SUPPORTED_INSTALLED ->

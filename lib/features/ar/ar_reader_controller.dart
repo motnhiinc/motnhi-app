@@ -6,6 +6,7 @@ import '../../data/models/models.dart';
 import '../../data/sources/asset_url_resolver.dart';
 import '../player/narration_audio_fetcher.dart';
 import 'ar_character.dart';
+import 'ar_reader_diagnostic.dart';
 import 'ar_narration_bundle.dart';
 import 'native_story_reader.dart';
 
@@ -25,6 +26,7 @@ class ArReaderState {
     this.prepared = 0,
     this.total = 0,
     this.failureCode,
+    this.diagnostic,
     this.result,
   });
 
@@ -32,6 +34,7 @@ class ArReaderState {
   final int prepared;
   final int total;
   final String? failureCode;
+  final ArReaderDiagnostic? diagnostic;
   final StoryReaderResult? result;
 
   ArReaderState copyWith({
@@ -39,6 +42,7 @@ class ArReaderState {
     int? prepared,
     int? total,
     String? failureCode,
+    ArReaderDiagnostic? diagnostic,
     StoryReaderResult? result,
   }) =>
       ArReaderState(
@@ -46,6 +50,7 @@ class ArReaderState {
         prepared: prepared ?? this.prepared,
         total: total ?? this.total,
         failureCode: failureCode ?? this.failureCode,
+        diagnostic: diagnostic ?? this.diagnostic,
         result: result ?? this.result,
       );
 }
@@ -123,8 +128,11 @@ class ArReaderController extends ValueNotifier<ArReaderState> {
 
   Future<StoryReaderResult?> _run(int generation) async {
     value = value.copyWith(phase: ArReaderPhase.checkingSupport);
-    if (!await reader.isSupported()) {
-      return _isCancelled(generation) ? null : _fail('ar_unsupported');
+    final support = await reader.isSupported();
+    if (!support.supported) {
+      return _isCancelled(generation)
+          ? null
+          : _fail('ar_unsupported', diagnostic: support.diagnostic);
     }
     if (_isCancelled(generation)) return null;
 
@@ -161,12 +169,18 @@ class ArReaderController extends ValueNotifier<ArReaderState> {
       value = value.copyWith(phase: ArReaderPhase.reading, result: result);
       return result;
     } on StoryReaderFailure catch (error) {
-      return _isCancelled(generation) ? null : _fail(error.code);
+      return _isCancelled(generation)
+          ? null
+          : _fail(error.code, diagnostic: error.diagnostic);
     }
   }
 
-  StoryReaderResult? _fail(String code) {
-    value = value.copyWith(phase: ArReaderPhase.failure, failureCode: code);
+  StoryReaderResult? _fail(String code, {ArReaderDiagnostic? diagnostic}) {
+    value = value.copyWith(
+      phase: ArReaderPhase.failure,
+      failureCode: code,
+      diagnostic: diagnostic,
+    );
     return null;
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import '../ar/ar_reader_diagnostic.dart';
+
 abstract interface class CharacterReader {
   Future<void> open(String audioFilePath);
 }
@@ -7,9 +9,10 @@ abstract interface class CharacterReader {
 final class CharacterReaderCancelled implements Exception {}
 
 final class CharacterReaderFailure implements Exception {
-  const CharacterReaderFailure(this.code);
+  const CharacterReaderFailure(this.code, {this.diagnostic});
 
   final String code;
+  final ArReaderDiagnostic? diagnostic;
 }
 
 final class NativeCharacterReader implements CharacterReader {
@@ -28,7 +31,10 @@ final class NativeCharacterReader implements CharacterReader {
       );
     } on PlatformException catch (error) {
       if (error.code == 'cancelled') throw CharacterReaderCancelled();
-      throw CharacterReaderFailure(error.code);
+      throw CharacterReaderFailure(
+        error.code,
+        diagnostic: ArReaderDiagnostic.fromWire(error.details),
+      );
     }
   }
 }

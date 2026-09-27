@@ -333,5 +333,9 @@
   "scanArErrAudioFailedTitle": "The character couldn't play the voice",
   "scanArErrAudioFailedBody": "Playback must be retried inside the character reader to preserve placement. From here, scan another page or close.",
   "scanArErrGenericTitle": "We couldn't open the character reader",
-  "scanArErrGenericBody": "The character reader stopped before it could finish. Your generated voice is still available."
+  "scanArErrGenericBody": "The character reader stopped before it could finish. Your generated voice is still available.",
+  "arTechnicalDetails": "Technical details",
+  "arDiagnosticAvailability": "ARCore availability",
+  "arDiagnosticDecision": "App decision",
+  "arDiagnosticCause": "Startup cause"
 }

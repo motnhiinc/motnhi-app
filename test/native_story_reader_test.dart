@@ -49,26 +49,42 @@ void main() {
   );
 
   group('isSupported', () {
-    test('returns the channel answer', () async {
-      stub((_) async => true);
-      expect(await NativeStoryReader().isSupported(), isTrue);
+    test('parses support and diagnostic metadata', () async {
+      stub((_) async => {
+            'supported': false,
+            'diagnostics': {
+              'availability': 'UNSUPPORTED_DEVICE_NOT_CAPABLE',
+              'decision': 'Unsupported',
+            },
+          });
+      final support = await NativeStoryReader().isSupported();
 
-      stub((_) async => false);
-      expect(await NativeStoryReader().isSupported(), isFalse);
+      expect(support.supported, isFalse);
+      expect(
+          support.diagnostic?.availability, 'UNSUPPORTED_DEVICE_NOT_CAPABLE');
+      expect(support.diagnostic?.decision, 'Unsupported');
+    });
+
+    test('accepts a legacy Boolean response', () async {
+      stub((_) async => true);
+      final support = await NativeStoryReader().isSupported();
+
+      expect(support.supported, isTrue);
+      expect(support.diagnostic, isNull);
     });
 
     test('is false when the platform errors or has no implementation',
         () async {
       stub((_) async => throw PlatformException(code: 'boom'));
-      expect(await NativeStoryReader().isSupported(), isFalse);
+      expect((await NativeStoryReader().isSupported()).supported, isFalse);
 
       messenger.setMockMethodCallHandler(channel, null);
-      expect(await NativeStoryReader().isSupported(), isFalse);
+      expect((await NativeStoryReader().isSupported()).supported, isFalse);
     });
 
     test('is false when the channel answers null', () async {
       stub((_) async => null);
-      expect(await NativeStoryReader().isSupported(), isFalse);
+      expect((await NativeStoryReader().isSupported()).supported, isFalse);
     });
   });
 
@@ -171,6 +187,33 @@ void main() {
         throwsA(isA<StoryReaderFailure>()
             .having((e) => e.code, 'code', 'model_missing')),
       );
+    });
+
+    test('preserves ARCore details from PlatformException', () async {
+      stub((_) async => throw PlatformException(
+            code: 'ar_unsupported',
+            details: {
+              'availability': 'UNSUPPORTED_DEVICE_NOT_CAPABLE',
+              'decision': 'Unsupported',
+              'cause': 'UnavailableDeviceNotCompatibleException',
+            },
+          ));
+
+      try {
+        await NativeStoryReader().open(
+          pages: pages,
+          initialPageIndex: 0,
+          character: character,
+        );
+        fail('expected StoryReaderFailure');
+      } on StoryReaderFailure catch (error) {
+        expect(error.code, 'ar_unsupported');
+        expect(
+            error.diagnostic?.availability, 'UNSUPPORTED_DEVICE_NOT_CAPABLE');
+        expect(error.diagnostic?.decision, 'Unsupported');
+        expect(
+            error.diagnostic?.cause, 'UnavailableDeviceNotCompatibleException');
+      }
     });
 
     test('maps a missing implementation to a failure rather than hanging',
