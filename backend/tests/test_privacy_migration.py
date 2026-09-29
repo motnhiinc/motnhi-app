@@ -67,6 +67,7 @@ def test_privacy_migration_backfills_defaults(migration_database):
         assert row["core_storage_accepted_at"] is None
         assert row["progress_tracking_enabled"] is False
         assert row["cloud_tts_enabled"] is False
+        assert row["page_image_validation_enabled"] is False
         assert row["last_active_at"] is not None
         assert row["last_active_at"].utcoffset() == timedelta(0)
         assert row["updated_at"] is not None

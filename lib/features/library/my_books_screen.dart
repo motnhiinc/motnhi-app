@@ -50,7 +50,12 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
                             ?.copyWith(fontSize: 26),
                       ),
                     ),
-                    const Icon(Icons.search_rounded, size: 26),
+                    IconButton(
+                      tooltip: AppLocalizations.of(context)!.navMoonMode,
+                      onPressed: () =>
+                          ref.read(bedtimeModeProvider.notifier).toggle(),
+                      icon: const Icon(Icons.dark_mode_rounded),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -65,8 +70,8 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
                     _Chip(
                       label: s.filterMadeByYou,
                       selected: _filter == _MyBooksFilter.madeByYou,
-                      onTap: () => setState(
-                          () => _filter = _MyBooksFilter.madeByYou),
+                      onTap: () =>
+                          setState(() => _filter = _MyBooksFilter.madeByYou),
                     ),
                     _Chip(
                       label: s.filterReading,
@@ -82,8 +87,7 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       EyebrowLabel(s.sectionRecent,
-                          color:
-                              Theme.of(context).colorScheme.onSurface),
+                          color: Theme.of(context).colorScheme.onSurface),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -143,11 +147,13 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
                       _MyBooksFilter.madeByYou =>
                         stories.where((st) => st.isAuthored),
                       _MyBooksFilter.reading => stories.where(
-                        (st) => summary?.recentStories
-                                .any((r) => r.id == st.id) ??
-                            false,
-                      ),
-                    }.toList();
+                          (st) =>
+                              summary?.recentStories
+                                  .any((r) => r.id == st.id) ??
+                              false,
+                        ),
+                    }
+                        .toList();
                     if (shown.isEmpty) {
                       return Padding(
                         padding: const EdgeInsets.only(top: 12),
@@ -177,8 +183,8 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
               bottom: 0,
               child: FloatingNavBar(items: [
                 FloatingNavItem(
-                  icon: Icons.auto_stories_rounded,
-                  label: s.navStories,
+                  icon: Icons.home_rounded,
+                  label: s.childHomeNavHome,
                   onTap: () => context.go(AppRoutes.home),
                 ),
                 FloatingNavItem(
@@ -186,11 +192,6 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
                   label: s.navMyBooks,
                   active: true,
                   onTap: () {},
-                ),
-                FloatingNavItem(
-                  icon: Icons.dark_mode_rounded,
-                  label: s.navMoonMode,
-                  onTap: () => ref.read(bedtimeModeProvider.notifier).toggle(),
                 ),
               ]),
             ),
@@ -203,13 +204,13 @@ class _MyBooksScreenState extends ConsumerState<MyBooksScreen> {
   String _categoryLabel(AppLocalizations s, Story story) {
     final theme = story.themes.isEmpty ? null : story.themes.first;
     return switch (theme) {
-          StoryTheme.animals => s.themeAnimals,
-          StoryTheme.bedtime => s.themeBedtime,
-          StoryTheme.friendship => s.themeFriendship,
-          StoryTheme.emotions => s.themeEmotions,
-          StoryTheme.languageLearning => s.themeLanguage,
-          null => '',
-        } ;
+      StoryTheme.animals => s.themeAnimals,
+      StoryTheme.bedtime => s.themeBedtime,
+      StoryTheme.friendship => s.themeFriendship,
+      StoryTheme.emotions => s.themeEmotions,
+      StoryTheme.languageLearning => s.themeLanguage,
+      null => '',
+    };
   }
 }
 

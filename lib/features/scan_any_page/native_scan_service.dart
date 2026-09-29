@@ -1,7 +1,8 @@
 import 'package:flutter/services.dart';
+import 'scanned_page.dart';
 
 abstract interface class ScanService {
-  Future<String> scanAndRecognize();
+  Future<ScannedPage> scanAndRecognize();
 }
 
 final class ScanCancelled implements Exception {}
@@ -14,21 +15,22 @@ final class ScanFailure implements Exception {
 
 final class NativeScanService implements ScanService {
   NativeScanService({MethodChannel? channel})
-      : _channel = channel ??
-            const MethodChannel('storybook_ar/scan_any_page');
+    : _channel = channel ?? const MethodChannel('storybook_ar/scan_any_page');
 
   final MethodChannel _channel;
 
   @override
-  Future<String> scanAndRecognize() async {
+  Future<ScannedPage> scanAndRecognize() async {
     try {
-      final result =
-          await _channel.invokeMapMethod<String, dynamic>('scanAndRecognize');
-      final text = result?['text'] as String?;
-      if (text == null || text.trim().isEmpty) {
-        throw const ScanFailure('no_text');
+      final result = await _channel.invokeMapMethod<String, dynamic>(
+        'scanAndRecognize',
+      );
+      if (result == null) throw const ScanFailure('no_text');
+      try {
+        return ScannedPage.fromMap(result);
+      } on Object {
+        throw const ScanFailure('invalid_result');
       }
-      return text;
     } on PlatformException catch (error) {
       if (error.code == 'cancelled') throw ScanCancelled();
       throw ScanFailure(error.code);

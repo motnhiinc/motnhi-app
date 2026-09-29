@@ -7,12 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// and must never claim that profile or progress data lives only on this
 /// device — profile storage and (optional) progress tracking are cloud-side.
 void main() {
-  final enArb =
-      jsonDecode(File('lib/l10n/app_en.arb').readAsStringSync())
-          as Map<String, dynamic>;
-  final viArb =
-      jsonDecode(File('lib/l10n/app_vi.arb').readAsStringSync())
-          as Map<String, dynamic>;
+  final enArb = jsonDecode(File('lib/l10n/app_en.arb').readAsStringSync())
+      as Map<String, dynamic>;
+  final viArb = jsonDecode(File('lib/l10n/app_vi.arb').readAsStringSync())
+      as Map<String, dynamic>;
 
   Map<String, String> strings(Map<String, dynamic> arb) => {
         for (final entry in arb.entries)
@@ -74,20 +72,15 @@ void main() {
     test('every new section has matching, non-empty keys in EN and VI', () {
       sections.forEach((section, keys) {
         for (final key in keys) {
-          expect(en[key], isNotNull,
-              reason: 'EN missing "$section" key $key');
-          expect(en[key], isNotEmpty,
-              reason: 'EN empty "$section" key $key');
-          expect(vi[key], isNotNull,
-              reason: 'VI missing "$section" key $key');
-          expect(vi[key], isNotEmpty,
-              reason: 'VI empty "$section" key $key');
+          expect(en[key], isNotNull, reason: 'EN missing "$section" key $key');
+          expect(en[key], isNotEmpty, reason: 'EN empty "$section" key $key');
+          expect(vi[key], isNotNull, reason: 'VI missing "$section" key $key');
+          expect(vi[key], isNotEmpty, reason: 'VI empty "$section" key $key');
         }
       });
     });
 
-    test('no source string claims profile or progress data is device-only',
-        () {
+    test('no source string claims profile or progress data is device-only', () {
       for (final entry in en.entries) {
         expect(entry.value.contains('stored only on this device'), isFalse,
             reason: '${entry.key} claims device-only storage');
@@ -100,7 +93,7 @@ void main() {
       }
     });
 
-    test('onboarding asks for a nickname or first name', () {
+    test('nickname remains optional in child profile settings', () {
       expect(
         en['nicknameLabel']!.toLowerCase(),
         contains('nickname or first name'),
@@ -109,12 +102,25 @@ void main() {
         vi['nicknameLabel']!.toLowerCase(),
         contains('biệt danh hoặc tên gọi'),
       );
+      for (final key in [
+        'onboardingDefaultAge',
+        'onboardingStorageTitle',
+        'onboardingStorageBody',
+        'childProfileTitle',
+        'childProfileAgeHelp',
+        'childProfileSave',
+        'childProfileSaveError',
+      ]) {
+        expect(en[key], isNotEmpty);
+        expect(vi[key], isNotEmpty);
+      }
     });
 
     test('onboarding copy does not claim a real name is technically impossible',
         () {
       const onboardingKeys = [
         'onboardingIntro',
+        'onboardingStorageBody',
         'nicknameLabel',
         'nicknameHint',
         'consentTitle',
@@ -140,7 +146,8 @@ void main() {
       }
     });
 
-    test('required-storage copy names profile fields and saved story text, '
+    test(
+        'required-storage copy names profile fields and saved story text, '
         'and states what is not required', () {
       final enBody = en['privacyStorageRequiredBody']!.toLowerCase();
       for (final phrase in [
@@ -189,25 +196,18 @@ void main() {
       }
     });
 
-    test('cloud narration copy describes the OpenAI path and on-device '
-        'boundaries', () {
+    test('cloud narration copy describes the approved-page OpenAI path', () {
       final enBody = en['privacyCloudBody']!;
       expect(enBody, contains('OpenAI'));
       expect(enBody.toLowerCase(), contains('app backend'));
-      expect(enBody.toLowerCase(), contains('confirm'));
-      expect(enBody, contains('Camera images'));
-      expect(enBody.toLowerCase(), contains('stay on this device'));
-      expect(enBody.toLowerCase(), contains('cloud narration is off'));
-      expect(enBody.toLowerCase(), contains('scanned page text'));
+      expect(enBody.toLowerCase(), contains('approved page text'));
+      expect(enBody.toLowerCase(), contains('separately enabled'));
 
       final viBody = vi['privacyCloudBody']!;
       expect(viBody, contains('OpenAI'));
-      expect(viBody, contains('máy chủ của ứng dụng'));
-      expect(viBody, contains('xác nhận'));
-      expect(viBody, contains('Ảnh máy ảnh'));
-      expect(viBody, contains('thiết bị này'));
-      expect(viBody, contains('tắt'));
-      expect(viBody, contains('đã quét'));
+      expect(viBody, contains('máy chủ ứng dụng'));
+      expect(viBody, contains('đã được duyệt'));
+      expect(viBody, contains('bật riêng'));
     });
   });
 }

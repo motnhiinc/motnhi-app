@@ -120,6 +120,7 @@ def test_no_session_write_commits_after_revocation_returns(independent_session_f
                 core_storage_accepted=True,
                 progress_tracking_enabled=False,
                 cloud_tts_enabled=False,
+                page_image_validation_enabled=False,
             )
             revoker.commit()
         except Exception as exc:

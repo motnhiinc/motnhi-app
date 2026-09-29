@@ -113,36 +113,48 @@ class ScanAnyPageBridge(
     }
 
     private fun recognize(uri: Uri) {
-        val image = try {
-            InputImage.fromFilePath(activity, uri)
-        } catch (_: Exception) {
-            finishError("capture_failed")
-            return
-        }
-        // Take the height from the InputImage, not from a second raw decode of the file. The
-        // bounding boxes are in this image's coordinate space, so the two agree by construction
-        // even when the JPEG carries an EXIF rotation that a raw bounds decode would ignore.
-        val imageHeight = image.height
-        if (imageHeight <= 0) {
-            finishError("capture_failed")
-            return
-        }
+        // Decode/compress off the UI thread. OCR and Flutter both use the same
+        // orientation-corrected bitmap, including on devices with EXIF rotation.
+        Thread {
+            val page = try {
+                ScanPageImage.fromUri(activity, uri)
+            } catch (_: Exception) {
+                runOnMain { finishError("capture_failed") }
+                return@Thread
+            }
+            runOnMain { recognizePage(page) }
+        }.start()
+    }
+
+    private fun recognizePage(page: ScanPageImage) {
+        val image = InputImage.fromBitmap(page.bitmap, 0)
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         recognizer.process(image)
             .addOnSuccessListener { recognizedText ->
                 val lines = recognizedText.textBlocks
                     .flatMap { block -> block.lines }
                     .map(RecognizedTextLine::fromMlKit)
-                val text = ReadingOrderSorter.join(lines, imageHeight)
-                if (text.isBlank()) {
+                val ordered = ReadingOrderSorter.ordered(lines, page.bitmap.height)
+                val geometry = ordered.mapNotNull {
+                    ReadingOrderSorter.normalizedLine(it, page.bitmap.width, page.bitmap.height)
+                }
+                if (geometry.isEmpty() || geometry.size > 40 ||
+                    ordered.sumOf { it.text.codePointCount(0, it.text.length) } > 4000) {
                     finishError("no_text")
                 } else {
-                    finishSuccess(mapOf("text" to text))
+                    finishSuccess(mapOf(
+                        "imageBytes" to page.jpeg,
+                        "width" to page.bitmap.width,
+                        "height" to page.bitmap.height,
+                        "lines" to geometry,
+                    ))
                 }
                 recognizer.close()
+                page.bitmap.recycle()
             }
             .addOnFailureListener {
                 recognizer.close()
+                page.bitmap.recycle()
                 finishError("ocr_failed")
             }
     }

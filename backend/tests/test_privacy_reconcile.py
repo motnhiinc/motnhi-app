@@ -39,6 +39,7 @@ def _add_consenting_user(db, user_id):
         core_storage_accepted_at=NOW - timedelta(days=1),
         progress_tracking_enabled=True,
         cloud_tts_enabled=True,
+        page_image_validation_enabled=False,
         last_active_at=NOW - timedelta(days=1),
         updated_at=NOW - timedelta(days=1),
     ))

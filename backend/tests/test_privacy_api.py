@@ -24,6 +24,7 @@ def _put_body(**overrides):
         "core_storage_accepted": True,
         "progress_tracking_enabled": False,
         "cloud_tts_enabled": False,
+        "page_image_validation_enabled": False,
     }
     body.update(overrides)
     return body
@@ -48,20 +49,24 @@ def test_get_default_state_for_fresh_device(client):
         "core_storage_accepted_at",
         "progress_tracking_enabled",
         "cloud_tts_enabled",
+        "page_image_validation_enabled",
         "effective_progress_tracking_enabled",
         "effective_cloud_tts_enabled",
+        "effective_page_image_validation_enabled",
         "last_active_at",
         "updated_at",
         "counts",
     ]
-    assert body["current_policy_version"] == "2026-08-28"
+    assert body["current_policy_version"] == "2026-09-26"
     assert body["accepted_policy_version"] is None
     assert body["review_required"] is True
     assert body["core_storage_accepted_at"] is None
     assert body["progress_tracking_enabled"] is False
     assert body["cloud_tts_enabled"] is False
+    assert body["page_image_validation_enabled"] is False
     assert body["effective_progress_tracking_enabled"] is False
     assert body["effective_cloud_tts_enabled"] is False
+    assert body["effective_page_image_validation_enabled"] is False
     last_active = datetime.fromisoformat(body["last_active_at"].replace("Z", "+00:00"))
     updated = datetime.fromisoformat(body["updated_at"].replace("Z", "+00:00"))
     assert abs((datetime.now(timezone.utc) - last_active).total_seconds()) < 60
@@ -80,21 +85,23 @@ def test_put_full_consent_updates_state(client):
     resp = client.put("/v1/privacy", json=_put_body(
         progress_tracking_enabled=True,
         cloud_tts_enabled=True,
+        page_image_validation_enabled=True,
     ), headers=h)
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["current_policy_version"] == "2026-08-28"
-    assert body["accepted_policy_version"] == "2026-08-28"
+    assert body["current_policy_version"] == "2026-09-26"
+    assert body["accepted_policy_version"] == "2026-09-26"
     assert body["review_required"] is False
     assert body["core_storage_accepted_at"] is not None
     assert body["progress_tracking_enabled"] is True
     assert body["cloud_tts_enabled"] is True
     assert body["effective_progress_tracking_enabled"] is True
     assert body["effective_cloud_tts_enabled"] is True
+    assert body["effective_page_image_validation_enabled"] is True
 
     follow_up = client.get("/v1/privacy", headers=h).json()
-    assert follow_up["accepted_policy_version"] == "2026-08-28"
+    assert follow_up["accepted_policy_version"] == "2026-09-26"
     assert follow_up["review_required"] is False
     assert follow_up["core_storage_accepted_at"] == body["core_storage_accepted_at"]
 
@@ -108,6 +115,40 @@ def test_put_stale_policy_version_rejected(client):
 
     assert resp.status_code == 428
     assert resp.json() == REVIEW_REQUIRED
+
+
+def test_page_image_consent_is_separate_and_off_by_default(client):
+    headers = _auth(client, "p-page-image-consent")
+    initial = client.get("/v1/privacy", headers=headers).json()
+    assert initial["page_image_validation_enabled"] is False
+    assert initial["effective_page_image_validation_enabled"] is False
+
+    narration_only = client.put("/v1/privacy", headers=headers, json=_put_body(
+        cloud_tts_enabled=True,
+        page_image_validation_enabled=False,
+    )).json()
+    assert narration_only["effective_cloud_tts_enabled"] is True
+    assert narration_only["effective_page_image_validation_enabled"] is False
+
+    both = client.put("/v1/privacy", headers=headers, json=_put_body(
+        cloud_tts_enabled=True,
+        page_image_validation_enabled=True,
+    )).json()
+    assert both["effective_cloud_tts_enabled"] is True
+    assert both["effective_page_image_validation_enabled"] is True
+
+
+def test_previous_policy_acceptance_requires_review(client, db):
+    headers = _auth(client, "p-page-image-old-policy")
+    response = client.get("/v1/privacy", headers=headers).json()
+    settings = db.get(PrivacySettings, _user_id(headers))
+    settings.accepted_policy_version = "2026-08-28"
+    db.flush()
+
+    response = client.get("/v1/privacy", headers=headers).json()
+    assert response["current_policy_version"] == "2026-09-26"
+    assert response["review_required"] is True
+    assert response["effective_page_image_validation_enabled"] is False
 
 
 def test_put_unchecked_core_storage_rejected(client):
@@ -138,7 +179,7 @@ def test_effective_flags_reflect_current_policy_acceptance(client):
     assert toggled["effective_cloud_tts_enabled"] is True
 
     off = client.put("/v1/privacy", json=_put_body(), headers=h).json()
-    assert off["accepted_policy_version"] == "2026-08-28"
+    assert off["accepted_policy_version"] == "2026-09-26"
     assert off["review_required"] is False
     assert off["progress_tracking_enabled"] is False
     assert off["effective_progress_tracking_enabled"] is False

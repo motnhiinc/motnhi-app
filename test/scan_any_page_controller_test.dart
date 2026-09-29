@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import 'package:storybook_ar/features/privacy/privacy_providers.dart';
 import 'package:storybook_ar/features/scan_any_page/device_tts_client.dart';
 import 'package:storybook_ar/features/scan_any_page/native_character_reader.dart';
 import 'package:storybook_ar/features/scan_any_page/native_scan_service.dart';
+import 'package:storybook_ar/features/scan_any_page/scanned_page.dart';
 import 'package:storybook_ar/features/scan_any_page/scan_any_page_controller.dart';
 import 'package:storybook_ar/features/scan_any_page/tts_client.dart';
 
@@ -43,13 +45,13 @@ void main() {
   ScanAnyPageState state() => container.read(provider);
 
   test('starts idle then scans and reviews recognized text', () async {
-    final scan = Completer<String>();
+    final scan = Completer<ScannedPage>();
     scanService.results.add(scan.future);
 
     final operation = controller().startScan();
     expect(state(), const ScanAnyPageState(phase: ScanAnyPagePhase.scanning));
 
-    scan.complete('Xin chao');
+    scan.complete(_scannedPage('Xin chao'));
     await operation;
 
     expect(
@@ -69,20 +71,22 @@ void main() {
     expect(state(), const ScanAnyPageState());
   });
 
-  test('scan failure exposes scan retry context and clears stale content',
-      () async {
-    scanService.results.add(Future.error(const ScanFailure('ocr_failed')));
+  test(
+    'scan failure exposes scan retry context and clears stale content',
+    () async {
+      scanService.results.add(Future.error(const ScanFailure('ocr_failed')));
 
-    await controller().startScan();
+      await controller().startScan();
 
-    expect(
-      state(),
-      const ScanAnyPageState(
-        phase: ScanAnyPagePhase.failure,
-        failureCode: 'scan:ocr_failed',
-      ),
-    );
-  });
+      expect(
+        state(),
+        const ScanAnyPageState(
+          phase: ScanAnyPagePhase.failure,
+          failureCode: 'scan:ocr_failed',
+        ),
+      );
+    },
+  );
 
   test('unexpected scan failure uses a stable scan retry code', () async {
     scanService.results.add(Future.error(StateError('broken')));
@@ -105,36 +109,40 @@ void main() {
     expect(ttsClient.generatedTexts, isEmpty);
   });
 
-  test('invalid confirm prevents an outstanding scan from overwriting failure',
-      () async {
-    final scan = Completer<String>();
-    scanService.results.add(scan.future);
-    final scanOperation = controller().startScan();
+  test(
+    'invalid confirm prevents an outstanding scan from overwriting failure',
+    () async {
+      final scan = Completer<ScannedPage>();
+      scanService.results.add(scan.future);
+      final scanOperation = controller().startScan();
 
-    await controller().confirmText('  ');
-    scan.complete('stale OCR');
-    await scanOperation;
+      await controller().confirmText('  ');
+      scan.complete(_scannedPage('stale OCR'));
+      await scanOperation;
 
-    expect(state().phase, ScanAnyPagePhase.failure);
-    expect(state().failureCode, 'tts:invalid_text');
-    expect(state().recognizedText, isEmpty);
-  });
+      expect(state().phase, ScanAnyPagePhase.failure);
+      expect(state().failureCode, 'tts:invalid_text');
+      expect(state().recognizedText, isEmpty);
+    },
+  );
 
-  test('invalid confirm prevents an outstanding TTS from becoming ready',
-      () async {
-    final generation = Completer<File>();
-    ttsClient.results.add(generation.future);
-    final ttsOperation = controller().confirmText('Valid text');
+  test(
+    'invalid confirm prevents an outstanding TTS from becoming ready',
+    () async {
+      final generation = Completer<File>();
+      ttsClient.results.add(generation.future);
+      final ttsOperation = controller().confirmText('Valid text');
 
-    await controller().confirmText('  ');
-    generation.complete(File('/tmp/stale.mp3'));
-    await ttsOperation;
+      await controller().confirmText('  ');
+      generation.complete(File('/tmp/stale.mp3'));
+      await ttsOperation;
 
-    expect(state().phase, ScanAnyPagePhase.failure);
-    expect(state().failureCode, 'tts:invalid_text');
-    expect(state().confirmedText, 'Valid text');
-    expect(state().audioFile, isNull);
-  });
+      expect(state().phase, ScanAnyPagePhase.failure);
+      expect(state().failureCode, 'tts:invalid_text');
+      expect(state().confirmedText, 'Valid text');
+      expect(state().audioFile, isNull);
+    },
+  );
 
   test('confirmText validates the limit by Unicode code points', () async {
     final character = String.fromCharCode(0x1F642);
@@ -181,7 +189,7 @@ void main() {
   });
 
   test('TTS failure retains recognized and confirmed text for retry', () async {
-    scanService.results.add(Future.value('OCR text'));
+    scanService.results.add(Future.value(_scannedPage('OCR text')));
     await controller().startScan();
     ttsClient.results.add(
       Future.error(const TtsGenerationFailure('backend_unreachable')),
@@ -209,63 +217,69 @@ void main() {
     expect(state().audioFile, same(file));
   });
 
-  test('retryTts without confirmed text remains a TTS validation failure',
-      () async {
-    await controller().retryTts();
+  test(
+    'retryTts without confirmed text remains a TTS validation failure',
+    () async {
+      await controller().retryTts();
 
-    expect(state().failureCode, 'tts:invalid_text');
-    expect(ttsClient.generatedTexts, isEmpty);
-  });
+      expect(state().failureCode, 'tts:invalid_text');
+      expect(ttsClient.generatedTexts, isEmpty);
+    },
+  );
 
-  test('AR completion and cancellation return to ready without regenerating',
-      () async {
-    final file = File('/tmp/narration.mp3');
-    ttsClient.results.add(Future.value(file));
-    await controller().confirmText('Read me');
-    characterReader.results.add(Future.value());
+  test(
+    'AR completion and cancellation return to ready without regenerating',
+    () async {
+      final file = File('/tmp/narration.mp3');
+      ttsClient.results.add(Future.value(file));
+      await controller().confirmText('Read me');
+      characterReader.results.add(Future.value());
 
-    final completion = controller().openCharacterReader();
-    expect(state().phase, ScanAnyPagePhase.openingAr);
-    await completion;
-    expect(state().phase, ScanAnyPagePhase.readyForAr);
+      final completion = controller().openCharacterReader();
+      expect(state().phase, ScanAnyPagePhase.openingAr);
+      await completion;
+      expect(state().phase, ScanAnyPagePhase.readyForAr);
 
-    characterReader.results.add(Future.error(CharacterReaderCancelled()));
-    await controller().openCharacterReader();
+      characterReader.results.add(Future.error(CharacterReaderCancelled()));
+      await controller().openCharacterReader();
 
-    expect(state().phase, ScanAnyPagePhase.readyForAr);
-    expect(state().failureCode, isNull);
-    expect(ttsClient.generatedTexts, ['Read me']);
-    expect(characterReader.openedPaths, [file.path, file.path]);
-  });
+      expect(state().phase, ScanAnyPagePhase.readyForAr);
+      expect(state().failureCode, isNull);
+      expect(ttsClient.generatedTexts, ['Read me']);
+      expect(characterReader.openedPaths, [file.path, file.path]);
+    },
+  );
 
-  test('AR failure retains audio and retries AR without retrying TTS',
-      () async {
-    final file = File('/tmp/narration.mp3');
-    ttsClient.results.add(Future.value(file));
-    await controller().confirmText('Read me');
-    characterReader.results.add(
-      Future.error(const CharacterReaderFailure('ar_unavailable')),
-    );
+  test(
+    'AR failure retains audio and retries AR without retrying TTS',
+    () async {
+      final file = File('/tmp/narration.mp3');
+      ttsClient.results.add(Future.value(file));
+      await controller().confirmText('Read me');
+      characterReader.results.add(
+        Future.error(const CharacterReaderFailure('ar_unavailable')),
+      );
 
-    await controller().openCharacterReader();
+      await controller().openCharacterReader();
 
-    expect(
-      state(),
-      ScanAnyPageState(
-        phase: ScanAnyPagePhase.failure,
-        confirmedText: 'Read me',
-        audioFile: file,
-        failureCode: 'ar:ar_unavailable',
-      ),
-    );
+      expect(
+        state(),
+        ScanAnyPageState(
+          phase: ScanAnyPagePhase.failure,
+          confirmedText: 'Read me',
+          audioFile: file,
+          failureCode: 'ar:ar_unavailable',
+        ),
+      );
 
-    characterReader.results.add(Future.value());
-    await controller().openCharacterReader();
+      characterReader.results.add(Future.value());
+      await controller().openCharacterReader();
 
-    expect(state().phase, ScanAnyPagePhase.readyForAr);
-    expect(ttsClient.generatedTexts, ['Read me']);
-    expect(characterReader.openedPaths, [file.path, file.path]);
-  });
+      expect(state().phase, ScanAnyPagePhase.readyForAr);
+      expect(ttsClient.generatedTexts, ['Read me']);
+      expect(characterReader.openedPaths, [file.path, file.path]);
+    },
+  );
 
   test('opening AR without audio exposes AR retry context', () async {
     await controller().openCharacterReader();
@@ -274,20 +288,22 @@ void main() {
     expect(characterReader.openedPaths, isEmpty);
   });
 
-  test('missing-audio open prevents an outstanding scan from overwriting it',
-      () async {
-    final scan = Completer<String>();
-    scanService.results.add(scan.future);
-    final scanOperation = controller().startScan();
+  test(
+    'missing-audio open prevents an outstanding scan from overwriting it',
+    () async {
+      final scan = Completer<ScannedPage>();
+      scanService.results.add(scan.future);
+      final scanOperation = controller().startScan();
 
-    await controller().openCharacterReader();
-    scan.complete('stale OCR');
-    await scanOperation;
+      await controller().openCharacterReader();
+      scan.complete(_scannedPage('stale OCR'));
+      await scanOperation;
 
-    expect(state().phase, ScanAnyPagePhase.failure);
-    expect(state().failureCode, 'ar:missing_audio');
-    expect(state().recognizedText, isEmpty);
-  });
+      expect(state().phase, ScanAnyPagePhase.failure);
+      expect(state().failureCode, 'ar:missing_audio');
+      expect(state().recognizedText, isEmpty);
+    },
+  );
 
   test('reset disposes temporary audio and clears all state', () async {
     final file = File('/tmp/narration.mp3');
@@ -310,11 +326,11 @@ void main() {
   });
 
   test('late scan and TTS results cannot overwrite reset state', () async {
-    final scan = Completer<String>();
+    final scan = Completer<ScannedPage>();
     scanService.results.add(scan.future);
     final scanOperation = controller().startScan();
     await controller().reset();
-    scan.complete('stale OCR');
+    scan.complete(_scannedPage('stale OCR'));
     await scanOperation;
     expect(state(), const ScanAnyPageState());
 
@@ -342,58 +358,68 @@ void main() {
     expect(state(), const ScanAnyPageState());
   });
 
-  test('late async results after disposal complete without state writes',
-      () async {
-    final scan = Completer<String>();
-    scanService.results.add(scan.future);
-    final operation = controller().startScan();
+  test(
+    'late async results after disposal complete without state writes',
+    () async {
+      final scan = Completer<ScannedPage>();
+      scanService.results.add(scan.future);
+      final operation = controller().startScan();
 
-    container.dispose();
-    scan.complete('stale OCR');
+      container.dispose();
+      scan.complete(_scannedPage('stale OCR'));
 
-    await expectLater(operation, completes);
-    expect(ttsClient.disposeCount, 1);
-  });
+      await expectLater(operation, completes);
+      expect(ttsClient.disposeCount, 1);
+    },
+  );
 
-  test('consent-disabled scan flow receives the device-only TtsClient',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    final container = ProviderContainer(overrides: [
-      effectiveCloudTtsProvider.overrideWithValue(false),
-      apiClientProvider.overrideWith(
-        (ref) => throw StateError('HTTP client must not be constructed'),
-      ),
-      ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
-    ]);
-    addTearDown(container.dispose);
+  test(
+    'consent-disabled scan flow receives the device-only TtsClient',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer(
+        overrides: [
+          effectiveCloudTtsProvider.overrideWithValue(false),
+          apiClientProvider.overrideWith(
+            (ref) => throw StateError('HTTP client must not be constructed'),
+          ),
+          ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final client = container.read(ttsClientProvider(Object()));
+      final client = container.read(ttsClientProvider(Object()));
 
-    expect(client, isA<DeviceTtsClient>());
-    expect(client, isNot(isA<CloudFirstTtsClient>()));
-  });
+      expect(client, isA<DeviceTtsClient>());
+      expect(client, isNot(isA<CloudFirstTtsClient>()));
+    },
+  );
 
-  test('consent-enabled scan flow receives the cloud-first TtsClient',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    final store = await KeyValueStore.create();
-    final container = ProviderContainer(overrides: [
-      effectiveCloudTtsProvider.overrideWithValue(true),
-      apiClientProvider.overrideWith(
-        (ref) => ApiClient(
-          dio: Dio(BaseOptions(baseUrl: 'http://localhost')),
-          store: store,
-        ),
-      ),
-      ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
-    ]);
-    addTearDown(container.dispose);
+  test(
+    'consent-enabled scan flow receives the cloud-first TtsClient',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = await KeyValueStore.create();
+      final container = ProviderContainer(
+        overrides: [
+          effectiveCloudTtsProvider.overrideWithValue(true),
+          apiClientProvider.overrideWith(
+            (ref) => ApiClient(
+              dio: Dio(BaseOptions(baseUrl: 'http://localhost')),
+              store: store,
+            ),
+          ),
+          ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    expect(
-      container.read(ttsClientProvider(Object())),
-      isA<CloudFirstTtsClient>(),
-    );
-  });
+      expect(
+        container.read(ttsClientProvider(Object())),
+        isA<CloudFirstTtsClient>(),
+      );
+    },
+  );
 
   test('cloud consent rejection falls back to device audio', () async {
     final file = File('/tmp/device.mp3');
@@ -403,7 +429,10 @@ void main() {
         NotifierProvider<ScanAnyPageController, ScanAnyPageState>(
       () => ScanAnyPageController(
         scanService: scanService,
-        ttsClient: CloudFirstTtsClient(cloud: cloudClient, device: deviceClient),
+        ttsClient: CloudFirstTtsClient(
+          cloud: cloudClient,
+          device: deviceClient,
+        ),
         characterReader: characterReader,
       ),
     );
@@ -428,15 +457,22 @@ void main() {
 }
 
 final class _FakeScanService implements ScanService {
-  final results = <Future<String>>[];
+  final results = <Future<ScannedPage>>[];
   var callCount = 0;
 
   @override
-  Future<String> scanAndRecognize() {
+  Future<ScannedPage> scanAndRecognize() {
     callCount++;
     return results.removeAt(0);
   }
 }
+
+ScannedPage _scannedPage(String text) => ScannedPage(
+      Uint8List.fromList([0xff, 0xd8, 0xff]),
+      440,
+      585,
+      [ScannedLine(text, 0.1, 0.1, 0.8, 0.2)],
+    );
 
 final class _FakeTtsClient implements TtsClient {
   final results = <Future<File>>[];

@@ -24,6 +24,7 @@ void main() {
     'settings_daily_limit_minutes',
     'settings_content_filter_band',
     'settings_notifications_enabled',
+    'settings_auto_advance_pages',
     'ar.selected_character_id',
     'privacy_state_cache',
     'privacy_activity_last_utc_date',
@@ -62,6 +63,7 @@ void main() {
     expect(settingsDailyLimitMinutesKey, 'settings_daily_limit_minutes');
     expect(settingsContentFilterBandKey, 'settings_content_filter_band');
     expect(settingsNotificationsEnabledKey, 'settings_notifications_enabled');
+    expect(settingsAutoAdvancePagesKey, 'settings_auto_advance_pages');
     expect(arSelectedCharacterIdKey, 'ar.selected_character_id');
     expect(privacyStateCacheKey, 'privacy_state_cache');
     expect(privacyActivityLastUtcDateKey, 'privacy_activity_last_utc_date');

@@ -8,7 +8,7 @@ from app.models import PrivacySettings
 from app.routers import tts as tts_router
 from app.services.tts import TtsUpstreamError
 
-POLICY_VERSION = "2026-08-28"
+POLICY_VERSION = "2026-09-26"
 
 
 def _auth(client, device_id="tts-device"):

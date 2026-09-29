@@ -102,6 +102,7 @@ def _add_privacy_settings(
         core_storage_accepted_at=None,
         progress_tracking_enabled=False,
         cloud_tts_enabled=False,
+        page_image_validation_enabled=False,
         last_active_at=last_active_at,
         updated_at=last_active_at,
     )
@@ -117,17 +118,20 @@ def test_effective_choices_require_current_policy():
         core_storage_accepted_at=now,
         progress_tracking_enabled=True,
         cloud_tts_enabled=True,
+        page_image_validation_enabled=True,
         last_active_at=now,
         updated_at=now,
     )
 
     assert privacy.effective_progress(settings) is False
     assert privacy.effective_cloud_tts(settings) is False
+    assert privacy.effective_page_image_validation(settings) is False
 
     settings.accepted_policy_version = privacy.CURRENT_PRIVACY_POLICY_VERSION
 
     assert privacy.effective_progress(settings) is True
     assert privacy.effective_cloud_tts(settings) is True
+    assert privacy.effective_page_image_validation(settings) is True
 
 
 def test_lock_user_uses_retained_user_row(independent_session_factory):
@@ -158,6 +162,7 @@ def test_update_appends_all_scopes_on_first_acceptance(
         core_storage_accepted=True,
         progress_tracking_enabled=False,
         cloud_tts_enabled=True,
+        page_image_validation_enabled=False,
     )
     events = list(db.scalars(
         select(ConsentEvent).where(ConsentEvent.user_id == "first-acceptance-user")
@@ -165,16 +170,18 @@ def test_update_appends_all_scopes_on_first_acceptance(
 
     assert settings.accepted_policy_version == privacy.CURRENT_PRIVACY_POLICY_VERSION
     assert settings.core_storage_accepted_at is not None
-    assert len(events) == 3
+    assert len(events) == 4
     assert {event.scope for event in events} == {
         "core_storage",
         "progress_tracking",
         "cloud_tts",
+        "page_image_validation",
     }
     assert {event.scope: event.granted for event in events} == {
         "core_storage": True,
         "progress_tracking": False,
         "cloud_tts": True,
+        "page_image_validation": False,
     }
 
 
@@ -189,6 +196,7 @@ def test_repeated_update_appends_only_changed_scope(
         core_storage_accepted=True,
         progress_tracking_enabled=False,
         cloud_tts_enabled=False,
+        page_image_validation_enabled=False,
     )
     first_accepted_at = first.core_storage_accepted_at
     initial_event_ids = set(db.scalars(
@@ -204,6 +212,7 @@ def test_repeated_update_appends_only_changed_scope(
         core_storage_accepted=True,
         progress_tracking_enabled=True,
         cloud_tts_enabled=False,
+        page_image_validation_enabled=False,
     )
     appended_events = list(db.scalars(
         select(ConsentEvent).where(
@@ -213,7 +222,7 @@ def test_repeated_update_appends_only_changed_scope(
     ))
 
     assert updated.core_storage_accepted_at == first_accepted_at
-    assert len(initial_event_ids) == 3
+    assert len(initial_event_ids) == 4
     assert len(appended_events) == 1
     assert appended_events[0].scope == "progress_tracking"
     assert appended_events[0].granted is True
@@ -230,6 +239,7 @@ def test_update_and_events_roll_back_together(independent_session_factory):
         core_storage_accepted=True,
         progress_tracking_enabled=True,
         cloud_tts_enabled=True,
+        page_image_validation_enabled=False,
     )
     writer.rollback()
 

@@ -222,6 +222,7 @@ class PrivacyUpdateRequest(BaseModel):
     core_storage_accepted: bool
     progress_tracking_enabled: bool
     cloud_tts_enabled: bool
+    page_image_validation_enabled: bool
 
 
 class PrivacyDataCounts(BaseModel):
@@ -238,8 +239,50 @@ class PrivacyStateResponse(BaseModel):
     core_storage_accepted_at: datetime | None
     progress_tracking_enabled: bool
     cloud_tts_enabled: bool
+    page_image_validation_enabled: bool
     effective_progress_tracking_enabled: bool
     effective_cloud_tts_enabled: bool
+    effective_page_image_validation_enabled: bool
     last_active_at: datetime
     updated_at: datetime
     counts: PrivacyDataCounts
+
+
+class PageLine(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+    left: float = Field(ge=0, le=1, allow_inf_nan=False)
+    top: float = Field(ge=0, le=1, allow_inf_nan=False)
+    width: float = Field(gt=0, le=1, allow_inf_nan=False)
+    height: float = Field(gt=0, le=1, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def inside_page(self):
+        if self.left + self.width > 1.000001 or self.top + self.height > 1.000001:
+            raise ValueError("box outside page")
+        return self
+
+
+class ValidatePageRequest(BaseModel):
+    profile_id: str
+    image_base64: str
+    lines: list[PageLine] = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def text_limit(self):
+        if sum(len(line.text) for line in self.lines) > 4000:
+            raise ValueError("page text too long")
+        return self
+
+
+class PageAudioRequest(BaseModel):
+    profile_id: str
+    proof: str
+    lines: list[str] = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def text_limit(self):
+        if any(not line.strip() or len(line) > 4000 for line in self.lines):
+            raise ValueError("invalid line")
+        if sum(len(line) for line in self.lines) > 4000:
+            raise ValueError("page text too long")
+        return self

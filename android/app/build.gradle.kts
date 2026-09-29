@@ -55,6 +55,7 @@ dependencies {
     // The page scanner and the ARCore character reader both ship in release builds.
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.ar:core:1.54.0")
     // Pinned to 4.18.0 deliberately: this is the newest arsceneview whose
     // kotlin-stdlib constraint (2.3.21, metadata 2.3.0) the project's Kotlin

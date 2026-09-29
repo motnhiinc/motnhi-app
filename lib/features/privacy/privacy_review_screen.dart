@@ -26,14 +26,15 @@ class PrivacyReviewScreen extends ConsumerStatefulWidget {
 class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
   bool _progressTracking = false; // optional, off by default (§14.2)
   bool _cloudNarration = false; // optional, off by default (§14.2)
+  bool _pageImageValidation = false;
   bool _submitting = false;
   bool _deleting = false;
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _submit() async {
@@ -42,7 +43,8 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
     final s = AppLocalizations.of(context)!;
     try {
       final privacy = ref.read(privacyProvider).value;
-      final consentCurrent = privacy != null &&
+      final consentCurrent =
+          privacy != null &&
           privacy.acceptedPolicyVersion != null &&
           privacy.acceptedPolicyVersion == privacy.currentPolicyVersion;
       if (!consentCurrent) {
@@ -53,11 +55,14 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
           _showError(s.privacySaveError);
           return;
         }
-        await ref.read(privacyProvider.notifier).updatePrivacy(
+        await ref
+            .read(privacyProvider.notifier)
+            .updatePrivacy(
               policyVersion: policyVersion,
               coreStorageAccepted: true,
               progressTrackingEnabled: _progressTracking,
               cloudTtsEnabled: _cloudNarration,
+              pageImageValidationEnabled: _pageImageValidation,
             );
       }
       // No explicit navigation: the access router sends the parent to
@@ -125,10 +130,9 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
           children: [
             Text(
               s.privacyReviewIntro,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: t.inkMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: t.inkMuted),
             ),
             const SizedBox(height: 20),
 
@@ -137,11 +141,15 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(s.privacyStorageRequiredTitle,
-                      style: Theme.of(context).textTheme.titleSmall),
+                  Text(
+                    s.privacyStorageRequiredTitle,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 6),
-                  Text(s.privacyStorageRequiredBody,
-                      style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    s.privacyStorageRequiredBody,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),
@@ -153,10 +161,30 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
                 contentPadding: EdgeInsets.zero,
                 value: _progressTracking,
                 onChanged: (v) => setState(() => _progressTracking = v),
-                title: Text(s.privacyTrackingTitle,
-                    style: Theme.of(context).textTheme.titleSmall),
-                subtitle: Text(s.privacyTrackingBody,
-                    style: Theme.of(context).textTheme.bodySmall),
+                title: Text(
+                  s.privacyTrackingTitle,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                subtitle: Text(
+                  s.privacyTrackingBody,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            PaperCard(
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _pageImageValidation,
+                onChanged: (v) => setState(() => _pageImageValidation = v),
+                title: Text(
+                  s.privacyPageImageTitle,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                subtitle: Text(
+                  s.privacyPageImageBody,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -165,10 +193,14 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
                 contentPadding: EdgeInsets.zero,
                 value: _cloudNarration,
                 onChanged: (v) => setState(() => _cloudNarration = v),
-                title: Text(s.privacyCloudTitle,
-                    style: Theme.of(context).textTheme.titleSmall),
-                subtitle: Text(s.privacyCloudBody,
-                    style: Theme.of(context).textTheme.bodySmall),
+                title: Text(
+                  s.privacyCloudTitle,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                subtitle: Text(
+                  s.privacyCloudBody,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -186,19 +218,21 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
                   ),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed:
-                  (_submitting || _deleting) ? null : _openFullNotice,
+              onPressed: (_submitting || _deleting) ? null : _openFullNotice,
               child: Text(s.privacyNoticeCta),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed:
-                  (_submitting || _deleting) ? null : _deleteAllChildData,
+              onPressed: (_submitting || _deleting)
+                  ? null
+                  : _deleteAllChildData,
               style: OutlinedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),
               icon: const Icon(Icons.delete_outline),
-              label: Text(_deleting ? s.privacyDeleting : s.privacyDeleteDataButton),
+              label: Text(
+                _deleting ? s.privacyDeleting : s.privacyDeleteDataButton,
+              ),
             ),
           ],
         ),

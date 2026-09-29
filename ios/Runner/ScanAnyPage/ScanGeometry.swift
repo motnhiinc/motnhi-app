@@ -50,6 +50,19 @@ struct NormalizedQuad: Equatable {
   }
 }
 
+/// One camera instruction at a time; capture eligibility remains with the
+/// separate stability and focus tracker.
+enum ScanGuidance: Equatable {
+  case findPage
+  case moveCloser
+  case holdStill
+
+  static func forPage(_ quad: NormalizedQuad?, minimumArea: CGFloat) -> ScanGuidance {
+    guard let quad else { return .findPage }
+    return quad.area < minimumArea ? .moveCloser : .holdStill
+  }
+}
+
 struct OneShotGate {
   private var isClaimed = false
 

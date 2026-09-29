@@ -8,13 +8,18 @@ class BigPlayButton extends StatelessWidget {
     super.key,
     required this.isPlaying,
     required this.onPressed,
+    this.isLoading = false,
+    this.loadingLabel = 'Preparing audio',
     this.size = AppTheme.bigButtonSize,
   });
 
   final bool isPlaying;
+
   /// Null disables the button — used while a page's narration clip is
   /// still being fetched.
   final VoidCallback? onPressed;
+  final bool isLoading;
+  final String loadingLabel;
   final double size;
 
   @override
@@ -24,7 +29,7 @@ class BigPlayButton extends StatelessWidget {
     return Semantics(
       button: true,
       enabled: enabled,
-      label: isPlaying ? 'Pause' : 'Play',
+      label: isLoading ? loadingLabel : (isPlaying ? 'Pause' : 'Play'),
       child: Material(
         color: enabled ? scheme.primary : scheme.surfaceContainerHighest,
         shape: const CircleBorder(),
@@ -35,11 +40,19 @@ class BigPlayButton extends StatelessWidget {
           child: SizedBox(
             width: size,
             height: size,
-            child: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              size: size * 0.55,
-              color: enabled ? scheme.onPrimary : scheme.onSurfaceVariant,
-            ),
+            child: isLoading
+                ? Center(
+                    child: SizedBox(
+                      width: size * 0.38,
+                      height: size * 0.38,
+                      child: const CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                  )
+                : Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: size * 0.55,
+                    color: enabled ? scheme.onPrimary : scheme.onSurfaceVariant,
+                  ),
           ),
         ),
       ),

@@ -38,6 +38,7 @@ def _add_user(db, user_id, last_active_at):
         core_storage_accepted_at=None,
         progress_tracking_enabled=False,
         cloud_tts_enabled=False,
+        page_image_validation_enabled=False,
         last_active_at=last_active_at,
         updated_at=NOW,
     ))

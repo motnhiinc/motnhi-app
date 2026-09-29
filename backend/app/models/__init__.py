@@ -26,6 +26,7 @@ class PrivacySettings(Base):
     )
     progress_tracking_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     cloud_tts_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    page_image_validation_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     last_active_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

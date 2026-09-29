@@ -15,15 +15,20 @@ class LibraryThemeFilter extends Notifier<StoryTheme?> {
   void select(StoryTheme? theme) => state = theme;
 }
 
-/// The library list for the active child, filtered by age band, language, and
-/// the selected theme (§11.1, §7.1.1).
-final libraryProvider = FutureProvider<List<Story>>((ref) async {
+/// Age/language-appropriate stories for the quiet Home shelf, unaffected by
+/// the theme a child last selected in the full library.
+final homeStoryShelfProvider = FutureProvider<List<Story>>((ref) async {
   final profile = ref.watch(childProfileProvider).value;
   final repo = ref.watch(storyRepositoryProvider);
-  final stories = await repo.getLibrary(
+  return repo.getLibrary(
     ageBand: profile?.ageBand,
     language: profile?.languageCode,
   );
+});
+
+/// The complete library, with its own optional theme filter.
+final libraryProvider = FutureProvider<List<Story>>((ref) async {
+  final stories = await ref.watch(homeStoryShelfProvider.future);
   final theme = ref.watch(libraryThemeFilterProvider);
   if (theme == null) return stories;
   return stories.where((s) => s.themes.contains(theme)).toList();

@@ -27,13 +27,12 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _formatDate(DateTime date) =>
-      date.toIso8601String().split('T').first;
+  String _formatDate(DateTime date) => date.toIso8601String().split('T').first;
 
   Future<void> _setProgressTracking(bool enabled) async {
     if (_busy) return;
@@ -58,8 +57,7 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(true),
                 style: TextButton.styleFrom(
-                  foregroundColor:
-                      Theme.of(dialogContext).colorScheme.error,
+                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
                 ),
                 child: Text(s.privacyTrackingOffDelete),
               ),
@@ -88,6 +86,19 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
     final s = AppLocalizations.of(context)!;
     try {
       await ref.read(privacyProvider.notifier).setCloudTts(enabled);
+    } catch (_) {
+      _showMessage(s.privacySaveError);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setPageImageValidation(bool enabled) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final s = AppLocalizations.of(context)!;
+    try {
+      await ref.read(privacyProvider.notifier).setPageImageValidation(enabled);
     } catch (_) {
       _showMessage(s.privacySaveError);
     } finally {
@@ -227,8 +238,11 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
                         color: t.paper,
                         border: Border.all(color: t.line),
                       ),
-                      child: Icon(Icons.arrow_back_rounded,
-                          size: 20, color: t.ink),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 20,
+                        color: t.ink,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -251,13 +265,15 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.privacy_tip_outlined,
-                            size: 20, color: t.sage),
+                        Icon(
+                          Icons.privacy_tip_outlined,
+                          size: 20,
+                          color: t.sage,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            s.privacyPolicyVersionLabel(
-                                p.currentPolicyVersion),
+                            s.privacyPolicyVersionLabel(p.currentPolicyVersion),
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                         ),
@@ -286,13 +302,25 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    EyebrowLabel(s.privacyStoredTitle,
-                        color: Theme.of(context).colorScheme.onSurface),
+                    EyebrowLabel(
+                      s.privacyStoredTitle,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     const SizedBox(height: 10),
-                    _CountRow(label: s.privacyCountProfiles(p.counts.childProfiles)),
-                    _CountRow(label: s.privacyCountAuthoredStories(p.counts.authoredStories)),
-                    _CountRow(label: s.privacyCountSessions(p.counts.storySessions)),
-                    _CountRow(label: s.privacyCountEvents(p.counts.interactionEvents)),
+                    _CountRow(
+                      label: s.privacyCountProfiles(p.counts.childProfiles),
+                    ),
+                    _CountRow(
+                      label: s.privacyCountAuthoredStories(
+                        p.counts.authoredStories,
+                      ),
+                    ),
+                    _CountRow(
+                      label: s.privacyCountSessions(p.counts.storySessions),
+                    ),
+                    _CountRow(
+                      label: s.privacyCountEvents(p.counts.interactionEvents),
+                    ),
                   ],
                 ),
               ),
@@ -317,6 +345,15 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              PaperCard(
+                child: _SwitchTile(
+                  title: s.privacyPageImageTitle,
+                  subtitle: s.privacyPageImageBody,
+                  value: p.pageImageValidationEnabled,
+                  onChanged: _busy ? null : _setPageImageValidation,
+                ),
+              ),
+              const SizedBox(height: 12),
 
               // Retained reading history: visible whenever sessions exist
               // (tracking off + retained, or tracking on with history).
@@ -326,15 +363,16 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (!p.progressTrackingEnabled) ...[
-                        Text(s.privacyRetainedHistoryNote,
-                            style: Theme.of(context).textTheme.bodySmall),
+                        Text(
+                          s.privacyRetainedHistoryNote,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
                         const SizedBox(height: 10),
                       ],
                       OutlinedButton.icon(
                         onPressed: _busy ? null : _deleteReadingHistory,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor:
-                              Theme.of(context).colorScheme.error,
+                          foregroundColor: Theme.of(context).colorScheme.error,
                         ),
                         icon: const Icon(Icons.history_rounded),
                         label: Text(s.privacyRetainedHistoryAction),
@@ -350,11 +388,15 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.privacyInactivityTitle,
-                        style: Theme.of(context).textTheme.titleSmall),
+                    Text(
+                      s.privacyInactivityTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
                     const SizedBox(height: 4),
-                    Text(s.privacyInactivityBody,
-                        style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      s.privacyInactivityBody,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),

@@ -20,6 +20,7 @@ class PrivacyNoticeScreen extends ConsumerWidget {
       (s.privacyStoredTitle, s.privacyStorageRequiredBody),
       (s.privacyTrackingTitle, s.privacyTrackingBody),
       (s.privacyCloudTitle, s.privacyCloudBody),
+      (s.privacyPageImageTitle, s.privacyPageImageBody),
       (s.privacyCameraTitle, s.privacyCameraBody),
       (s.privacyRetentionTitle, s.privacyRetentionBody),
       (s.privacyDeletionTitle, s.privacyDeletionBody),
@@ -34,10 +35,9 @@ class PrivacyNoticeScreen extends ConsumerWidget {
           children: [
             Text(
               s.privacyNoticeIntro,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: t.inkMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: t.inkMuted),
             ),
             const SizedBox(height: 20),
             for (final (title, body) in sections) ...[

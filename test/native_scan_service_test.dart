@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storybook_ar/features/scan_any_page/native_scan_service.dart';
+import 'package:storybook_ar/features/scan_any_page/scanned_page.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,15 +14,39 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  test('returns recognized text', () async {
+  test('returns corrected image and ordered OCR geometry', () async {
     messenger.setMockMethodCallHandler(channel, (call) async {
       expect(call.method, 'scanAndRecognize');
-      return {'text': 'Hello. Một đêm đẹp.'};
+      return {
+        'imageBytes': Uint8List.fromList([0xff, 0xd8, 0xff]),
+        'width': 440,
+        'height': 585,
+        'lines': [
+          {
+            'text': 'Hello.',
+            'left': 0.1,
+            'top': 0.1,
+            'width': 0.8,
+            'height': 0.1,
+          },
+          {
+            'text': 'Một đêm đẹp.',
+            'left': 0.1,
+            'top': 0.3,
+            'width': 0.8,
+            'height': 0.1,
+          },
+        ],
+      };
     });
 
     expect(
       await NativeScanService().scanAndRecognize(),
-      'Hello. Một đêm đẹp.',
+      isA<ScannedPage>().having(
+        (page) => page.joinedText,
+        'joinedText',
+        'Hello.\nMột đêm đẹp.',
+      ),
     );
   });
 
@@ -30,10 +55,7 @@ void main() {
       throw PlatformException(code: 'cancelled');
     });
 
-    expect(
-      NativeScanService().scanAndRecognize,
-      throwsA(isA<ScanCancelled>()),
-    );
+    expect(NativeScanService().scanAndRecognize, throwsA(isA<ScanCancelled>()));
   });
 
   test('maps null native result to no_text failure', () async {
@@ -47,13 +69,17 @@ void main() {
     );
   });
 
-  test('maps empty recognized text to no_text failure', () async {
+  test('rejects malformed page result', () async {
     messenger.setMockMethodCallHandler(channel, (_) async => {'text': '  '});
 
     expect(
       NativeScanService().scanAndRecognize,
       throwsA(
-        isA<ScanFailure>().having((error) => error.code, 'code', 'no_text'),
+        isA<ScanFailure>().having(
+          (error) => error.code,
+          'code',
+          'invalid_result',
+        ),
       ),
     );
   });

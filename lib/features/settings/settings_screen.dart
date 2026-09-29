@@ -8,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../profile/profile_providers.dart';
 import '../privacy/privacy_providers.dart';
+import 'child_profile_settings.dart';
 import 'locale_providers.dart';
 import 'settings_providers.dart';
 
@@ -67,9 +68,22 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 4),
             Text(s.readingSafetySub,
-                style: Theme.of(context).textTheme.bodyMedium
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
                     ?.copyWith(color: t.inkMuted)),
             const SizedBox(height: 22),
+
+            ChildProfileSettings(
+              profile: profile,
+              onSave: (ageBand, nickname) => profileNotifier.edit(
+                (current) => current.copyWith(
+                  ageBand: ageBand,
+                  nickname: nickname,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
 
             // Reading time limit (pills; enforcement lands with screen-time).
             PaperCard(
@@ -77,8 +91,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 builder: (context) {
                   final s = AppLocalizations.of(context)!;
                   final limit = ref.watch(dailyLimitMinutesProvider);
-                  final notifier =
-                      ref.read(dailyLimitMinutesProvider.notifier);
+                  final notifier = ref.read(dailyLimitMinutesProvider.notifier);
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -183,8 +196,7 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 value: settings.backgroundMusicVolume,
                 min: 0,
                 max: 1,
-                display:
-                    '${(settings.backgroundMusicVolume * 100).round()}%',
+                display: '${(settings.backgroundMusicVolume * 100).round()}%',
                 onChanged: (v) => settingsNotifier
                     .edit((x) => x.copyWith(backgroundMusicVolume: v)),
               ),
@@ -202,15 +214,23 @@ class ReadingSettingsScreen extends ConsumerWidget {
                     children: [
                       _PillChip(
                         label: 'English',
-                        selected: settings.languageCode == 'en',
-                        onTap: () => settingsNotifier
-                            .edit((x) => x.copyWith(languageCode: 'en')),
+                        selected: (profile?.languageCode ?? 'en') == 'en',
+                        onTap: () {
+                          if (profile != null) {
+                            profileNotifier
+                                .edit((p) => p.copyWith(languageCode: 'en'));
+                          }
+                        },
                       ),
                       _PillChip(
                         label: 'Tiếng Việt',
-                        selected: settings.languageCode == 'vi',
-                        onTap: () => settingsNotifier
-                            .edit((x) => x.copyWith(languageCode: 'vi')),
+                        selected: profile?.languageCode == 'vi',
+                        onTap: () {
+                          if (profile != null) {
+                            profileNotifier
+                                .edit((p) => p.copyWith(languageCode: 'vi'));
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -256,13 +276,23 @@ class ReadingSettingsScreen extends ConsumerWidget {
             // Bedtime default (existing).
             PaperCard(
               child: _SwitchRow(
+                icon: Icons.auto_stories_rounded,
+                title: s.autoAdvanceTitle,
+                subtitle: s.autoAdvanceBody,
+                value: ref.watch(autoAdvancePagesProvider),
+                onChanged: (v) =>
+                    ref.read(autoAdvancePagesProvider.notifier).set(v),
+              ),
+            ),
+            PaperCard(
+              child: _SwitchRow(
                 icon: Icons.dark_mode_rounded,
                 iconColor: t.lavender,
                 title: s.bedtimeDefaultTitle,
                 subtitle: s.bedtimeDefaultSub,
                 value: settings.bedtimeModeDefault,
-                onChanged: (v) =>
-                    settingsNotifier.edit((x) => x.copyWith(bedtimeModeDefault: v)),
+                onChanged: (v) => settingsNotifier
+                    .edit((x) => x.copyWith(bedtimeModeDefault: v)),
               ),
             ),
 
@@ -274,7 +304,8 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 value: profile?.arEnabled ?? true,
                 onChanged: profile == null
                     ? null
-                    : (v) => profileNotifier.edit((p) => p.copyWith(arEnabled: v)),
+                    : (v) =>
+                        profileNotifier.edit((p) => p.copyWith(arEnabled: v)),
               ),
             ),
             PaperCard(
@@ -284,8 +315,8 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 value: profile?.microphoneEnabled ?? false,
                 onChanged: profile == null
                     ? null
-                    : (v) =>
-                        profileNotifier.edit((p) => p.copyWith(microphoneEnabled: v)),
+                    : (v) => profileNotifier
+                        .edit((p) => p.copyWith(microphoneEnabled: v)),
               ),
             ),
 
@@ -323,14 +354,13 @@ class ReadingSettingsScreen extends ConsumerWidget {
                 builder: (context) {
                   final s = AppLocalizations.of(context)!;
                   final privacy = ref.watch(privacyProvider).value;
-                  final trackingSummary = (privacy?.progressTrackingEnabled ??
-                          false)
-                      ? s.privacySettingsSummaryTrackingOn
-                      : s.privacySettingsSummaryTrackingOff;
-                  final cloudSummary =
-                      (privacy?.cloudTtsEnabled ?? false)
-                          ? s.privacySettingsSummaryCloudOn
-                          : s.privacySettingsSummaryCloudOff;
+                  final trackingSummary =
+                      (privacy?.progressTrackingEnabled ?? false)
+                          ? s.privacySettingsSummaryTrackingOn
+                          : s.privacySettingsSummaryTrackingOff;
+                  final cloudSummary = (privacy?.cloudTtsEnabled ?? false)
+                      ? s.privacySettingsSummaryCloudOn
+                      : s.privacySettingsSummaryCloudOff;
                   return Row(
                     children: [
                       Icon(Icons.privacy_tip_outlined, size: 22, color: t.sage),

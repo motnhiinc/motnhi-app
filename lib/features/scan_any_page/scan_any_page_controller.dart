@@ -108,7 +108,7 @@ class ScanAnyPageController extends Notifier<ScanAnyPageState> {
       if (!_isCurrent(generation)) return;
       state = ScanAnyPageState(
         phase: ScanAnyPagePhase.reviewingText,
-        recognizedText: text,
+        recognizedText: text.joinedText,
       );
     } on ScanCancelled {
       if (!_isCurrent(generation)) return;

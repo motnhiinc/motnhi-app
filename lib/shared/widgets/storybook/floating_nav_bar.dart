@@ -36,14 +36,14 @@ class FloatingNavBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: t.line),
           boxShadow: [
-            BoxShadow(color: t.shadow, blurRadius: 24, offset: const Offset(0, 8)),
+            BoxShadow(
+                color: t.shadow, blurRadius: 24, offset: const Offset(0, 8)),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            for (final item in items)
-              _NavItem(item: item),
+            for (final item in items) Expanded(child: _NavItem(item: item)),
           ],
         ),
       ),
@@ -67,19 +67,23 @@ class _NavItem extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: item.onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(item.icon, size: 22, color: color),
-              const SizedBox(height: 3),
-              Text(
-                item.label,
-                style: TextStyle(
-                  fontFamily: AppTheme.sansFamily,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: color,
+              Icon(item.icon, size: 20, color: color),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: AppTheme.sansFamily,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: color,
+                  ),
                 ),
               ),
             ],

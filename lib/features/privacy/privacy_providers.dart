@@ -9,8 +9,9 @@ import 'privacy_activity_notifier.dart';
 /// Fresh privacy & consent state from the server (§14). The single source of
 /// authorization truth: access derivation and the effective toggles below read
 /// this provider, never the display-only [privacyStateCacheProvider].
-final privacyProvider =
-    AsyncNotifierProvider<PrivacyNotifier, PrivacyState>(PrivacyNotifier.new);
+final privacyProvider = AsyncNotifierProvider<PrivacyNotifier, PrivacyState>(
+  PrivacyNotifier.new,
+);
 
 /// Display-only mirror of the last server response, persisted after every
 /// successful fetch/update so unavailable/retry UI has something to show while
@@ -48,17 +49,21 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
     required bool coreStorageAccepted,
     required bool progressTrackingEnabled,
     required bool cloudTtsEnabled,
+    required bool pageImageValidationEnabled,
   }) {
     final task = _mutationQueue.then((_) async {
       // Previous server truth, kept separate from the mutation input so retry
       // UI can render it. Only a server response may set AsyncData.
       final previous = state.value;
       try {
-        final fresh = await ref.read(privacyRepositoryProvider).updatePrivacy(
+        final fresh = await ref
+            .read(privacyRepositoryProvider)
+            .updatePrivacy(
               policyVersion: policyVersion,
               coreStorageAccepted: coreStorageAccepted,
               progressTrackingEnabled: progressTrackingEnabled,
               cloudTtsEnabled: cloudTtsEnabled,
+              pageImageValidationEnabled: pageImageValidationEnabled,
             );
         await _writeCache(fresh);
         state = AsyncData(fresh);
@@ -84,6 +89,9 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
   /// as [setProgressTracking].
   Future<void> setCloudTts(bool enabled) =>
       _updateCurrent(cloudTtsEnabled: enabled);
+
+  Future<void> setPageImageValidation(bool enabled) =>
+      _updateCurrent(pageImageValidationEnabled: enabled);
 
   /// Deletes all reading history (sessions + interaction events) on the
   /// server, then refetches privacy state so the stored-data counts change.
@@ -129,6 +137,7 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
   Future<void> _updateCurrent({
     bool? progressTrackingEnabled,
     bool? cloudTtsEnabled,
+    bool? pageImageValidationEnabled,
   }) {
     final task = _mutationQueue.then((_) async {
       // Read at execution time, not call time, so a queued mutation always
@@ -140,13 +149,18 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
         );
       }
       try {
-        final fresh = await ref.read(privacyRepositoryProvider).updatePrivacy(
+        final fresh = await ref
+            .read(privacyRepositoryProvider)
+            .updatePrivacy(
               policyVersion:
                   current.acceptedPolicyVersion ?? current.currentPolicyVersion,
               coreStorageAccepted: true,
               progressTrackingEnabled:
                   progressTrackingEnabled ?? current.progressTrackingEnabled,
               cloudTtsEnabled: cloudTtsEnabled ?? current.cloudTtsEnabled,
+              pageImageValidationEnabled:
+                  pageImageValidationEnabled ??
+                  current.pageImageValidationEnabled,
             );
         await _writeCache(fresh);
         state = AsyncData(fresh);
@@ -197,13 +211,19 @@ final effectiveCloudTtsProvider = Provider<bool>((ref) {
   return ref.watch(privacyProvider).value?.effectiveCloudTtsEnabled ?? false;
 });
 
+final effectivePageImageValidationProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(privacyProvider).value?.effectivePageImageValidationEnabled ??
+      false,
+);
+
 /// Fail-closed app access derived from server privacy truth + profile state.
 enum AppAccessStatus {
   loading,
   setupRequired,
   policyReviewRequired,
   ready,
-  unavailable
+  unavailable,
 }
 
 class AppAccessState {
@@ -232,7 +252,8 @@ final appAccessProvider = Provider<AppAccessState>((ref) {
 
   final privacyState = privacy.value!;
   final hasProfile = profile.value != null;
-  final consentCurrent = privacyState.acceptedPolicyVersion != null &&
+  final consentCurrent =
+      privacyState.acceptedPolicyVersion != null &&
       privacyState.acceptedPolicyVersion == privacyState.currentPolicyVersion;
 
   if (hasProfile && !consentCurrent) {

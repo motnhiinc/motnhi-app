@@ -29,6 +29,28 @@ class SettingsNotifier extends AsyncNotifier<ReadingSettings> {
 final bedtimeModeProvider =
     NotifierProvider<BedtimeModeNotifier, bool>(BedtimeModeNotifier.new);
 
+/// On by default; parents may opt for manual page turning in Settings.
+final autoAdvancePagesProvider =
+    NotifierProvider<AutoAdvancePagesNotifier, bool>(
+  AutoAdvancePagesNotifier.new,
+);
+
+class AutoAdvancePagesNotifier extends Notifier<bool> {
+  @override
+  bool build() => ref.watch(keyValueStoreProvider).getBool(
+        settingsAutoAdvancePagesKey,
+        fallback: true,
+      );
+
+  Future<void> set(bool value) async {
+    await ref.read(keyValueStoreProvider).setBool(
+          settingsAutoAdvancePagesKey,
+          value,
+        );
+    state = value;
+  }
+}
+
 class BedtimeModeNotifier extends Notifier<bool> {
   @override
   bool build() {

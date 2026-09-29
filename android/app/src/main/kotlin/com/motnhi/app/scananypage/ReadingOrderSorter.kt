@@ -7,6 +7,7 @@ import kotlin.math.abs
 data class TextLineBox(
     val left: Int,
     val top: Int,
+    val right: Int,
     val bottom: Int,
 ) {
     fun midYFraction(imageHeight: Int): Double {
@@ -31,7 +32,10 @@ object ReadingOrderSorter {
     // Provisional parity value from iOS. Do not retune before real-page validation.
     private const val ROW_TOLERANCE = 0.02
 
-    fun join(lines: List<RecognizedTextLine>, imageHeight: Int): String {
+    fun join(lines: List<RecognizedTextLine>, imageHeight: Int): String =
+        ordered(lines, imageHeight).joinToString(separator = "\n") { it.text }
+
+    fun ordered(lines: List<RecognizedTextLine>, imageHeight: Int): List<RecognizedTextLine> {
         val sortedLines = lines.mapNotNull { line ->
             val text = line.text.trim()
             val box = line.box
@@ -40,6 +44,7 @@ object ReadingOrderSorter {
             } else {
                 SortableTextLine(
                     text = text,
+                    box = box,
                     left = box.left,
                     midY = box.midYFraction(imageHeight),
                 )
@@ -61,16 +66,32 @@ object ReadingOrderSorter {
         return rows
             .sortedBy { it.firstOrNull()?.midY ?: 0.0 }
             .flatMap { row -> row.sortedBy { it.left } }
-            .joinToString(separator = "\n") { it.text }
-            .trim()
+            .map { RecognizedTextLine(it.text, it.box) }
+    }
+
+    fun normalizedLine(line: RecognizedTextLine, width: Int, height: Int): Map<String, Any>? {
+        val box = line.box ?: return null
+        val left = box.left.coerceIn(0, width)
+        val top = box.top.coerceIn(0, height)
+        val right = box.right.coerceIn(0, width)
+        val bottom = box.bottom.coerceIn(0, height)
+        if (right <= left || bottom <= top) return null
+        return mapOf(
+            "text" to line.text,
+            "left" to left.toDouble() / width,
+            "top" to top.toDouble() / height,
+            "width" to (right - left).toDouble() / width,
+            "height" to (bottom - top).toDouble() / height,
+        )
     }
 
     private data class SortableTextLine(
         val text: String,
+        val box: TextLineBox,
         val left: Int,
         val midY: Double,
     )
 }
 
 private fun Rect.toTextLineBox(): TextLineBox =
-    TextLineBox(left = left, top = top, bottom = bottom)
+    TextLineBox(left = left, top = top, right = right, bottom = bottom)

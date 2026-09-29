@@ -287,7 +287,7 @@ as int,
 /// @nodoc
 mixin _$PrivacyState {
 
- String get currentPolicyVersion; String? get acceptedPolicyVersion; bool get reviewRequired; DateTime? get coreStorageAcceptedAt; bool get progressTrackingEnabled; bool get cloudTtsEnabled; bool get effectiveProgressTrackingEnabled; bool get effectiveCloudTtsEnabled; DateTime get lastActiveAt; DateTime get updatedAt; PrivacyDataCounts get counts;
+ String get currentPolicyVersion; String? get acceptedPolicyVersion; bool get reviewRequired; DateTime? get coreStorageAcceptedAt; bool get progressTrackingEnabled; bool get cloudTtsEnabled; bool get pageImageValidationEnabled; bool get effectiveProgressTrackingEnabled; bool get effectiveCloudTtsEnabled; bool get effectivePageImageValidationEnabled; DateTime get lastActiveAt; DateTime get updatedAt; PrivacyDataCounts get counts;
 /// Create a copy of PrivacyState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -300,16 +300,16 @@ $PrivacyStateCopyWith<PrivacyState> get copyWith => _$PrivacyStateCopyWithImpl<P
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivacyState&&(identical(other.currentPolicyVersion, currentPolicyVersion) || other.currentPolicyVersion == currentPolicyVersion)&&(identical(other.acceptedPolicyVersion, acceptedPolicyVersion) || other.acceptedPolicyVersion == acceptedPolicyVersion)&&(identical(other.reviewRequired, reviewRequired) || other.reviewRequired == reviewRequired)&&(identical(other.coreStorageAcceptedAt, coreStorageAcceptedAt) || other.coreStorageAcceptedAt == coreStorageAcceptedAt)&&(identical(other.progressTrackingEnabled, progressTrackingEnabled) || other.progressTrackingEnabled == progressTrackingEnabled)&&(identical(other.cloudTtsEnabled, cloudTtsEnabled) || other.cloudTtsEnabled == cloudTtsEnabled)&&(identical(other.effectiveProgressTrackingEnabled, effectiveProgressTrackingEnabled) || other.effectiveProgressTrackingEnabled == effectiveProgressTrackingEnabled)&&(identical(other.effectiveCloudTtsEnabled, effectiveCloudTtsEnabled) || other.effectiveCloudTtsEnabled == effectiveCloudTtsEnabled)&&(identical(other.lastActiveAt, lastActiveAt) || other.lastActiveAt == lastActiveAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.counts, counts) || other.counts == counts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrivacyState&&(identical(other.currentPolicyVersion, currentPolicyVersion) || other.currentPolicyVersion == currentPolicyVersion)&&(identical(other.acceptedPolicyVersion, acceptedPolicyVersion) || other.acceptedPolicyVersion == acceptedPolicyVersion)&&(identical(other.reviewRequired, reviewRequired) || other.reviewRequired == reviewRequired)&&(identical(other.coreStorageAcceptedAt, coreStorageAcceptedAt) || other.coreStorageAcceptedAt == coreStorageAcceptedAt)&&(identical(other.progressTrackingEnabled, progressTrackingEnabled) || other.progressTrackingEnabled == progressTrackingEnabled)&&(identical(other.cloudTtsEnabled, cloudTtsEnabled) || other.cloudTtsEnabled == cloudTtsEnabled)&&(identical(other.pageImageValidationEnabled, pageImageValidationEnabled) || other.pageImageValidationEnabled == pageImageValidationEnabled)&&(identical(other.effectiveProgressTrackingEnabled, effectiveProgressTrackingEnabled) || other.effectiveProgressTrackingEnabled == effectiveProgressTrackingEnabled)&&(identical(other.effectiveCloudTtsEnabled, effectiveCloudTtsEnabled) || other.effectiveCloudTtsEnabled == effectiveCloudTtsEnabled)&&(identical(other.effectivePageImageValidationEnabled, effectivePageImageValidationEnabled) || other.effectivePageImageValidationEnabled == effectivePageImageValidationEnabled)&&(identical(other.lastActiveAt, lastActiveAt) || other.lastActiveAt == lastActiveAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.counts, counts) || other.counts == counts));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,currentPolicyVersion,acceptedPolicyVersion,reviewRequired,coreStorageAcceptedAt,progressTrackingEnabled,cloudTtsEnabled,effectiveProgressTrackingEnabled,effectiveCloudTtsEnabled,lastActiveAt,updatedAt,counts);
+int get hashCode => Object.hash(runtimeType,currentPolicyVersion,acceptedPolicyVersion,reviewRequired,coreStorageAcceptedAt,progressTrackingEnabled,cloudTtsEnabled,pageImageValidationEnabled,effectiveProgressTrackingEnabled,effectiveCloudTtsEnabled,effectivePageImageValidationEnabled,lastActiveAt,updatedAt,counts);
 
 @override
 String toString() {
-  return 'PrivacyState(currentPolicyVersion: $currentPolicyVersion, acceptedPolicyVersion: $acceptedPolicyVersion, reviewRequired: $reviewRequired, coreStorageAcceptedAt: $coreStorageAcceptedAt, progressTrackingEnabled: $progressTrackingEnabled, cloudTtsEnabled: $cloudTtsEnabled, effectiveProgressTrackingEnabled: $effectiveProgressTrackingEnabled, effectiveCloudTtsEnabled: $effectiveCloudTtsEnabled, lastActiveAt: $lastActiveAt, updatedAt: $updatedAt, counts: $counts)';
+  return 'PrivacyState(currentPolicyVersion: $currentPolicyVersion, acceptedPolicyVersion: $acceptedPolicyVersion, reviewRequired: $reviewRequired, coreStorageAcceptedAt: $coreStorageAcceptedAt, progressTrackingEnabled: $progressTrackingEnabled, cloudTtsEnabled: $cloudTtsEnabled, pageImageValidationEnabled: $pageImageValidationEnabled, effectiveProgressTrackingEnabled: $effectiveProgressTrackingEnabled, effectiveCloudTtsEnabled: $effectiveCloudTtsEnabled, effectivePageImageValidationEnabled: $effectivePageImageValidationEnabled, lastActiveAt: $lastActiveAt, updatedAt: $updatedAt, counts: $counts)';
 }
 
 
@@ -320,7 +320,7 @@ abstract mixin class $PrivacyStateCopyWith<$Res>  {
   factory $PrivacyStateCopyWith(PrivacyState value, $Res Function(PrivacyState) _then) = _$PrivacyStateCopyWithImpl;
 @useResult
 $Res call({
- String currentPolicyVersion, String? acceptedPolicyVersion, bool reviewRequired, DateTime? coreStorageAcceptedAt, bool progressTrackingEnabled, bool cloudTtsEnabled, bool effectiveProgressTrackingEnabled, bool effectiveCloudTtsEnabled, DateTime lastActiveAt, DateTime updatedAt, PrivacyDataCounts counts
+ String currentPolicyVersion, String? acceptedPolicyVersion, bool reviewRequired, DateTime? coreStorageAcceptedAt, bool progressTrackingEnabled, bool cloudTtsEnabled, bool pageImageValidationEnabled, bool effectiveProgressTrackingEnabled, bool effectiveCloudTtsEnabled, bool effectivePageImageValidationEnabled, DateTime lastActiveAt, DateTime updatedAt, PrivacyDataCounts counts
 });
 
 
@@ -337,7 +337,7 @@ class _$PrivacyStateCopyWithImpl<$Res>
 
 /// Create a copy of PrivacyState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? currentPolicyVersion = null,Object? acceptedPolicyVersion = freezed,Object? reviewRequired = null,Object? coreStorageAcceptedAt = freezed,Object? progressTrackingEnabled = null,Object? cloudTtsEnabled = null,Object? effectiveProgressTrackingEnabled = null,Object? effectiveCloudTtsEnabled = null,Object? lastActiveAt = null,Object? updatedAt = null,Object? counts = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? currentPolicyVersion = null,Object? acceptedPolicyVersion = freezed,Object? reviewRequired = null,Object? coreStorageAcceptedAt = freezed,Object? progressTrackingEnabled = null,Object? cloudTtsEnabled = null,Object? pageImageValidationEnabled = null,Object? effectiveProgressTrackingEnabled = null,Object? effectiveCloudTtsEnabled = null,Object? effectivePageImageValidationEnabled = null,Object? lastActiveAt = null,Object? updatedAt = null,Object? counts = null,}) {
   return _then(_self.copyWith(
 currentPolicyVersion: null == currentPolicyVersion ? _self.currentPolicyVersion : currentPolicyVersion // ignore: cast_nullable_to_non_nullable
 as String,acceptedPolicyVersion: freezed == acceptedPolicyVersion ? _self.acceptedPolicyVersion : acceptedPolicyVersion // ignore: cast_nullable_to_non_nullable
@@ -345,8 +345,10 @@ as String?,reviewRequired: null == reviewRequired ? _self.reviewRequired : revie
 as bool,coreStorageAcceptedAt: freezed == coreStorageAcceptedAt ? _self.coreStorageAcceptedAt : coreStorageAcceptedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,progressTrackingEnabled: null == progressTrackingEnabled ? _self.progressTrackingEnabled : progressTrackingEnabled // ignore: cast_nullable_to_non_nullable
 as bool,cloudTtsEnabled: null == cloudTtsEnabled ? _self.cloudTtsEnabled : cloudTtsEnabled // ignore: cast_nullable_to_non_nullable
+as bool,pageImageValidationEnabled: null == pageImageValidationEnabled ? _self.pageImageValidationEnabled : pageImageValidationEnabled // ignore: cast_nullable_to_non_nullable
 as bool,effectiveProgressTrackingEnabled: null == effectiveProgressTrackingEnabled ? _self.effectiveProgressTrackingEnabled : effectiveProgressTrackingEnabled // ignore: cast_nullable_to_non_nullable
 as bool,effectiveCloudTtsEnabled: null == effectiveCloudTtsEnabled ? _self.effectiveCloudTtsEnabled : effectiveCloudTtsEnabled // ignore: cast_nullable_to_non_nullable
+as bool,effectivePageImageValidationEnabled: null == effectivePageImageValidationEnabled ? _self.effectivePageImageValidationEnabled : effectivePageImageValidationEnabled // ignore: cast_nullable_to_non_nullable
 as bool,lastActiveAt: null == lastActiveAt ? _self.lastActiveAt : lastActiveAt // ignore: cast_nullable_to_non_nullable
 as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,counts: null == counts ? _self.counts : counts // ignore: cast_nullable_to_non_nullable
@@ -444,10 +446,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String currentPolicyVersion,  String? acceptedPolicyVersion,  bool reviewRequired,  DateTime? coreStorageAcceptedAt,  bool progressTrackingEnabled,  bool cloudTtsEnabled,  bool effectiveProgressTrackingEnabled,  bool effectiveCloudTtsEnabled,  DateTime lastActiveAt,  DateTime updatedAt,  PrivacyDataCounts counts)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String currentPolicyVersion,  String? acceptedPolicyVersion,  bool reviewRequired,  DateTime? coreStorageAcceptedAt,  bool progressTrackingEnabled,  bool cloudTtsEnabled,  bool pageImageValidationEnabled,  bool effectiveProgressTrackingEnabled,  bool effectiveCloudTtsEnabled,  bool effectivePageImageValidationEnabled,  DateTime lastActiveAt,  DateTime updatedAt,  PrivacyDataCounts counts)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PrivacyState() when $default != null:
-return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.reviewRequired,_that.coreStorageAcceptedAt,_that.progressTrackingEnabled,_that.cloudTtsEnabled,_that.effectiveProgressTrackingEnabled,_that.effectiveCloudTtsEnabled,_that.lastActiveAt,_that.updatedAt,_that.counts);case _:
+return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.reviewRequired,_that.coreStorageAcceptedAt,_that.progressTrackingEnabled,_that.cloudTtsEnabled,_that.pageImageValidationEnabled,_that.effectiveProgressTrackingEnabled,_that.effectiveCloudTtsEnabled,_that.effectivePageImageValidationEnabled,_that.lastActiveAt,_that.updatedAt,_that.counts);case _:
   return orElse();
 
 }
@@ -465,10 +467,10 @@ return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.rev
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String currentPolicyVersion,  String? acceptedPolicyVersion,  bool reviewRequired,  DateTime? coreStorageAcceptedAt,  bool progressTrackingEnabled,  bool cloudTtsEnabled,  bool effectiveProgressTrackingEnabled,  bool effectiveCloudTtsEnabled,  DateTime lastActiveAt,  DateTime updatedAt,  PrivacyDataCounts counts)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String currentPolicyVersion,  String? acceptedPolicyVersion,  bool reviewRequired,  DateTime? coreStorageAcceptedAt,  bool progressTrackingEnabled,  bool cloudTtsEnabled,  bool pageImageValidationEnabled,  bool effectiveProgressTrackingEnabled,  bool effectiveCloudTtsEnabled,  bool effectivePageImageValidationEnabled,  DateTime lastActiveAt,  DateTime updatedAt,  PrivacyDataCounts counts)  $default,) {final _that = this;
 switch (_that) {
 case _PrivacyState():
-return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.reviewRequired,_that.coreStorageAcceptedAt,_that.progressTrackingEnabled,_that.cloudTtsEnabled,_that.effectiveProgressTrackingEnabled,_that.effectiveCloudTtsEnabled,_that.lastActiveAt,_that.updatedAt,_that.counts);case _:
+return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.reviewRequired,_that.coreStorageAcceptedAt,_that.progressTrackingEnabled,_that.cloudTtsEnabled,_that.pageImageValidationEnabled,_that.effectiveProgressTrackingEnabled,_that.effectiveCloudTtsEnabled,_that.effectivePageImageValidationEnabled,_that.lastActiveAt,_that.updatedAt,_that.counts);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -485,10 +487,10 @@ return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.rev
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String currentPolicyVersion,  String? acceptedPolicyVersion,  bool reviewRequired,  DateTime? coreStorageAcceptedAt,  bool progressTrackingEnabled,  bool cloudTtsEnabled,  bool effectiveProgressTrackingEnabled,  bool effectiveCloudTtsEnabled,  DateTime lastActiveAt,  DateTime updatedAt,  PrivacyDataCounts counts)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String currentPolicyVersion,  String? acceptedPolicyVersion,  bool reviewRequired,  DateTime? coreStorageAcceptedAt,  bool progressTrackingEnabled,  bool cloudTtsEnabled,  bool pageImageValidationEnabled,  bool effectiveProgressTrackingEnabled,  bool effectiveCloudTtsEnabled,  bool effectivePageImageValidationEnabled,  DateTime lastActiveAt,  DateTime updatedAt,  PrivacyDataCounts counts)?  $default,) {final _that = this;
 switch (_that) {
 case _PrivacyState() when $default != null:
-return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.reviewRequired,_that.coreStorageAcceptedAt,_that.progressTrackingEnabled,_that.cloudTtsEnabled,_that.effectiveProgressTrackingEnabled,_that.effectiveCloudTtsEnabled,_that.lastActiveAt,_that.updatedAt,_that.counts);case _:
+return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.reviewRequired,_that.coreStorageAcceptedAt,_that.progressTrackingEnabled,_that.cloudTtsEnabled,_that.pageImageValidationEnabled,_that.effectiveProgressTrackingEnabled,_that.effectiveCloudTtsEnabled,_that.effectivePageImageValidationEnabled,_that.lastActiveAt,_that.updatedAt,_that.counts);case _:
   return null;
 
 }
@@ -500,7 +502,7 @@ return $default(_that.currentPolicyVersion,_that.acceptedPolicyVersion,_that.rev
 @JsonSerializable()
 
 class _PrivacyState implements PrivacyState {
-  const _PrivacyState({required this.currentPolicyVersion, this.acceptedPolicyVersion, required this.reviewRequired, this.coreStorageAcceptedAt, this.progressTrackingEnabled = false, this.cloudTtsEnabled = false, this.effectiveProgressTrackingEnabled = false, this.effectiveCloudTtsEnabled = false, required this.lastActiveAt, required this.updatedAt, this.counts = const PrivacyDataCounts()});
+  const _PrivacyState({required this.currentPolicyVersion, this.acceptedPolicyVersion, required this.reviewRequired, this.coreStorageAcceptedAt, this.progressTrackingEnabled = false, this.cloudTtsEnabled = false, this.pageImageValidationEnabled = false, this.effectiveProgressTrackingEnabled = false, this.effectiveCloudTtsEnabled = false, this.effectivePageImageValidationEnabled = false, required this.lastActiveAt, required this.updatedAt, this.counts = const PrivacyDataCounts()});
   factory _PrivacyState.fromJson(Map<String, dynamic> json) => _$PrivacyStateFromJson(json);
 
 @override final  String currentPolicyVersion;
@@ -509,8 +511,10 @@ class _PrivacyState implements PrivacyState {
 @override final  DateTime? coreStorageAcceptedAt;
 @override@JsonKey() final  bool progressTrackingEnabled;
 @override@JsonKey() final  bool cloudTtsEnabled;
+@override@JsonKey() final  bool pageImageValidationEnabled;
 @override@JsonKey() final  bool effectiveProgressTrackingEnabled;
 @override@JsonKey() final  bool effectiveCloudTtsEnabled;
+@override@JsonKey() final  bool effectivePageImageValidationEnabled;
 @override final  DateTime lastActiveAt;
 @override final  DateTime updatedAt;
 @override@JsonKey() final  PrivacyDataCounts counts;
@@ -528,16 +532,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PrivacyState&&(identical(other.currentPolicyVersion, currentPolicyVersion) || other.currentPolicyVersion == currentPolicyVersion)&&(identical(other.acceptedPolicyVersion, acceptedPolicyVersion) || other.acceptedPolicyVersion == acceptedPolicyVersion)&&(identical(other.reviewRequired, reviewRequired) || other.reviewRequired == reviewRequired)&&(identical(other.coreStorageAcceptedAt, coreStorageAcceptedAt) || other.coreStorageAcceptedAt == coreStorageAcceptedAt)&&(identical(other.progressTrackingEnabled, progressTrackingEnabled) || other.progressTrackingEnabled == progressTrackingEnabled)&&(identical(other.cloudTtsEnabled, cloudTtsEnabled) || other.cloudTtsEnabled == cloudTtsEnabled)&&(identical(other.effectiveProgressTrackingEnabled, effectiveProgressTrackingEnabled) || other.effectiveProgressTrackingEnabled == effectiveProgressTrackingEnabled)&&(identical(other.effectiveCloudTtsEnabled, effectiveCloudTtsEnabled) || other.effectiveCloudTtsEnabled == effectiveCloudTtsEnabled)&&(identical(other.lastActiveAt, lastActiveAt) || other.lastActiveAt == lastActiveAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.counts, counts) || other.counts == counts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PrivacyState&&(identical(other.currentPolicyVersion, currentPolicyVersion) || other.currentPolicyVersion == currentPolicyVersion)&&(identical(other.acceptedPolicyVersion, acceptedPolicyVersion) || other.acceptedPolicyVersion == acceptedPolicyVersion)&&(identical(other.reviewRequired, reviewRequired) || other.reviewRequired == reviewRequired)&&(identical(other.coreStorageAcceptedAt, coreStorageAcceptedAt) || other.coreStorageAcceptedAt == coreStorageAcceptedAt)&&(identical(other.progressTrackingEnabled, progressTrackingEnabled) || other.progressTrackingEnabled == progressTrackingEnabled)&&(identical(other.cloudTtsEnabled, cloudTtsEnabled) || other.cloudTtsEnabled == cloudTtsEnabled)&&(identical(other.pageImageValidationEnabled, pageImageValidationEnabled) || other.pageImageValidationEnabled == pageImageValidationEnabled)&&(identical(other.effectiveProgressTrackingEnabled, effectiveProgressTrackingEnabled) || other.effectiveProgressTrackingEnabled == effectiveProgressTrackingEnabled)&&(identical(other.effectiveCloudTtsEnabled, effectiveCloudTtsEnabled) || other.effectiveCloudTtsEnabled == effectiveCloudTtsEnabled)&&(identical(other.effectivePageImageValidationEnabled, effectivePageImageValidationEnabled) || other.effectivePageImageValidationEnabled == effectivePageImageValidationEnabled)&&(identical(other.lastActiveAt, lastActiveAt) || other.lastActiveAt == lastActiveAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.counts, counts) || other.counts == counts));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,currentPolicyVersion,acceptedPolicyVersion,reviewRequired,coreStorageAcceptedAt,progressTrackingEnabled,cloudTtsEnabled,effectiveProgressTrackingEnabled,effectiveCloudTtsEnabled,lastActiveAt,updatedAt,counts);
+int get hashCode => Object.hash(runtimeType,currentPolicyVersion,acceptedPolicyVersion,reviewRequired,coreStorageAcceptedAt,progressTrackingEnabled,cloudTtsEnabled,pageImageValidationEnabled,effectiveProgressTrackingEnabled,effectiveCloudTtsEnabled,effectivePageImageValidationEnabled,lastActiveAt,updatedAt,counts);
 
 @override
 String toString() {
-  return 'PrivacyState(currentPolicyVersion: $currentPolicyVersion, acceptedPolicyVersion: $acceptedPolicyVersion, reviewRequired: $reviewRequired, coreStorageAcceptedAt: $coreStorageAcceptedAt, progressTrackingEnabled: $progressTrackingEnabled, cloudTtsEnabled: $cloudTtsEnabled, effectiveProgressTrackingEnabled: $effectiveProgressTrackingEnabled, effectiveCloudTtsEnabled: $effectiveCloudTtsEnabled, lastActiveAt: $lastActiveAt, updatedAt: $updatedAt, counts: $counts)';
+  return 'PrivacyState(currentPolicyVersion: $currentPolicyVersion, acceptedPolicyVersion: $acceptedPolicyVersion, reviewRequired: $reviewRequired, coreStorageAcceptedAt: $coreStorageAcceptedAt, progressTrackingEnabled: $progressTrackingEnabled, cloudTtsEnabled: $cloudTtsEnabled, pageImageValidationEnabled: $pageImageValidationEnabled, effectiveProgressTrackingEnabled: $effectiveProgressTrackingEnabled, effectiveCloudTtsEnabled: $effectiveCloudTtsEnabled, effectivePageImageValidationEnabled: $effectivePageImageValidationEnabled, lastActiveAt: $lastActiveAt, updatedAt: $updatedAt, counts: $counts)';
 }
 
 
@@ -548,7 +552,7 @@ abstract mixin class _$PrivacyStateCopyWith<$Res> implements $PrivacyStateCopyWi
   factory _$PrivacyStateCopyWith(_PrivacyState value, $Res Function(_PrivacyState) _then) = __$PrivacyStateCopyWithImpl;
 @override @useResult
 $Res call({
- String currentPolicyVersion, String? acceptedPolicyVersion, bool reviewRequired, DateTime? coreStorageAcceptedAt, bool progressTrackingEnabled, bool cloudTtsEnabled, bool effectiveProgressTrackingEnabled, bool effectiveCloudTtsEnabled, DateTime lastActiveAt, DateTime updatedAt, PrivacyDataCounts counts
+ String currentPolicyVersion, String? acceptedPolicyVersion, bool reviewRequired, DateTime? coreStorageAcceptedAt, bool progressTrackingEnabled, bool cloudTtsEnabled, bool pageImageValidationEnabled, bool effectiveProgressTrackingEnabled, bool effectiveCloudTtsEnabled, bool effectivePageImageValidationEnabled, DateTime lastActiveAt, DateTime updatedAt, PrivacyDataCounts counts
 });
 
 
@@ -565,7 +569,7 @@ class __$PrivacyStateCopyWithImpl<$Res>
 
 /// Create a copy of PrivacyState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? currentPolicyVersion = null,Object? acceptedPolicyVersion = freezed,Object? reviewRequired = null,Object? coreStorageAcceptedAt = freezed,Object? progressTrackingEnabled = null,Object? cloudTtsEnabled = null,Object? effectiveProgressTrackingEnabled = null,Object? effectiveCloudTtsEnabled = null,Object? lastActiveAt = null,Object? updatedAt = null,Object? counts = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? currentPolicyVersion = null,Object? acceptedPolicyVersion = freezed,Object? reviewRequired = null,Object? coreStorageAcceptedAt = freezed,Object? progressTrackingEnabled = null,Object? cloudTtsEnabled = null,Object? pageImageValidationEnabled = null,Object? effectiveProgressTrackingEnabled = null,Object? effectiveCloudTtsEnabled = null,Object? effectivePageImageValidationEnabled = null,Object? lastActiveAt = null,Object? updatedAt = null,Object? counts = null,}) {
   return _then(_PrivacyState(
 currentPolicyVersion: null == currentPolicyVersion ? _self.currentPolicyVersion : currentPolicyVersion // ignore: cast_nullable_to_non_nullable
 as String,acceptedPolicyVersion: freezed == acceptedPolicyVersion ? _self.acceptedPolicyVersion : acceptedPolicyVersion // ignore: cast_nullable_to_non_nullable
@@ -573,8 +577,10 @@ as String?,reviewRequired: null == reviewRequired ? _self.reviewRequired : revie
 as bool,coreStorageAcceptedAt: freezed == coreStorageAcceptedAt ? _self.coreStorageAcceptedAt : coreStorageAcceptedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,progressTrackingEnabled: null == progressTrackingEnabled ? _self.progressTrackingEnabled : progressTrackingEnabled // ignore: cast_nullable_to_non_nullable
 as bool,cloudTtsEnabled: null == cloudTtsEnabled ? _self.cloudTtsEnabled : cloudTtsEnabled // ignore: cast_nullable_to_non_nullable
+as bool,pageImageValidationEnabled: null == pageImageValidationEnabled ? _self.pageImageValidationEnabled : pageImageValidationEnabled // ignore: cast_nullable_to_non_nullable
 as bool,effectiveProgressTrackingEnabled: null == effectiveProgressTrackingEnabled ? _self.effectiveProgressTrackingEnabled : effectiveProgressTrackingEnabled // ignore: cast_nullable_to_non_nullable
 as bool,effectiveCloudTtsEnabled: null == effectiveCloudTtsEnabled ? _self.effectiveCloudTtsEnabled : effectiveCloudTtsEnabled // ignore: cast_nullable_to_non_nullable
+as bool,effectivePageImageValidationEnabled: null == effectivePageImageValidationEnabled ? _self.effectivePageImageValidationEnabled : effectivePageImageValidationEnabled // ignore: cast_nullable_to_non_nullable
 as bool,lastActiveAt: null == lastActiveAt ? _self.lastActiveAt : lastActiveAt // ignore: cast_nullable_to_non_nullable
 as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,counts: null == counts ? _self.counts : counts // ignore: cast_nullable_to_non_nullable

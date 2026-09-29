@@ -15,7 +15,7 @@ from app.models import (
 from app.repositories import stories as stories_repo
 from app.schemas import CreateStoryRequest
 
-POLICY_VERSION = "2026-08-28"
+POLICY_VERSION = "2026-09-26"
 
 
 def _uid_from_headers(headers):

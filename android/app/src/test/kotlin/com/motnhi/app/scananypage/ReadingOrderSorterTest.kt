@@ -63,6 +63,18 @@ class ReadingOrderSorterTest {
         )
     }
 
+    @Test
+    fun normalizesAndClipsOcrCoordinatesForFlutterPage() {
+        val line = RecognizedTextLine(
+            "Hello", TextLineBox(left = 20, top = 10, right = 120, bottom = 60),
+        )
+        assertEquals(
+            mapOf("text" to "Hello", "left" to 0.1, "top" to 0.1,
+                "width" to 0.5, "height" to 0.5),
+            ReadingOrderSorter.normalizedLine(line, width = 200, height = 100),
+        )
+    }
+
     private fun line(
         text: String,
         left: Int,
@@ -70,6 +82,6 @@ class ReadingOrderSorterTest {
         bottom: Int,
     ): RecognizedTextLine = RecognizedTextLine(
         text = text,
-        box = TextLineBox(left = left, top = top, bottom = bottom),
+        box = TextLineBox(left = left, top = top, right = left + 100, bottom = bottom),
     )
 }

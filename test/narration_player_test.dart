@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:storybook_ar/core/di.dart';
 import 'package:storybook_ar/data/models/models.dart';
 import 'package:storybook_ar/data/sources/api_client.dart';
+import 'package:storybook_ar/data/sources/asset_url_resolver.dart';
 import 'package:storybook_ar/data/sources/key_value_store.dart';
 import 'package:storybook_ar/features/player/narration_audio_fetcher.dart';
 import 'package:storybook_ar/features/player/narration_player.dart';
@@ -29,13 +30,19 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('no fallback when every segment has a resolved URL', () {
-    final segs = [_seg('a', audioAssetId: 'aud_a'), _seg('b', audioAssetId: 'aud_b')];
+    final segs = [
+      _seg('a', audioAssetId: 'aud_a'),
+      _seg('b', audioAssetId: 'aud_b')
+    ];
     final urls = {'aud_a': 'http://x/a', 'aud_b': 'http://x/b'};
     expect(NarrationPlayer.computeTtsFallback(segs, urls, const {}), isFalse);
   });
 
   test('fallback when a segment has an asset id but no resolved URL', () {
-    final segs = [_seg('a', audioAssetId: 'aud_a'), _seg('b', audioAssetId: 'aud_b')];
+    final segs = [
+      _seg('a', audioAssetId: 'aud_a'),
+      _seg('b', audioAssetId: 'aud_b')
+    ];
     final urls = {'aud_a': 'http://x/a'}; // aud_b unresolved
     expect(NarrationPlayer.computeTtsFallback(segs, urls, const {}), isTrue);
   });
@@ -52,7 +59,8 @@ void main() {
 
   test('fallback for an all-TTS page (no asset ids anywhere)', () {
     final segs = [_seg('a'), _seg('b')]; // neither has an audioAssetId
-    expect(NarrationPlayer.computeTtsFallback(segs, const {}, const {}), isTrue);
+    expect(
+        NarrationPlayer.computeTtsFallback(segs, const {}, const {}), isTrue);
   });
 
   test('no fallback when a fetched clip covers a segment with no asset id', () {
@@ -120,6 +128,52 @@ void main() {
     expect(player.usingTtsFallback.value, isTrue);
   });
 
+  test('load buffers the first resolved clip before Play', () async {
+    final audio = _StubAudioPlayer();
+    final player = NarrationPlayer(
+      filePlayer: audio,
+      tts: _StubTts(),
+      resolver: _FixedResolver(),
+    );
+    addTearDown(player.dispose);
+
+    await player.load([_seg('a', audioAssetId: 'aud_a')]);
+
+    expect(audio.loadedUrls, ['http://example.test/a']);
+    expect(player.isLoading.value, isFalse);
+    expect(player.usingTtsFallback.value, isFalse);
+
+    await player.play();
+    expect(audio.loadedUrls, hasLength(1),
+        reason: 'Play must reuse the already-buffered clip');
+    expect(audio.seeks, 1);
+  });
+
+  test('a stale clip preload cannot replace the next page audio', () async {
+    final audio = _DelayedAudioPlayer();
+    final player = NarrationPlayer(
+      filePlayer: audio,
+      tts: _StubTts(),
+      resolver: _FixedResolver(),
+    );
+    addTearDown(player.dispose);
+
+    final oldLoad = player.load([_seg('a', audioAssetId: 'aud_a')]);
+    await audio.firstStarted.future;
+    final newLoad = player.load([_seg('b', audioAssetId: 'aud_b')]);
+    await Future<void>.delayed(Duration.zero);
+    expect(audio.loadedUrls, ['http://example.test/a']);
+
+    audio.finishFirst.complete();
+    await Future.wait([oldLoad, newLoad]);
+    expect(audio.loadedUrls, [
+      'http://example.test/a',
+      'http://example.test/b',
+    ]);
+    await player.play();
+    expect(audio.loadedUrls, hasLength(2));
+  });
+
   test('consent-disabled authored stories receive no HTTP fetcher', () async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(overrides: [
@@ -166,29 +220,49 @@ class _ControllableFetcher implements NarrationAudioFetcher {
 
   @override
   Future<String?> pathFor(NarrationSegment segment) {
-    return _pending
-        .putIfAbsent(segment.id, Completer<String?>.new)
-        .future;
+    return _pending.putIfAbsent(segment.id, Completer<String?>.new).future;
   }
 
   @override
   Future<void> dispose() async {}
 }
 
+class _FixedResolver implements AssetUrlResolver {
+  @override
+  Future<Map<String, String>> resolve(List<String> assetIds) async => {
+        for (final id in assetIds)
+          id: 'http://example.test/${id.substring('aud_'.length)}',
+      };
+}
+
 /// Overrides everything [NarrationPlayer] touches so no real platform call is
 /// made. The superclass constructor still runs, hence ensureInitialized above.
 class _StubAudioPlayer extends AudioPlayer {
+  final List<String> loadedUrls = [];
+  int seeks = 0;
+
+  @override
+  Stream<bool> get playingStream => Stream.value(true);
+
+  @override
+  Stream<ProcessingState> get processingStateStream =>
+      Stream.value(ProcessingState.completed);
+
   @override
   Future<Duration?> setUrl(String url,
-          {Map<String, String>? headers,
-          Duration? initialPosition,
-          bool preload = true,
-          dynamic tag}) async =>
-      Duration.zero;
+      {Map<String, String>? headers,
+      Duration? initialPosition,
+      bool preload = true,
+      dynamic tag}) async {
+    loadedUrls.add(url);
+    return Duration.zero;
+  }
 
   @override
   Future<Duration?> setFilePath(String filePath,
-          {Duration? initialPosition, bool preload = true, dynamic tag}) async =>
+          {Duration? initialPosition,
+          bool preload = true,
+          dynamic tag}) async =>
       Duration.zero;
 
   @override
@@ -201,7 +275,31 @@ class _StubAudioPlayer extends AudioPlayer {
   Future<void> pause() async {}
 
   @override
+  Future<void> seek(Duration? position, {int? index}) async {
+    seeks++;
+  }
+
+  @override
   Future<void> dispose() async {}
+}
+
+class _DelayedAudioPlayer extends _StubAudioPlayer {
+  final firstStarted = Completer<void>();
+  final finishFirst = Completer<void>();
+
+  @override
+  Future<Duration?> setUrl(String url,
+      {Map<String, String>? headers,
+      Duration? initialPosition,
+      bool preload = true,
+      dynamic tag}) async {
+    loadedUrls.add(url);
+    if (!firstStarted.isCompleted) {
+      firstStarted.complete();
+      await finishFirst.future;
+    }
+    return Duration.zero;
+  }
 }
 
 class _StubTts extends FlutterTts {

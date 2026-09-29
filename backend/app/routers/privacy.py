@@ -24,8 +24,10 @@ def _build_response(db: Session, user_id: str) -> PrivacyStateResponse:
         core_storage_accepted_at=settings.core_storage_accepted_at,
         progress_tracking_enabled=settings.progress_tracking_enabled,
         cloud_tts_enabled=settings.cloud_tts_enabled,
+        page_image_validation_enabled=settings.page_image_validation_enabled,
         effective_progress_tracking_enabled=privacy_service.effective_progress(settings),
         effective_cloud_tts_enabled=privacy_service.effective_cloud_tts(settings),
+        effective_page_image_validation_enabled=privacy_service.effective_page_image_validation(settings),
         last_active_at=settings.last_active_at,
         updated_at=settings.updated_at,
         counts=privacy_repo.data_counts(db, user_id),
@@ -59,6 +61,7 @@ def update_privacy_state(
             core_storage_accepted=body.core_storage_accepted,
             progress_tracking_enabled=body.progress_tracking_enabled,
             cloud_tts_enabled=body.cloud_tts_enabled,
+            page_image_validation_enabled=body.page_image_validation_enabled,
         )
         db.commit()
     except privacy_service.PrivacyError as error:

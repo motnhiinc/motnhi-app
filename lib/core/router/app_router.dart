@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/dashboard/parent_dashboard_screen.dart';
 import '../../features/library/child_home_screen.dart';
+import '../../features/library/browse_stories_screen.dart';
 import '../../features/library/my_books_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
@@ -23,6 +24,7 @@ import '../../features/story_detail/story_detail_screen.dart';
 abstract final class AppRoutes {
   static const onboarding = '/onboarding';
   static const home = '/home';
+  static const browseStories = '/stories';
   static const myBooks = '/my-books';
   static const gate = '/gate';
   static const parent = '/parent';
@@ -95,6 +97,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const ChildHomeScreen(),
       ),
       GoRoute(
+        path: AppRoutes.browseStories,
+        builder: (_, _) => const BrowseStoriesScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.myBooks,
         builder: (_, _) => const MyBooksScreen(),
       ),
@@ -120,8 +126,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.gate,
         builder: (_, state) => ParentalGateScreen(
-          redirectTo:
-              state.uri.queryParameters['redirect'] ?? AppRoutes.parent,
+          redirectTo: state.uri.queryParameters['redirect'] ?? AppRoutes.parent,
         ),
       ),
       GoRoute(

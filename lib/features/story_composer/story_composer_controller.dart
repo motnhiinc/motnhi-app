@@ -64,8 +64,14 @@ class StoryComposerState {
   }
 
   @override
-  int get hashCode => Object.hash(phase, draft, failureCode, savedStoryId,
-      disclosureAcknowledged, disclosurePending);
+  int get hashCode => Object.hash(
+    phase,
+    draft,
+    failureCode,
+    savedStoryId,
+    disclosureAcknowledged,
+    disclosurePending,
+  );
 }
 
 const _unset = Object();
@@ -86,9 +92,9 @@ class StoryComposerController extends Notifier<StoryComposerState> {
     required ScanService scanService,
     required AuthoredStoryRepository repository,
     required String languageCode,
-  })  : _scanService = scanService,
-        _repository = repository,
-        _languageCode = languageCode;
+  }) : _scanService = scanService,
+       _repository = repository,
+       _languageCode = languageCode;
 
   final ScanService _scanService;
   final AuthoredStoryRepository _repository;
@@ -110,8 +116,9 @@ class StoryComposerController extends Notifier<StoryComposerState> {
   void setTitle(String title) =>
       state = state.copyWith(draft: state.draft.copyWith(title: title));
 
-  void setLanguage(String languageCode) => state =
-      state.copyWith(draft: state.draft.copyWith(languageCode: languageCode));
+  void setLanguage(String languageCode) => state = state.copyWith(
+    draft: state.draft.copyWith(languageCode: languageCode),
+  );
 
   void editPageText(String localId, String text) {
     final pages = [
@@ -133,11 +140,11 @@ class StoryComposerController extends Notifier<StoryComposerState> {
       failureCode: null,
     );
     try {
-      final text = await _scanService.scanAndRecognize();
+      final page = await _scanService.scanAndRecognize();
       if (!_isCurrent(generation)) return;
       final pages = [
         ...state.draft.pages,
-        DraftPage(localId: 'p${_nextLocalId++}', text: text),
+        DraftPage(localId: 'p${_nextLocalId++}', text: page.joinedText),
       ];
       state = state.copyWith(
         phase: StoryComposerPhase.editing,
@@ -169,14 +176,13 @@ class StoryComposerController extends Notifier<StoryComposerState> {
   /// Parent confirmed the cloud-storage disclosure for this flow. Never
   /// persisted — a fresh flow asks again.
   void acknowledgeDisclosure() => state = state.copyWith(
-        disclosureAcknowledged: true,
-        disclosurePending: false,
-        failureCode: null,
-      );
+    disclosureAcknowledged: true,
+    disclosurePending: false,
+    failureCode: null,
+  );
 
   /// Parent cancelled the disclosure; the draft stays as-is.
-  void cancelDisclosure() =>
-      state = state.copyWith(disclosurePending: false);
+  void cancelDisclosure() => state = state.copyWith(disclosurePending: false);
 
   Future<void> save() async {
     if (!state.draft.isSaveable) return;
@@ -188,10 +194,7 @@ class StoryComposerController extends Notifier<StoryComposerState> {
       return;
     }
     final generation = ++_generation;
-    state = state.copyWith(
-      phase: StoryComposerPhase.saving,
-      failureCode: null,
-    );
+    state = state.copyWith(phase: StoryComposerPhase.saving, failureCode: null);
     try {
       final story = await _repository.createStory(state.draft);
       if (!_isCurrent(generation)) return;

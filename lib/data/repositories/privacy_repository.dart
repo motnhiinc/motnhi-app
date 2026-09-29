@@ -10,6 +10,7 @@ abstract interface class PrivacyRepository {
     required bool coreStorageAccepted,
     required bool progressTrackingEnabled,
     required bool cloudTtsEnabled,
+    required bool pageImageValidationEnabled,
   });
 
   /// Records that the child used the app (keeps [PrivacyState.lastActiveAt]

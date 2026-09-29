@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models import PrivacySettings, User
 from app.repositories import privacy as privacy_repo
 
-CURRENT_PRIVACY_POLICY_VERSION = "2026-08-28"
+CURRENT_PRIVACY_POLICY_VERSION = "2026-09-26"
 
 
 class PrivacyError(Exception):
@@ -59,6 +59,14 @@ def effective_cloud_tts(settings: PrivacySettings | None) -> bool:
     )
 
 
+def effective_page_image_validation(settings: PrivacySettings | None) -> bool:
+    return bool(
+        settings
+        and settings.accepted_policy_version == CURRENT_PRIVACY_POLICY_VERSION
+        and settings.page_image_validation_enabled
+    )
+
+
 def require_core_storage(settings: PrivacySettings | None) -> None:
     if (
         settings is None
@@ -77,6 +85,12 @@ def require_cloud_tts(settings: PrivacySettings | None) -> None:
         raise PrivacyError(403, "cloud_tts_disabled")
 
 
+def require_page_reading(settings: PrivacySettings | None) -> None:
+    require_cloud_tts(settings)
+    if not effective_page_image_validation(settings):
+        raise PrivacyError(403, "page_image_validation_disabled")
+
+
 def update_settings(
     db: Session,
     user_id: str,
@@ -85,6 +99,7 @@ def update_settings(
     core_storage_accepted: bool,
     progress_tracking_enabled: bool,
     cloud_tts_enabled: bool,
+    page_image_validation_enabled: bool,
 ) -> PrivacySettings:
     if (
         policy_version != CURRENT_PRIVACY_POLICY_VERSION
@@ -103,6 +118,9 @@ def update_settings(
         settings.progress_tracking_enabled != progress_tracking_enabled
     )
     cloud_tts_changed = settings.cloud_tts_enabled != cloud_tts_enabled
+    page_image_validation_changed = (
+        settings.page_image_validation_enabled != page_image_validation_enabled
+    )
 
     if accepts_new_policy:
         settings.core_storage_accepted_at = now
@@ -110,6 +128,7 @@ def update_settings(
             ("core_storage", True),
             ("progress_tracking", progress_tracking_enabled),
             ("cloud_tts", cloud_tts_enabled),
+            ("page_image_validation", page_image_validation_enabled),
         )
     else:
         events = []
@@ -117,10 +136,13 @@ def update_settings(
             events.append(("progress_tracking", progress_tracking_enabled))
         if cloud_tts_changed:
             events.append(("cloud_tts", cloud_tts_enabled))
+        if page_image_validation_changed:
+            events.append(("page_image_validation", page_image_validation_enabled))
 
     settings.accepted_policy_version = policy_version
     settings.progress_tracking_enabled = progress_tracking_enabled
     settings.cloud_tts_enabled = cloud_tts_enabled
+    settings.page_image_validation_enabled = page_image_validation_enabled
     settings.last_active_at = now
     settings.updated_at = now
 

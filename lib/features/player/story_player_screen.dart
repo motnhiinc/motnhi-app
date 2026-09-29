@@ -90,6 +90,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   ArReaderDiagnostic? _arSupportDiagnostic;
   bool _arBusy = false;
   bool _suppressNextAutoplay = false;
+  bool _autoAdvanceArmed = false;
+  final Set<String> _answeredQuestionIds = {};
 
   /// Registered into liveResourceDisposersProvider while an AR preparation is
   /// in flight (Task 20): child-data cleanup awaits it before deleting owned
@@ -113,6 +115,9 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       resolver: ref.read(assetUrlResolverProvider),
       fetcher: _fetcher,
     );
+    // First-page session setup happens before load(); Play must not see an
+    // empty segment list while that setup is still in flight.
+    _player.isLoading.value = true;
     _tracker = ReadingSessionTracker(
       repository: ref.read(sessionRepositoryProvider),
       trackingEnabled: ref.read(effectiveProgressTrackingProvider),
@@ -184,10 +189,12 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
 
     await _tracker.pageViewed(pageId: page.id, pageNumber: page.pageNumber);
     if (!mounted || generation != _loadGeneration) return;
+    _autoAdvanceArmed = autoplay;
     if (autoplay) await _player.play();
   }
 
   void _onPageChanged(int index) {
+    _autoAdvanceArmed = false;
     setState(() => _pageIndex = index);
     // Suppressed for exactly one turn when returning from AR, so the app does
     // not immediately re-narrate the page the character just finished reading.
@@ -287,8 +294,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
         // clip written there fails containment and AR returns audio_missing. This is
         // the same platform split main.dart already applies to TTS; on iOS the
         // provider is null and systemTemp (NSTemporaryDirectory) is correct.
-        directory:
-            ref.read(ttsTemporaryDirectoryProvider)?.call() ?? Directory.systemTemp,
+        directory: ref.read(ttsTemporaryDirectoryProvider)?.call() ??
+            Directory.systemTemp,
         initialPageIndex: _pageIndex,
       );
 
@@ -302,7 +309,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       _arLiveDisposer = disposer;
       liveDisposers.add(disposer);
 
-      final result = await showArPreparingDialog(context, controller: controller);
+      final result =
+          await showArPreparingDialog(context, controller: controller);
       if (!mounted) return;
 
       if (result == null) {
@@ -415,11 +423,13 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
   }
 
   void _onMaybeComplete() {
-    if (_player.isComplete.value &&
-        _pageIndex == _pages.length - 1 &&
-        !_storyCompleted) {
+    if (!_player.isComplete.value || !mounted) return;
+    if (_pageIndex == _pages.length - 1 && !_storyCompleted) {
       _storyCompleted = true;
       _completeStory();
+    } else if (_autoAdvanceArmed && ref.read(autoAdvancePagesProvider)) {
+      _autoAdvanceArmed = false;
+      _goToPage(_pageIndex + 1);
     }
   }
 
@@ -432,7 +442,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       context,
       ref,
       detail: widget.detail,
-      onAnswered: _tracker.questionAnswered,
+      answeredQuestionIds: _answeredQuestionIds,
+      onAnswered: _recordAnswer,
     );
     if (!mounted) return;
     await showDialog<void>(
@@ -451,6 +462,21 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _recordAnswer({
+    required String pageId,
+    required String questionId,
+    required String answerId,
+    required bool isCorrect,
+  }) async {
+    _answeredQuestionIds.add(questionId);
+    await _tracker.questionAnswered(
+      pageId: pageId,
+      questionId: questionId,
+      answerId: answerId,
+      isCorrect: isCorrect,
     );
   }
 
@@ -498,8 +524,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                         color: t.paper,
                         border: Border.all(color: t.line),
                       ),
-                      child:
-                          Icon(Icons.arrow_back_rounded, size: 20, color: t.ink),
+                      child: Icon(Icons.arrow_back_rounded,
+                          size: 20, color: t.ink),
                     ),
                   ),
                   Expanded(
@@ -604,13 +630,33 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
             onPrev: () => _goToPage(_pageIndex - 1),
             onNext: () => _goToPage(_pageIndex + 1),
             onAr: _openArReader,
-            onQuestions: () => showPageQuestions(
-              context,
-              ref,
-              detail: widget.detail,
-              pageId: page.id,
-              onAnswered: _tracker.questionAnswered,
-            ),
+            onPlay: () {
+              _autoAdvanceArmed = true;
+              _player.play();
+            },
+            onPause: () {
+              _autoAdvanceArmed = false;
+              _player.pause();
+            },
+            onReplay: () {
+              _autoAdvanceArmed = true;
+              _player.replay();
+            },
+            onQuestions: () async {
+              final pageId = page.id;
+              final detail = widget.detail;
+              final questionContext = context;
+              _autoAdvanceArmed = false;
+              await _player.pause();
+              if (!questionContext.mounted) return;
+              await showPageQuestions(
+                questionContext,
+                ref,
+                detail: detail,
+                pageId: pageId,
+                onAnswered: _recordAnswer,
+              );
+            },
           ),
         ],
       ),
@@ -656,8 +702,7 @@ class _StoryPageView extends StatelessWidget {
           if (hasArSurprise)
             Container(
               margin: const EdgeInsets.only(top: 14),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
                 color: t.gold.withValues(alpha: .32),
                 borderRadius: BorderRadius.circular(999),
@@ -665,9 +710,7 @@ class _StoryPageView extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('✦',
-                      style: TextStyle(
-                          fontSize: 13, color: t.coralDeep)),
+                  Text('✦', style: TextStyle(fontSize: 13, color: t.coralDeep)),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
@@ -729,8 +772,7 @@ class _PageIllustration extends StatelessWidget {
           ),
         ),
         child: Center(
-          child: Text('✦',
-              style: TextStyle(fontSize: 44, color: t.lavender)),
+          child: Text('✦', style: TextStyle(fontSize: 44, color: t.lavender)),
         ),
       );
 }
@@ -746,6 +788,9 @@ class _PlayerControls extends StatelessWidget {
     required this.onNext,
     required this.onAr,
     required this.onQuestions,
+    required this.onPlay,
+    required this.onPause,
+    required this.onReplay,
   });
 
   final NarrationPlayer player;
@@ -757,6 +802,9 @@ class _PlayerControls extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onAr;
   final VoidCallback onQuestions;
+  final VoidCallback onPlay;
+  final VoidCallback onPause;
+  final VoidCallback onReplay;
 
   @override
   Widget build(BuildContext context) {
@@ -798,7 +846,7 @@ class _PlayerControls extends StatelessWidget {
                 circle(
                   icon: Icons.replay_rounded,
                   tooltip: s.replayPage,
-                  onTap: player.replay,
+                  onTap: onReplay,
                 ),
                 circle(
                   icon: Icons.chevron_left_rounded,
@@ -808,14 +856,17 @@ class _PlayerControls extends StatelessWidget {
                 ValueListenableBuilder<bool>(
                   valueListenable: player.isLoading,
                   builder: (_, loading, _) => ValueListenableBuilder<bool>(
-                    valueListenable: player.isPlaying,
-                    builder: (_, playing, _) => BigPlayButton(
-                      isPlaying: playing,
-                      // Disabled while a clip is being fetched: a tap here would
-                      // otherwise start device TTS a moment before it lands.
-                      onPressed: loading
-                          ? null
-                          : () => playing ? player.pause() : player.play(),
+                    valueListenable: player.isStarting,
+                    builder: (_, starting, _) => ValueListenableBuilder<bool>(
+                      valueListenable: player.isPlaying,
+                      builder: (_, playing, _) => BigPlayButton(
+                        isPlaying: playing,
+                        isLoading: loading || starting,
+                        loadingLabel: s.preparingAudio,
+                        onPressed: loading
+                            ? null
+                            : () => playing || starting ? onPause() : onPlay(),
+                      ),
                     ),
                   ),
                 ),

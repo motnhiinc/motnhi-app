@@ -38,8 +38,10 @@ void main() {
     final store = await KeyValueStore.create();
 
     final (dio, _) = _mockDio((a) {
-      a.onPost('/v1/auth/device',
-          (s) => s.reply(200, {'token': 't0k', 'user_id': 'u1'}));
+      a.onPost(
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 't0k', 'user_id': 'u1'}),
+      );
       a.onGet('/v1/stories', (s) => s.reply(200, {'stories': []}));
     });
 
@@ -162,143 +164,149 @@ void main() {
   });
 
   test(
-      'ApiClient.send() on 401: clears token, re-mints with stored secret, retries',
-      () async {
-    // Pre-seed: device exists with expired token + stored secret.
-    SharedPreferences.setMockInitialValues({
-      'device_id': 'existing-device',
-      'auth_token': 'expired-token',
-      'device_secret': 'my-secret',
-    });
-    final store = await KeyValueStore.create();
+    'ApiClient.send() on 401: clears token, re-mints with stored secret, retries',
+    () async {
+      // Pre-seed: device exists with expired token + stored secret.
+      SharedPreferences.setMockInitialValues({
+        'device_id': 'existing-device',
+        'auth_token': 'expired-token',
+        'device_secret': 'my-secret',
+      });
+      final store = await KeyValueStore.create();
 
-    // authDio: handles re-mint
-    final (authDio, _) = _mockDio((a) {
-      a.onPost(
-        '/v1/auth/device',
-        (s) => s.reply(200, {'token': 'new-token', 'user_id': 'u1'}),
-      );
-    });
+      // authDio: handles re-mint
+      final (authDio, _) = _mockDio((a) {
+        a.onPost(
+          '/v1/auth/device',
+          (s) => s.reply(200, {'token': 'new-token', 'user_id': 'u1'}),
+        );
+      });
 
-    // apiDio: stateful adapter — first call 401, second call 200
-    var apiCallCount = 0;
-    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
-    apiDio.httpClientAdapter = _CallCountAdapter(
-      onFetch: (opts) {
-        apiCallCount++;
-        if (apiCallCount == 1) {
+      // apiDio: stateful adapter — first call 401, second call 200
+      var apiCallCount = 0;
+      final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+      apiDio.httpClientAdapter = _CallCountAdapter(
+        onFetch: (opts) {
+          apiCallCount++;
+          if (apiCallCount == 1) {
+            return ResponseBody.fromString(
+              jsonEncode({'detail': 'expired'}),
+              401,
+              headers: {
+                Headers.contentTypeHeader: [Headers.jsonContentType],
+              },
+            );
+          }
           return ResponseBody.fromString(
-            jsonEncode({'detail': 'expired'}),
-            401,
+            jsonEncode({'stories': []}),
+            200,
             headers: {
               Headers.contentTypeHeader: [Headers.jsonContentType],
             },
           );
-        }
-        return ResponseBody.fromString(
-          jsonEncode({'stories': []}),
-          200,
-          headers: {
-            Headers.contentTypeHeader: [Headers.jsonContentType],
-          },
-        );
-      },
-    );
+        },
+      );
 
-    final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
+      final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
 
-    // send() handles the 401 → re-mint → retry cycle
-    final resp = await api.send(() => api.dio.get('/v1/stories'));
-    expect(resp.statusCode, 200);
-    expect(store.getString('auth_token'), 'new-token');
-    expect(store.getString('device_secret'), 'my-secret');
-    expect(apiCallCount, 2); // called twice: first 401, then retry 200
-  });
+      // send() handles the 401 → re-mint → retry cycle
+      final resp = await api.send(() => api.dio.get('/v1/stories'));
+      expect(resp.statusCode, 200);
+      expect(store.getString('auth_token'), 'new-token');
+      expect(store.getString('device_secret'), 'my-secret');
+      expect(apiCallCount, 2); // called twice: first 401, then retry 200
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // HttpStoryRepository (Task 14)
   // ---------------------------------------------------------------------------
 
   test(
-      'HttpStoryRepository.getLibrary recovers from 401: re-mints token and returns data',
-      () async {
-    // Pre-seed: device already registered with expired token + stored secret.
-    SharedPreferences.setMockInitialValues({
-      'device_id': 'existing-device',
-      'auth_token': 'expired-token',
-      'device_secret': 'my-secret',
-    });
-    final store = await KeyValueStore.create();
+    'HttpStoryRepository.getLibrary recovers from 401: re-mints token and returns data',
+    () async {
+      // Pre-seed: device already registered with expired token + stored secret.
+      SharedPreferences.setMockInitialValues({
+        'device_id': 'existing-device',
+        'auth_token': 'expired-token',
+        'device_secret': 'my-secret',
+      });
+      final store = await KeyValueStore.create();
 
-    // authDio: re-mint succeeds with new token.
-    final (authDio, _) = _mockDio((a) {
-      a.onPost(
-        '/v1/auth/device',
-        (s) => s.reply(200, {'token': 'new-token', 'user_id': 'u1'}),
-      );
-    });
+      // authDio: re-mint succeeds with new token.
+      final (authDio, _) = _mockDio((a) {
+        a.onPost(
+          '/v1/auth/device',
+          (s) => s.reply(200, {'token': 'new-token', 'user_id': 'u1'}),
+        );
+      });
 
-    // apiDio: first call 401, second call 200 with stories payload.
-    var apiCallCount = 0;
-    final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
-    apiDio.httpClientAdapter = _CallCountAdapter(
-      onFetch: (opts) {
-        apiCallCount++;
-        if (apiCallCount == 1) {
+      // apiDio: first call 401, second call 200 with stories payload.
+      var apiCallCount = 0;
+      final apiDio = Dio(BaseOptions(baseUrl: 'http://test'));
+      apiDio.httpClientAdapter = _CallCountAdapter(
+        onFetch: (opts) {
+          apiCallCount++;
+          if (apiCallCount == 1) {
+            return ResponseBody.fromString(
+              jsonEncode({'detail': 'token expired'}),
+              401,
+              headers: {
+                Headers.contentTypeHeader: [Headers.jsonContentType],
+              },
+            );
+          }
           return ResponseBody.fromString(
-            jsonEncode({'detail': 'token expired'}),
-            401,
+            jsonEncode({
+              'stories': [
+                {
+                  'id': 'story_bunny_forest',
+                  'title': 'Bunny and the Moon',
+                  'slug': 'bunny_and_the_moon',
+                  'age_min': 3,
+                  'age_max': 5,
+                  'language_code': 'en',
+                  'duration_seconds': 300,
+                  'content_status': 'published',
+                  'themes': ['animals', 'bedtime'],
+                  'is_downloaded': false,
+                  'is_unlocked': true,
+                },
+              ],
+            }),
+            200,
             headers: {
               Headers.contentTypeHeader: [Headers.jsonContentType],
             },
           );
-        }
-        return ResponseBody.fromString(
-          jsonEncode({
-            'stories': [
-              {
-                'id': 'story_bunny_forest',
-                'title': 'Bunny and the Moon',
-                'slug': 'bunny_and_the_moon',
-                'age_min': 3,
-                'age_max': 5,
-                'language_code': 'en',
-                'duration_seconds': 300,
-                'content_status': 'published',
-                'themes': ['animals', 'bedtime'],
-                'is_downloaded': false,
-                'is_unlocked': true
-              }
-            ]
-          }),
-          200,
-          headers: {
-            Headers.contentTypeHeader: [Headers.jsonContentType],
-          },
-        );
-      },
-    );
+        },
+      );
 
-    final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
-    final repo = HttpStoryRepository(api);
+      final api = ApiClient(dio: apiDio, store: store, authDio: authDio);
+      final repo = HttpStoryRepository(api);
 
-    final library = await repo.getLibrary();
+      final library = await repo.getLibrary();
 
-    expect(library.length, 1);
-    expect(library.single.id, 'story_bunny_forest');
-    expect(store.getString('auth_token'), 'new-token');
-    expect(apiCallCount, 2); // 401 then retry 200
-  });
+      expect(library.length, 1);
+      expect(library.single.id, 'story_bunny_forest');
+      expect(store.getString('auth_token'), 'new-token');
+      expect(apiCallCount, 2); // 401 then retry 200
+    },
+  );
 
   test('HttpStoryRepository.getStory returns null on 404', () async {
     SharedPreferences.setMockInitialValues({});
     final store = await KeyValueStore.create();
 
     final (dio, _) = _mockDio((a) {
-      a.onPost('/v1/auth/device',
-          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
-      a.onGet('/v1/stories/nonexistent',
-          (s) => s.reply(404, {'detail': 'not found'}));
+      a.onPost(
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 't', 'user_id': 'u'}),
+      );
+      a.onGet(
+        '/v1/stories/nonexistent',
+        (s) => s.reply(404, {'detail': 'not found'}),
+      );
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
@@ -313,27 +321,30 @@ void main() {
     final store = await KeyValueStore.create();
 
     final (dio, _) = _mockDio((a) {
-      a.onPost('/v1/auth/device',
-          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
+      a.onPost(
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 't', 'user_id': 'u'}),
+      );
       a.onGet(
-          '/v1/stories',
-          (s) => s.reply(200, {
-                'stories': [
-                  {
-                    'id': 'story_bunny_forest',
-                    'title': 'Bunny and the Moon',
-                    'slug': 'bunny_and_the_moon',
-                    'age_min': 3,
-                    'age_max': 5,
-                    'language_code': 'en',
-                    'duration_seconds': 300,
-                    'content_status': 'published',
-                    'themes': ['animals', 'bedtime'],
-                    'is_downloaded': false,
-                    'is_unlocked': true
-                  }
-                ]
-              }));
+        '/v1/stories',
+        (s) => s.reply(200, {
+          'stories': [
+            {
+              'id': 'story_bunny_forest',
+              'title': 'Bunny and the Moon',
+              'slug': 'bunny_and_the_moon',
+              'age_min': 3,
+              'age_max': 5,
+              'language_code': 'en',
+              'duration_seconds': 300,
+              'content_status': 'published',
+              'themes': ['animals', 'bedtime'],
+              'is_downloaded': false,
+              'is_unlocked': true,
+            },
+          ],
+        }),
+      );
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
@@ -359,20 +370,27 @@ void main() {
       'language_code': 'en',
       'bedtime_mode_default': false,
       'microphone_enabled': false,
-      'ar_enabled': true
+      'ar_enabled': true,
     };
 
     final (dio, _) = _mockDio((a) {
-      a.onPost('/v1/auth/device',
-          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
+      a.onPost(
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 't', 'user_id': 'u'}),
+      );
       a.onPost('/v1/child-profiles', (s) => s.reply(200, pjson));
       a.onGet('/v1/child-profiles', (s) => s.reply(200, [pjson]));
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
     final repo = HttpProfileRepository(api);
-    await repo.saveProfile(const ChildProfile(
-        id: 'p1', nickname: 'Bun', ageBand: AgeBand.threeToFour));
+    await repo.saveProfile(
+      const ChildProfile(
+        id: 'p1',
+        nickname: 'Bun',
+        ageBand: AgeBand.threeToFour,
+      ),
+    );
     final got = await repo.getProfile();
     expect(got!.nickname, 'Bun');
     expect(got.ageBand, AgeBand.threeToFour);
@@ -387,27 +405,31 @@ void main() {
     final store = await KeyValueStore.create();
 
     final (dio, _) = _mockDio((a) {
-      a.onPost('/v1/auth/device',
-          (s) => s.reply(200, {'token': 't', 'user_id': 'u'}));
       a.onPost(
-          '/v1/story-sessions',
-          (s) => s.reply(200, {
-                'id': 'sess1',
-                'child_profile_id': 'p1',
-                'story_id': 'story_bunny_forest',
-                'started_at': '2026-06-18T10:00:00Z',
-                'completed_at': null,
-                'last_page_number': 0,
-                'mode': 'bedtime'
-              }));
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 't', 'user_id': 'u'}),
+      );
+      a.onPost(
+        '/v1/story-sessions',
+        (s) => s.reply(200, {
+          'id': 'sess1',
+          'child_profile_id': 'p1',
+          'story_id': 'story_bunny_forest',
+          'started_at': '2026-06-18T10:00:00Z',
+          'completed_at': null,
+          'last_page_number': 0,
+          'mode': 'bedtime',
+        }),
+      );
     });
 
     final api = ApiClient(dio: dio, store: store, authDio: dio);
     final repo = HttpSessionRepository(api);
     final session = await repo.startSession(
-        childProfileId: 'p1',
-        storyId: 'story_bunny_forest',
-        mode: SessionMode.bedtime);
+      childProfileId: 'p1',
+      storyId: 'story_bunny_forest',
+      mode: SessionMode.bedtime,
+    );
     expect(session.id, 'sess1');
     expect(session.mode, SessionMode.bedtime);
   });
@@ -427,55 +449,64 @@ void main() {
     return ApiClient(dio: dio, store: store, authDio: dio);
   }
 
-  test('createStory posts contiguous page numbers taken from list order',
-      () async {
-    Map<String, dynamic>? captured;
-    final api = await authedApi((a) {
-      a.onPost(
-        '/v1/stories',
-        (s) => s.reply(201, {
-          'id': 'new-id',
-          'title': 'My Book',
-          'slug': 'authored-x',
-          'age_min': 3,
-          'age_max': 8,
-          'language_code': 'en',
-          'duration_seconds': 60,
-          'content_status': 'published',
-          'themes': <String>[],
-          'is_authored': true,
-        }),
-        data: Matchers.any,
+  test(
+    'createStory posts contiguous page numbers taken from list order',
+    () async {
+      Map<String, dynamic>? captured;
+      final api = await authedApi((a) {
+        a.onPost(
+          '/v1/stories',
+          (s) => s.reply(201, {
+            'id': 'new-id',
+            'title': 'My Book',
+            'slug': 'authored-x',
+            'age_min': 3,
+            'age_max': 8,
+            'language_code': 'en',
+            'duration_seconds': 60,
+            'content_status': 'published',
+            'themes': <String>[],
+            'is_authored': true,
+          }),
+          data: Matchers.any,
+        );
+      });
+      api.dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options.data as Map<String, dynamic>;
+            handler.next(options);
+          },
+        ),
       );
-    });
-    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      captured = options.data as Map<String, dynamic>;
-      handler.next(options);
-    }));
 
-    final story = await HttpAuthoredStoryRepository(api).createStory(
-      const StoryDraft(
-        title: '  My Book  ',
-        pages: [
-          DraftPage(localId: 'a', text: 'page one'),
-          DraftPage(localId: 'b', text: 'page two'),
-        ],
-      ),
-    );
+      final story = await HttpAuthoredStoryRepository(api).createStory(
+        const StoryDraft(
+          title: '  My Book  ',
+          pages: [
+            DraftPage(localId: 'a', text: 'page one'),
+            DraftPage(localId: 'b', text: 'page two'),
+          ],
+        ),
+      );
 
-    expect(captured!['title'], 'My Book');
-    expect(
-      (captured!['pages'] as List).map((p) => p['page_number']).toList(),
-      [1, 2],
-    );
-    expect(story.id, 'new-id');
-    expect(story.isAuthored, isTrue);
-  });
+      expect(captured!['title'], 'My Book');
+      expect(
+        (captured!['pages'] as List).map((p) => p['page_number']).toList(),
+        [1, 2],
+      );
+      expect(story.id, 'new-id');
+      expect(story.isAuthored, isTrue);
+    },
+  );
 
   test('createStory maps a 409 to quota_reached', () async {
     final api = await authedApi((a) {
-      a.onPost('/v1/stories', (s) => s.reply(409, {'detail': 'limit'}),
-          data: Matchers.any);
+      a.onPost(
+        '/v1/stories',
+        (s) => s.reply(409, {'detail': 'limit'}),
+        data: Matchers.any,
+      );
     });
 
     await expectLater(
@@ -485,15 +516,23 @@ void main() {
           pages: [DraftPage(localId: 'a', text: 'x')],
         ),
       ),
-      throwsA(isA<AuthoredStoryFailure>()
-          .having((e) => e.code, 'code', 'quota_reached')),
+      throwsA(
+        isA<AuthoredStoryFailure>().having(
+          (e) => e.code,
+          'code',
+          'quota_reached',
+        ),
+      ),
     );
   });
 
   test('createStory maps a 422 to invalid_story', () async {
     final api = await authedApi((a) {
-      a.onPost('/v1/stories', (s) => s.reply(422, {'detail': 'bad'}),
-          data: Matchers.any);
+      a.onPost(
+        '/v1/stories',
+        (s) => s.reply(422, {'detail': 'bad'}),
+        data: Matchers.any,
+      );
     });
 
     await expectLater(
@@ -503,8 +542,13 @@ void main() {
           pages: [DraftPage(localId: 'a', text: 'x')],
         ),
       ),
-      throwsA(isA<AuthoredStoryFailure>()
-          .having((e) => e.code, 'code', 'invalid_story')),
+      throwsA(
+        isA<AuthoredStoryFailure>().having(
+          (e) => e.code,
+          'code',
+          'invalid_story',
+        ),
+      ),
     );
   });
 
@@ -534,47 +578,52 @@ void main() {
   // HttpPrivacyRepository (Task 7 — privacy & consent)
   // ---------------------------------------------------------------------------
 
-  test('fetchPrivacy GETs /v1/privacy and decodes the snake_case payload',
-      () async {
-    final api = await authedApi((a) {
-      a.onGet(
+  test(
+    'fetchPrivacy GETs /v1/privacy and decodes the snake_case payload',
+    () async {
+      final api = await authedApi((a) {
+        a.onGet(
           '/v1/privacy',
           (s) => s.reply(200, {
-                'current_policy_version': '2026-09-01',
-                'accepted_policy_version': null,
-                'review_required': true,
-                'core_storage_accepted_at': null,
-                'progress_tracking_enabled': false,
-                'cloud_tts_enabled': true,
-                'effective_progress_tracking_enabled': false,
-                'effective_cloud_tts_enabled': true,
-                'last_active_at': '2026-09-01T10:00:00Z',
-                'updated_at': '2026-09-01T10:00:00Z',
-                'counts': {
-                  'child_profiles': 2,
-                  'authored_stories': 5,
-                  'story_sessions': 11,
-                  'interaction_events': 42,
-                },
-              }));
-    });
+            'current_policy_version': '2026-09-01',
+            'accepted_policy_version': null,
+            'review_required': true,
+            'core_storage_accepted_at': null,
+            'progress_tracking_enabled': false,
+            'cloud_tts_enabled': true,
+            'page_image_validation_enabled': false,
+            'effective_progress_tracking_enabled': false,
+            'effective_cloud_tts_enabled': true,
+            'effective_page_image_validation_enabled': false,
+            'last_active_at': '2026-09-01T10:00:00Z',
+            'updated_at': '2026-09-01T10:00:00Z',
+            'counts': {
+              'child_profiles': 2,
+              'authored_stories': 5,
+              'story_sessions': 11,
+              'interaction_events': 42,
+            },
+          }),
+        );
+      });
 
-    final state = await HttpPrivacyRepository(api).fetchPrivacy();
+      final state = await HttpPrivacyRepository(api).fetchPrivacy();
 
-    expect(state.currentPolicyVersion, '2026-09-01');
-    expect(state.acceptedPolicyVersion, isNull);
-    expect(state.reviewRequired, isTrue);
-    expect(state.progressTrackingEnabled, isFalse);
-    expect(state.cloudTtsEnabled, isTrue);
-    expect(state.effectiveProgressTrackingEnabled, isFalse);
-    expect(state.effectiveCloudTtsEnabled, isTrue);
-    expect(state.lastActiveAt, DateTime.parse('2026-09-01T10:00:00Z'));
-    expect(state.updatedAt, DateTime.parse('2026-09-01T10:00:00Z'));
-    expect(state.counts.childProfiles, 2);
-    expect(state.counts.authoredStories, 5);
-    expect(state.counts.storySessions, 11);
-    expect(state.counts.interactionEvents, 42);
-  });
+      expect(state.currentPolicyVersion, '2026-09-01');
+      expect(state.acceptedPolicyVersion, isNull);
+      expect(state.reviewRequired, isTrue);
+      expect(state.progressTrackingEnabled, isFalse);
+      expect(state.cloudTtsEnabled, isTrue);
+      expect(state.effectiveProgressTrackingEnabled, isFalse);
+      expect(state.effectiveCloudTtsEnabled, isTrue);
+      expect(state.lastActiveAt, DateTime.parse('2026-09-01T10:00:00Z'));
+      expect(state.updatedAt, DateTime.parse('2026-09-01T10:00:00Z'));
+      expect(state.counts.childProfiles, 2);
+      expect(state.counts.authoredStories, 5);
+      expect(state.counts.storySessions, 11);
+      expect(state.counts.interactionEvents, 42);
+    },
+  );
 
   test('updatePrivacy PUTs /v1/privacy with a snake_case body', () async {
     Map<String, dynamic>? captured;
@@ -588,8 +637,10 @@ void main() {
           'core_storage_accepted_at': '2026-09-01T10:00:00Z',
           'progress_tracking_enabled': false,
           'cloud_tts_enabled': true,
+          'page_image_validation_enabled': true,
           'effective_progress_tracking_enabled': false,
           'effective_cloud_tts_enabled': true,
+          'effective_page_image_validation_enabled': true,
           'last_active_at': '2026-09-01T10:00:00Z',
           'updated_at': '2026-09-01T10:00:00Z',
           'counts': {
@@ -602,16 +653,21 @@ void main() {
         data: Matchers.any,
       );
     });
-    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      captured = options.data as Map<String, dynamic>;
-      handler.next(options);
-    }));
+    api.dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          captured = options.data as Map<String, dynamic>;
+          handler.next(options);
+        },
+      ),
+    );
 
     final state = await HttpPrivacyRepository(api).updatePrivacy(
       policyVersion: '2026-09-01',
       coreStorageAccepted: true,
       progressTrackingEnabled: false,
       cloudTtsEnabled: true,
+      pageImageValidationEnabled: true,
     );
 
     expect(captured, {
@@ -619,6 +675,7 @@ void main() {
       'core_storage_accepted': true,
       'progress_tracking_enabled': false,
       'cloud_tts_enabled': true,
+      'page_image_validation_enabled': true,
     });
     expect(state.acceptedPolicyVersion, '2026-09-01');
     expect(state.reviewRequired, isFalse);
@@ -639,7 +696,9 @@ void main() {
     });
 
     await expectLater(
-        HttpPrivacyRepository(api).deleteReadingHistory(), completes);
+      HttpPrivacyRepository(api).deleteReadingHistory(),
+      completes,
+    );
   });
 
   test('deleteChildData DELETEs /v1/privacy/child-data', () async {
@@ -650,21 +709,28 @@ void main() {
     await expectLater(HttpPrivacyRepository(api).deleteChildData(), completes);
   });
 
-  test('structured errors decode FastAPI detail into the PrivacyFailure code',
-      () async {
-    final api = await authedApi((a) {
-      a.onGet(
+  test(
+    'structured errors decode FastAPI detail into the PrivacyFailure code',
+    () async {
+      final api = await authedApi((a) {
+        a.onGet(
           '/v1/privacy',
-          (s) =>
-              s.reply(422, {'detail': 'policy_version_required'}));
-    });
+          (s) => s.reply(422, {'detail': 'policy_version_required'}),
+        );
+      });
 
-    await expectLater(
-      HttpPrivacyRepository(api).fetchPrivacy(),
-      throwsA(isA<PrivacyFailure>()
-          .having((e) => e.code, 'code', 'policy_version_required')),
-    );
-  });
+      await expectLater(
+        HttpPrivacyRepository(api).fetchPrivacy(),
+        throwsA(
+          isA<PrivacyFailure>().having(
+            (e) => e.code,
+            'code',
+            'policy_version_required',
+          ),
+        ),
+      );
+    },
+  );
 
   test('connection failures map to network', () async {
     SharedPreferences.setMockInitialValues({
@@ -695,90 +761,138 @@ void main() {
     await expectLater(
       HttpPrivacyRepository(api).fetchPrivacy(),
       throwsA(
-          isA<PrivacyFailure>().having((e) => e.code, 'code', 'invalid_response')),
+        isA<PrivacyFailure>().having((e) => e.code, 'code', 'invalid_response'),
+      ),
     );
   });
 
-  test('deleteChildData surfaces PrivacyFailure with the server detail',
-      () async {
-    final api = await authedApi((a) {
-      a.onDelete('/v1/privacy/child-data', (s) => s.reply(500, {'detail': 'boom'}));
-    });
+  test(
+    'deleteChildData surfaces PrivacyFailure with the server detail',
+    () async {
+      final api = await authedApi((a) {
+        a.onDelete(
+          '/v1/privacy/child-data',
+          (s) => s.reply(500, {'detail': 'boom'}),
+        );
+      });
 
-    await expectLater(
-      HttpPrivacyRepository(api).deleteChildData(),
-      throwsA(isA<PrivacyFailure>().having((e) => e.code, 'code', 'boom')),
-    );
-  });
+      await expectLater(
+        HttpPrivacyRepository(api).deleteChildData(),
+        throwsA(isA<PrivacyFailure>().having((e) => e.code, 'code', 'boom')),
+      );
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // HttpSessionRepository — SessionFailure decoding (Task 11)
   // ---------------------------------------------------------------------------
 
-  test('startSession maps 403 progress_tracking_disabled to SessionFailure',
-      () async {
-    final api = await authedApi((a) {
-      a.onPost('/v1/story-sessions',
-          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
-    });
+  test(
+    'startSession maps 403 progress_tracking_disabled to SessionFailure',
+    () async {
+      final api = await authedApi((a) {
+        a.onPost(
+          '/v1/story-sessions',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}),
+        );
+      });
 
-    await expectLater(
-      HttpSessionRepository(api).startSession(
+      await expectLater(
+        HttpSessionRepository(api).startSession(
           childProfileId: 'p1',
           storyId: 'story_bunny_forest',
-          mode: SessionMode.bedtime),
-      throwsA(isA<SessionFailure>()
-          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
-    );
-  });
+          mode: SessionMode.bedtime,
+        ),
+        throwsA(
+          isA<SessionFailure>().having(
+            (e) => e.code,
+            'code',
+            'progress_tracking_disabled',
+          ),
+        ),
+      );
+    },
+  );
 
-  test('recordEvent maps a progress_tracking_disabled 403 to SessionFailure',
-      () async {
-    final api = await authedApi((a) {
-      a.onPost('/v1/story-sessions/sess1/events',
-          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
-    });
+  test(
+    'recordEvent maps a progress_tracking_disabled 403 to SessionFailure',
+    () async {
+      final api = await authedApi((a) {
+        a.onPost(
+          '/v1/story-sessions/sess1/events',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}),
+        );
+      });
 
-    await expectLater(
-      HttpSessionRepository(api).recordEvent(
-          sessionId: 'sess1', eventType: 'page_viewed', pageId: 'page1'),
-      throwsA(isA<SessionFailure>()
-          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
-    );
-  });
+      await expectLater(
+        HttpSessionRepository(api).recordEvent(
+          sessionId: 'sess1',
+          eventType: 'page_viewed',
+          pageId: 'page1',
+        ),
+        throwsA(
+          isA<SessionFailure>().having(
+            (e) => e.code,
+            'code',
+            'progress_tracking_disabled',
+          ),
+        ),
+      );
+    },
+  );
 
-  test('updateLastPage maps a progress_tracking_disabled 403 to SessionFailure',
-      () async {
-    final api = await authedApi((a) {
-      a.onPatch('/v1/story-sessions/sess1',
-          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
-    });
+  test(
+    'updateLastPage maps a progress_tracking_disabled 403 to SessionFailure',
+    () async {
+      final api = await authedApi((a) {
+        a.onPatch(
+          '/v1/story-sessions/sess1',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}),
+        );
+      });
 
-    await expectLater(
-      HttpSessionRepository(api).updateLastPage('sess1', 3),
-      throwsA(isA<SessionFailure>()
-          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
-    );
-  });
+      await expectLater(
+        HttpSessionRepository(api).updateLastPage('sess1', 3),
+        throwsA(
+          isA<SessionFailure>().having(
+            (e) => e.code,
+            'code',
+            'progress_tracking_disabled',
+          ),
+        ),
+      );
+    },
+  );
 
-  test('completeSession maps a progress_tracking_disabled 403 to SessionFailure',
-      () async {
-    final api = await authedApi((a) {
-      a.onPatch('/v1/story-sessions/sess1',
-          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}));
-    });
+  test(
+    'completeSession maps a progress_tracking_disabled 403 to SessionFailure',
+    () async {
+      final api = await authedApi((a) {
+        a.onPatch(
+          '/v1/story-sessions/sess1',
+          (s) => s.reply(403, {'detail': 'progress_tracking_disabled'}),
+        );
+      });
 
-    await expectLater(
-      HttpSessionRepository(api).completeSession('sess1'),
-      throwsA(isA<SessionFailure>()
-          .having((e) => e.code, 'code', 'progress_tracking_disabled')),
-    );
-  });
+      await expectLater(
+        HttpSessionRepository(api).completeSession('sess1'),
+        throwsA(
+          isA<SessionFailure>().having(
+            (e) => e.code,
+            'code',
+            'progress_tracking_disabled',
+          ),
+        ),
+      );
+    },
+  );
 
   test('session writes preserve non-consent upstream codes', () async {
     final api = await authedApi((a) {
-      a.onPatch('/v1/story-sessions/sess1',
-          (s) => s.reply(500, {'detail': 'boom'}));
+      a.onPatch(
+        '/v1/story-sessions/sess1',
+        (s) => s.reply(500, {'detail': 'boom'}),
+      );
     });
 
     await expectLater(
@@ -804,9 +918,10 @@ void main() {
 
     await expectLater(
       HttpSessionRepository(api).startSession(
-          childProfileId: 'p1',
-          storyId: 'story_bunny_forest',
-          mode: SessionMode.library),
+        childProfileId: 'p1',
+        storyId: 'story_bunny_forest',
+        mode: SessionMode.library,
+      ),
       throwsA(isA<SessionFailure>().having((e) => e.code, 'code', 'network')),
     );
   });
@@ -823,7 +938,6 @@ void main() {
     expect(pages.map((p) => p['page_number']).toList(), [1, 2]);
     expect(pages.first['page_text'], 'second');
   });
-
 }
 
 // ---------------------------------------------------------------------------
@@ -841,8 +955,7 @@ class _CallCountAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<dynamic>? requestStream,
     Future<dynamic>? cancelFuture,
-  ) async =>
-      await onFetch(options);
+  ) async => await onFetch(options);
 
   @override
   void close({bool force = false}) {}

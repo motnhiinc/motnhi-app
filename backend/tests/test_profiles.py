@@ -7,7 +7,7 @@ from app.auth import decode_token
 from app.models import ChildProfile, PrivacySettings
 from app.repositories import profiles as profiles_repo
 
-POLICY_VERSION = "2026-08-28"
+POLICY_VERSION = "2026-09-26"
 
 
 def _auth(client, device="p-dev"):

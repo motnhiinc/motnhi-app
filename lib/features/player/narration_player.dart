@@ -62,6 +62,7 @@ class NarrationPlayer {
   /// Index into [_segments] currently being spoken; -1 when idle.
   final ValueNotifier<int> currentSegmentIndex = ValueNotifier(-1);
   final ValueNotifier<bool> isPlaying = ValueNotifier(false);
+  final ValueNotifier<bool> isStarting = ValueNotifier(false);
   final ValueNotifier<bool> isComplete = ValueNotifier(false);
 
   /// True when any segment fell back to TTS — surfaced in the UI so it's never
@@ -80,7 +81,10 @@ class NarrationPlayer {
 
   int _cursor = 0;
   var _loadGeneration = 0;
+  var _runGeneration = 0;
   bool _running = false;
+  String? _preparedSegmentId;
+  Future<void> _preloadTail = Future.value();
   Completer<void>? _segmentInterrupt;
 
   /// The segment currently highlighted, if any.
@@ -108,6 +112,7 @@ class NarrationPlayer {
     _speedMultiplier = speedMultiplier;
     _languageCode = languageCode;
     _cursor = 0;
+    _preparedSegmentId = null;
     currentSegmentIndex.value = -1;
     isComplete.value = false;
     isLoading.value = true;
@@ -140,6 +145,38 @@ class NarrationPlayer {
       _pathBySegmentId = fetched;
       usingTtsFallback.value =
           computeTtsFallback(segments, _urlByAssetId, _pathBySegmentId);
+      // Buffer the first clip while the page is loading, before Play is tapped.
+      if (segments.isNotEmpty) {
+        final first = segments.first;
+        final url = first.hasAudioAsset ? urls[first.audioAssetId] : null;
+        final path = fetched[first.id];
+        if (url != null || path != null) {
+          // A page turn may begin while the previous setUrl is still pending.
+          // Serialize those native calls so an older page cannot win the race.
+          final previousPreload = _preloadTail;
+          final finished = Completer<void>();
+          _preloadTail = finished.future;
+          try {
+            await previousPreload;
+            if (generation != _loadGeneration) return;
+            if (url != null) {
+              await _file.setUrl(url);
+            } else {
+              await _file.setFilePath(path!);
+            }
+            if (generation != _loadGeneration) return;
+            _preparedSegmentId = first.id;
+          } catch (_) {
+            if (generation != _loadGeneration) return;
+            // A broken clip must not strand Play; use the device voice.
+            if (url != null) _urlByAssetId.remove(first.audioAssetId);
+            if (path != null) _pathBySegmentId.remove(first.id);
+            usingTtsFallback.value = true;
+          } finally {
+            finished.complete();
+          }
+        }
+      }
     } finally {
       if (generation == _loadGeneration) isLoading.value = false;
     }
@@ -162,26 +199,33 @@ class NarrationPlayer {
       isComplete.value = false;
     }
     _running = true;
-    isPlaying.value = true;
-    await _runLoop();
+    isStarting.value = true;
+    await _runLoop(++_runGeneration);
   }
 
-  Future<void> _runLoop() async {
-    while (_running && _cursor < _segments.length) {
+  Future<void> _runLoop(int generation) async {
+    while (_running &&
+        generation == _runGeneration &&
+        _cursor < _segments.length) {
       currentSegmentIndex.value = _cursor;
-      await _playSegment(_segments[_cursor]);
-      if (!_running) return; // paused mid-segment
+      await _playSegment(_segments[_cursor], generation);
+      if (!_running || generation != _runGeneration) return;
       _cursor++;
     }
-    if (_cursor >= _segments.length) {
+    if (_cursor >= _segments.length && generation == _runGeneration) {
+      // just_audio can remain in playing=true after reaching completed; pause
+      // before the next page is buffered so setUrl cannot start it early.
+      await _file.pause();
+      if (generation != _runGeneration) return;
       _running = false;
       isPlaying.value = false;
+      isStarting.value = false;
       isComplete.value = true;
       currentSegmentIndex.value = -1;
     }
   }
 
-  Future<void> _playSegment(NarrationSegment seg) async {
+  Future<void> _playSegment(NarrationSegment seg, int generation) async {
     _segmentInterrupt = Completer<void>();
     final interrupt = _segmentInterrupt!.future;
     final speed = (seg.speed * _speedMultiplier).clamp(0.5, 2.0);
@@ -191,18 +235,34 @@ class NarrationPlayer {
 
     if (url != null || path != null) {
       try {
-        if (url != null) {
+        if (_preparedSegmentId == seg.id) {
+          await _file.seek(Duration.zero);
+        } else if (url != null) {
           await _file.setUrl(url);
         } else {
           await _file.setFilePath(path!);
         }
+        if (!_running || generation != _runGeneration) return;
+        _preparedSegmentId = seg.id;
         await _file.setSpeed(speed);
+        if (!_running || generation != _runGeneration) return;
         final done = _file.processingStateStream
             .firstWhere((s) => s == ProcessingState.completed);
         unawaited(_file.play());
+        await Future.any([
+          _file.playingStream.firstWhere((playing) => playing),
+          interrupt,
+        ]);
+        if (!_running || generation != _runGeneration) {
+          await _file.pause();
+          return;
+        }
+        isStarting.value = false;
+        isPlaying.value = true;
         await Future.any([done, interrupt]);
         return;
       } catch (_) {
+        if (generation != _runGeneration) return;
         // A missing or corrupt clip must not leave the page silent. With one
         // segment per page, skipping here means no narration at all and, on the
         // last page, an instant completion dialog. Fall through to device TTS.
@@ -212,6 +272,9 @@ class NarrationPlayer {
     await _ensureTts();
     await _tts.setSpeechRate(_ttsRate(speed));
     await _tts.setPitch(_pitchFor(seg.speakerKey));
+    if (!_running || generation != _runGeneration) return;
+    isStarting.value = false;
+    isPlaying.value = true;
     // awaitSpeakCompletion(true) makes speak() resolve when finished/stopped.
     await Future.any([_tts.speak(seg.text), interrupt]);
   }
@@ -219,8 +282,10 @@ class NarrationPlayer {
   /// Pause playback, holding position at the current segment.
   Future<void> pause() async {
     if (!_running) return;
+    _runGeneration++;
     _running = false;
     isPlaying.value = false;
+    isStarting.value = false;
     await _interruptSegment();
   }
 
@@ -251,8 +316,10 @@ class NarrationPlayer {
   }
 
   Future<void> _haltLoop() async {
+    _runGeneration++;
     _running = false;
     isPlaying.value = false;
+    isStarting.value = false;
     await _interruptSegment();
   }
 
@@ -263,6 +330,7 @@ class NarrationPlayer {
     await _tts.stop();
     currentSegmentIndex.dispose();
     isPlaying.dispose();
+    isStarting.dispose();
     isComplete.dispose();
     usingTtsFallback.dispose();
     isLoading.dispose();

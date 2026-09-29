@@ -31,6 +31,7 @@ class HttpPrivacyRepository implements PrivacyRepository {
     required bool coreStorageAccepted,
     required bool progressTrackingEnabled,
     required bool cloudTtsEnabled,
+    required bool pageImageValidationEnabled,
   }) async {
     try {
       final resp = await _api.send(
@@ -41,6 +42,7 @@ class HttpPrivacyRepository implements PrivacyRepository {
             'core_storage_accepted': coreStorageAccepted,
             'progress_tracking_enabled': progressTrackingEnabled,
             'cloud_tts_enabled': cloudTtsEnabled,
+            'page_image_validation_enabled': pageImageValidationEnabled,
           },
         ),
       );
@@ -102,9 +104,7 @@ String _failureCode(DioException error) {
     case DioExceptionType.connectionError:
       return 'network';
     case DioExceptionType.unknown:
-      return error.error is SocketException
-          ? 'network'
-          : 'invalid_response';
+      return error.error is SocketException ? 'network' : 'invalid_response';
     case DioExceptionType.badCertificate:
     case DioExceptionType.badResponse:
     case DioExceptionType.cancel:

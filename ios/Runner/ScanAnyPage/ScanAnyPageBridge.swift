@@ -54,8 +54,22 @@ final class ScanAnyPageBridge {
         self?.isScanInProgress = false
         self?.activeScanner = nil
         switch scanResult {
-        case .success(let text):
-          result(["text": text])
+        case .success(let page):
+          result([
+            "imageBytes": FlutterStandardTypedData(bytes: page.jpeg),
+            "width": page.width,
+            "height": page.height,
+            "lines": page.lines.map { line in
+              let box = TextObservationSorter.topLeftNormalizedBox(line.boundingBox) ?? .zero
+              return [
+                "text": line.text,
+                "left": Double(box.minX),
+                "top": Double(1 - box.maxY),
+                "width": Double(box.width),
+                "height": Double(box.height),
+              ] as [String: Any]
+            },
+          ])
         case .failure(let failure):
           result(FlutterError(code: failure.rawValue, message: nil, details: nil))
         }

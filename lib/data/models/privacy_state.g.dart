@@ -33,10 +33,14 @@ _PrivacyState _$PrivacyStateFromJson(Map<String, dynamic> json) =>
       progressTrackingEnabled:
           json['progress_tracking_enabled'] as bool? ?? false,
       cloudTtsEnabled: json['cloud_tts_enabled'] as bool? ?? false,
+      pageImageValidationEnabled:
+          json['page_image_validation_enabled'] as bool? ?? false,
       effectiveProgressTrackingEnabled:
           json['effective_progress_tracking_enabled'] as bool? ?? false,
       effectiveCloudTtsEnabled:
           json['effective_cloud_tts_enabled'] as bool? ?? false,
+      effectivePageImageValidationEnabled:
+          json['effective_page_image_validation_enabled'] as bool? ?? false,
       lastActiveAt: DateTime.parse(json['last_active_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       counts: json['counts'] == null
@@ -53,9 +57,12 @@ Map<String, dynamic> _$PrivacyStateToJson(
   'core_storage_accepted_at': instance.coreStorageAcceptedAt?.toIso8601String(),
   'progress_tracking_enabled': instance.progressTrackingEnabled,
   'cloud_tts_enabled': instance.cloudTtsEnabled,
+  'page_image_validation_enabled': instance.pageImageValidationEnabled,
   'effective_progress_tracking_enabled':
       instance.effectiveProgressTrackingEnabled,
   'effective_cloud_tts_enabled': instance.effectiveCloudTtsEnabled,
+  'effective_page_image_validation_enabled':
+      instance.effectivePageImageValidationEnabled,
   'last_active_at': instance.lastActiveAt.toIso8601String(),
   'updated_at': instance.updatedAt.toIso8601String(),
   'counts': instance.counts.toJson(),

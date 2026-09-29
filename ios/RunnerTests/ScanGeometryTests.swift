@@ -3,6 +3,26 @@ import XCTest
 @testable import Runner
 
 final class ScanGeometryTests: XCTestCase {
+  func testVisionBoxConvertsToTopLeftNormalizedCoordinates() {
+    let box = TextObservationSorter.topLeftNormalizedBox(
+      CGRect(x: 0.1, y: 0.7, width: 0.8, height: 0.2)
+    )
+    XCTAssertNotNil(box)
+    XCTAssertEqual(box?.minX ?? -1, 0.1, accuracy: 0.0001)
+    XCTAssertEqual(box?.minY ?? -1, 0.1, accuracy: 0.0001)
+    XCTAssertEqual(box?.width ?? -1, 0.8, accuracy: 0.0001)
+    XCTAssertEqual(box?.height ?? -1, 0.2, accuracy: 0.0001)
+  }
+
+  func testRejectsInvalidOrOutOfBoundsVisionBoxes() {
+    XCTAssertNil(TextObservationSorter.topLeftNormalizedBox(
+      CGRect(x: 0.2, y: 0.7, width: 0.9, height: 0.2)
+    ))
+    XCTAssertNil(TextObservationSorter.topLeftNormalizedBox(
+      CGRect(x: 0.2, y: 0.2, width: 0, height: 0.2)
+    ))
+  }
+
   private enum Terminal: Equatable {
     case success
     case cancelled
@@ -131,5 +151,11 @@ final class ScanGeometryTests: XCTestCase {
     XCTAssertFalse(tracker.observe(quad, qualityAcceptable: true))
     XCTAssertFalse(tracker.observe(quad, qualityAcceptable: true))
     XCTAssertFalse(tracker.observe(quad, qualityAcceptable: true))
+  }
+
+  func testCameraCueFollowsPageDetectionAndSize() {
+    XCTAssertEqual(ScanGuidance.forPage(nil, minimumArea: 0.35), .findPage)
+    XCTAssertEqual(ScanGuidance.forPage(.unitInset(0.3), minimumArea: 0.35), .moveCloser)
+    XCTAssertEqual(ScanGuidance.forPage(.unitInset(0.1), minimumArea: 0.35), .holdStill)
   }
 }

@@ -42,6 +42,7 @@ with explicit choices enforced by both the Flutter client and backend.
 - Reading and questions without progress tracking.
 - On-device narration when cloud narration is disabled.
 - Parent-gated Privacy & Data screen.
+- Complete localized in-app privacy notice.
 - Reading-history deletion and full child-data deletion.
 - Ninety-day inactivity retention using the same deletion service.
 - Migration and fail-closed handling for existing pilot users.
@@ -143,6 +144,13 @@ Add `/parent/privacy` under the existing parental gate. The screen shows:
 The current privacy note in Reading Settings links to this screen. It no longer
 claims reading progress is device-only.
 
+### 4.6 Complete privacy notice
+
+Add an ungated, read-only `/privacy-notice` route with complete English and
+Vietnamese privacy notice content. It is reachable from onboarding, required
+policy review, and the parent Privacy & Data screen. The route remains available
+without current consent so a parent can read the notice before deciding.
+
 ## 5. Backend Data Model
 
 ### 5.1 `privacy_settings`
@@ -196,6 +204,11 @@ Returns:
 - Last activity timestamp.
 - Counts sufficient for a stored-data summary, without returning full history.
 
+If the authenticated user has no privacy-settings row after full child-data
+deletion, the endpoint acquires the per-user lock and creates a fresh row with
+null policy acceptance and both optional choices off before returning. This new
+row contains no prior consent or child history.
+
 Effective optional consent is false when the accepted policy version is not
 current, even if a stored toggle was previously true.
 
@@ -236,6 +249,10 @@ notice describes this retained technical identity and that it contains no
 child profile or reading content.
 
 The endpoint is idempotent. A retry after success returns success.
+
+The next authenticated `GET /v1/privacy` recreates an empty privacy-settings row
+as defined above so the retained device account can restart onboarding without
+restoring any deleted consent or history.
 
 Deletion, retention rechecks, consent changes, activity updates, and every
 child-data write acquire the same per-user database transaction lock. Protected
@@ -450,6 +467,8 @@ continue to work.
 - TTS rejects before constructing or calling the external service.
 - Reading-history deletion preserves profile and authored stories.
 - Full deletion clears every child-data table and preserves device auth.
+- The first privacy fetch after full deletion recreates only an empty,
+  off-by-default privacy-settings row.
 - Full deletion handles populated question-choice, question, page, segment,
   scene, story, profile, session, and event foreign keys and is idempotent.
 - Concurrent profile/story/session/event writes cannot survive successful full
@@ -481,6 +500,8 @@ continue to work.
   touching unrelated temporary files; interrupted cleanup retries on bootstrap.
 - Bootstrap repairs stale local state after server deletion.
 - English and Vietnamese consent meaning remains aligned.
+- The complete localized privacy notice is reachable before consent and from
+  the parent Privacy & Data screen.
 
 Use `flutter analyze`, focused Dart unit tests, and focused backend tests. Widget,
 integration, and end-to-end test execution is excluded from the development

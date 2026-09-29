@@ -32,8 +32,13 @@ Future<void> showStoryQuestions(
   WidgetRef ref, {
   required StoryDetail detail,
   QuestionAnsweredCallback? onAnswered,
+  Set<String> answeredQuestionIds = const {},
 }) {
-  return _present(context, detail.questions, onAnswered);
+  return _present(
+    context,
+    detail.questions.where((q) => !answeredQuestionIds.contains(q.id)).toList(),
+    onAnswered,
+  );
 }
 
 Future<void> _present(
@@ -206,8 +211,7 @@ class _ChoiceTile extends StatelessWidget {
                   padding: const EdgeInsets.all(8),
                   child: Image.asset(
                     choice.imageAsset!,
-                    errorBuilder: (_, _, _) =>
-                        _glyph(choice.emoji ?? '❓'),
+                    errorBuilder: (_, _, _) => _glyph(choice.emoji ?? '❓'),
                   ),
                 ),
               )

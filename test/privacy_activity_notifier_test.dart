@@ -28,6 +28,7 @@ class _FakePrivacyRepository implements PrivacyRepository {
     required bool coreStorageAccepted,
     required bool progressTrackingEnabled,
     required bool cloudTtsEnabled,
+    required bool pageImageValidationEnabled,
   }) async =>
       throw UnimplementedError();
 

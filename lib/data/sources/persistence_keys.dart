@@ -53,6 +53,9 @@ const settingsContentFilterBandKey = 'settings_content_filter_band';
 /// Learning-report notifications opt-in.
 const settingsNotificationsEnabledKey = 'settings_notifications_enabled';
 
+/// Whether narration continues on the next page (on by default).
+const settingsAutoAdvancePagesKey = 'settings_auto_advance_pages';
+
 /// Persisted AR character selection.
 const arSelectedCharacterIdKey = 'ar.selected_character_id';
 
@@ -87,6 +90,7 @@ const childDataKeys = <String>{
   settingsDailyLimitMinutesKey,
   settingsContentFilterBandKey,
   settingsNotificationsEnabledKey,
+  settingsAutoAdvancePagesKey,
   arSelectedCharacterIdKey,
   privacyStateCacheKey,
   privacyActivityLastUtcDateKey,
