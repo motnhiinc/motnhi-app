@@ -9,6 +9,7 @@ import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../profile/profile_providers.dart';
 import 'privacy_providers.dart';
+import 'privacy_save_error.dart';
 
 /// Policy review / re-review surface (§14.2). Shown when consent is missing or
 /// stale. Presents the current required disclosure and the two optional
@@ -43,8 +44,7 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
     final s = AppLocalizations.of(context)!;
     try {
       final privacy = ref.read(privacyProvider).value;
-      final consentCurrent =
-          privacy != null &&
+      final consentCurrent = privacy != null &&
           privacy.acceptedPolicyVersion != null &&
           privacy.acceptedPolicyVersion == privacy.currentPolicyVersion;
       if (!consentCurrent) {
@@ -52,12 +52,11 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
         if (policyVersion == null) {
           // No server truth for the required policy version — do not guess.
           ref.invalidate(privacyProvider);
-          _showError(s.privacySaveError);
+          showPrivacySaveError(context, s.privacySaveError,
+              const PrivacyFailure('policy_unavailable'));
           return;
         }
-        await ref
-            .read(privacyProvider.notifier)
-            .updatePrivacy(
+        await ref.read(privacyProvider.notifier).updatePrivacy(
               policyVersion: policyVersion,
               coreStorageAccepted: true,
               progressTrackingEnabled: _progressTracking,
@@ -68,10 +67,10 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
       // No explicit navigation: the access router sends the parent to
       // onboarding (no profile yet) or home (profile exists) once consent is
       // current.
-    } on PrivacyFailure {
+    } on PrivacyFailure catch (e) {
       // Refresh policy state so the next retry uses fresh server truth.
       ref.invalidate(privacyProvider);
-      _showError(s.privacySaveError);
+      if (mounted) showPrivacySaveError(context, s.privacySaveError, e);
     } catch (_) {
       _showError(s.setupError);
     } finally {
@@ -223,9 +222,8 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed: (_submitting || _deleting)
-                  ? null
-                  : _deleteAllChildData,
+              onPressed:
+                  (_submitting || _deleting) ? null : _deleteAllChildData,
               style: OutlinedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),

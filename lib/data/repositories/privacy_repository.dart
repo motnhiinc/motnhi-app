@@ -23,7 +23,8 @@ abstract interface class PrivacyRepository {
 }
 
 class PrivacyFailure implements Exception {
-  const PrivacyFailure(this.code);
+  const PrivacyFailure(this.code, {this.statusCode});
 
   final String code;
+  final int? statusCode;
 }

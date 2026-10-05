@@ -10,6 +10,7 @@ import '../../data/repositories/privacy_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../privacy/privacy_providers.dart';
+import '../privacy/privacy_save_error.dart';
 import '../profile/profile_providers.dart';
 
 /// Parent onboarding (§7.2.1). Consent-first: privacy acknowledgement and the
@@ -53,7 +54,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if (policyVersion == null) {
           // No server truth for the required policy version — do not guess.
           ref.invalidate(privacyProvider);
-          _showError(s.privacySaveError);
+          showPrivacySaveError(context, s.privacySaveError,
+              const PrivacyFailure('policy_unavailable'));
           return;
         }
         await ref.read(privacyProvider.notifier).updatePrivacy(
@@ -75,10 +77,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           );
       if (mounted) context.go(AppRoutes.home);
-    } on PrivacyFailure {
+    } on PrivacyFailure catch (e) {
       // Refresh policy state so the next retry uses fresh server truth.
       ref.invalidate(privacyProvider);
-      _showError(s.privacySaveError);
+      if (mounted) showPrivacySaveError(context, s.privacySaveError, e);
     } on ProfileFailure catch (e) {
       if (e.code == 'privacy_policy_review_required') {
         // Refresh policy state; the router redirects to the review screen.

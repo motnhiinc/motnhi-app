@@ -16,9 +16,10 @@ import 'package:storybook_ar/l10n/app_localizations.dart';
 import 'package:storybook_ar/shared/widgets/storybook/pressable_pill_button.dart';
 
 class _PrivacyRepo implements PrivacyRepository {
-  _PrivacyRepo(this.events);
+  _PrivacyRepo(this.events, {this.failure});
 
   final List<String> events;
+  final PrivacyFailure? failure;
   int updates = 0;
   bool? tracking;
   bool? cloud;
@@ -44,6 +45,7 @@ class _PrivacyRepo implements PrivacyRepository {
   }) async {
     events.add('privacy');
     updates++;
+    if (failure != null) throw failure!;
     expect(policyVersion, 'v1');
     expect(coreStorageAccepted, isTrue);
     tracking = progressTrackingEnabled;
@@ -128,6 +130,30 @@ Future<void> _pumpSetup(
 }
 
 void main() {
+  testWidgets('privacy save failure shows diagnostics long enough to read',
+      (tester) async {
+    final events = <String>[];
+    await _pumpSetup(
+      tester,
+      _PrivacyRepo(events,
+          failure:
+              const PrivacyFailure('policy_version_mismatch', statusCode: 409)),
+      _ProfileRepo(events),
+    );
+
+    await tester.tap(find.byType(CheckboxListTile));
+    await tester.pump();
+    await tester.tap(find.text('Start reading'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.textContaining('policy_version_mismatch'), findsOneWidget);
+    expect(find.textContaining('HTTP 409'), findsOneWidget);
+    expect(events, ['privacy']);
+    await tester.pump(const Duration(seconds: 8));
+    expect(find.textContaining('HTTP 409'), findsOneWidget);
+  });
+
   testWidgets('quick start has no fields, requires consent, and opens notice',
       (tester) async {
     final events = <String>[];

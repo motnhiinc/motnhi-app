@@ -732,6 +732,27 @@ void main() {
     },
   );
 
+  test('privacy PUT failure retains the HTTP status for consent diagnostics',
+      () async {
+    final api = await authedApi((a) {
+      a.onPut('/v1/privacy',
+          (s) => s.reply(409, {'detail': 'policy_version_mismatch'}));
+    });
+
+    await expectLater(
+      HttpPrivacyRepository(api).updatePrivacy(
+        policyVersion: 'v1',
+        coreStorageAccepted: true,
+        progressTrackingEnabled: false,
+        cloudTtsEnabled: false,
+        pageImageValidationEnabled: false,
+      ),
+      throwsA(isA<PrivacyFailure>()
+          .having((e) => e.code, 'code', 'policy_version_mismatch')
+          .having((e) => e.statusCode, 'statusCode', 409)),
+    );
+  });
+
   test('connection failures map to network', () async {
     SharedPreferences.setMockInitialValues({
       'device_id': 'd1',
@@ -955,7 +976,8 @@ class _CallCountAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<dynamic>? requestStream,
     Future<dynamic>? cancelFuture,
-  ) async => await onFetch(options);
+  ) async =>
+      await onFetch(options);
 
   @override
   void close({bool force = false}) {}

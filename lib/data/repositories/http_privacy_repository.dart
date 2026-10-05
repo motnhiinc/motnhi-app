@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
 import '../sources/api_client.dart';
@@ -21,7 +22,8 @@ class HttpPrivacyRepository implements PrivacyRepository {
       final resp = await _api.send(() => _api.dio.get('/v1/privacy'));
       return PrivacyState.fromJson(_dataMap(resp));
     } on DioException catch (error) {
-      throw PrivacyFailure(_failureCode(error));
+      throw PrivacyFailure(_failureCode(error),
+          statusCode: error.response?.statusCode);
     }
   }
 
@@ -48,7 +50,10 @@ class HttpPrivacyRepository implements PrivacyRepository {
       );
       return PrivacyState.fromJson(_dataMap(resp));
     } on DioException catch (error) {
-      throw PrivacyFailure(_failureCode(error));
+      debugPrint('Privacy PUT failed: type=${error.type}, '
+          'status=${error.response?.statusCode}, path=${error.requestOptions.path}');
+      throw PrivacyFailure(_failureCode(error),
+          statusCode: error.response?.statusCode);
     }
   }
 
