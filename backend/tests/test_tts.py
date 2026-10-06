@@ -8,7 +8,7 @@ from app.models import PrivacySettings
 from app.routers import tts as tts_router
 from app.services.tts import TtsUpstreamError
 
-POLICY_VERSION = "2026-09-26"
+POLICY_VERSION = "2026-10-06"
 
 
 def _auth(client, device_id="tts-device"):
@@ -65,11 +65,10 @@ def _counting_factory(constructions, fake):
     ("device_id", "consent_kwargs"),
     [
         ("tts-no-consent-device", None),
-        ("tts-revoked-device", {"cloud_tts_enabled": False}),
         ("tts-stale-device", {"cloud_tts_enabled": True, "policy_version": "2026-01-01"}),
     ],
 )
-def test_tts_without_effective_cloud_consent_never_constructs_service(
+def test_tts_without_current_policy_never_constructs_service(
     client, db, monkeypatch, device_id, consent_kwargs
 ):
     constructions = []
@@ -83,14 +82,15 @@ def test_tts_without_effective_cloud_consent_never_constructs_service(
 
     response = client.post("/v1/tts", json={"text": "Hello"}, headers=headers)
 
-    assert response.status_code == 403
-    assert response.json() == {"detail": "cloud_tts_disabled"}
+    assert response.status_code == 428
+    assert response.json() == {"detail": "privacy_policy_review_required"}
     assert constructions == []
     assert fake.calls == []
 
 
-def test_tts_with_current_cloud_consent_constructs_service_once_and_generates(
-    client, db, monkeypatch
+@pytest.mark.parametrize("cloud_tts_enabled", [False, True])
+def test_tts_with_current_policy_constructs_service_once_and_generates(
+    client, db, monkeypatch, cloud_tts_enabled
 ):
     constructions = []
     fake = FakeTtsService()
@@ -98,7 +98,7 @@ def test_tts_with_current_cloud_consent_constructs_service_once_and_generates(
         tts_router, "get_openai_tts_service", _counting_factory(constructions, fake)
     )
     headers = _auth(client, "tts-enabled-device")
-    _write_consent(db, _uid(headers), cloud_tts_enabled=True)
+    _write_consent(db, _uid(headers), cloud_tts_enabled=cloud_tts_enabled)
     text = "The moon is bright."
 
     response = client.post("/v1/tts", json={"text": text}, headers=headers)

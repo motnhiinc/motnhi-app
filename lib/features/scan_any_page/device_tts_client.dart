@@ -4,7 +4,7 @@ import '../ar/ar_narration_bundle.dart';
 import 'tts_client.dart';
 
 /// On-device narration for Scan Any Page: adapts [TtsFileSynthesizer] to the
-/// [TtsClient] interface so the flow needs no network and no cloud consent.
+/// [TtsClient] interface for operational fallback when server TTS fails.
 ///
 /// The requested file name's extension is replaced with the synthesizer's
 /// extension (`caf` on iOS, `wav` on Android) — iOS cannot encode MP3, and

@@ -89,13 +89,13 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
 
 final scanServiceProvider = Provider<ScanService>((ref) => NativeScanService());
 
-final characterReaderProvider =
-    Provider<CharacterReader>((ref) => NativeCharacterReader());
+final characterReaderProvider = Provider<CharacterReader>(
+  (ref) => NativeCharacterReader(),
+);
 
 /// The whole-story AR reader. Shares the `character_reader` channel with
 /// [characterReaderProvider]; the native side gates them behind one lock.
-final storyReaderProvider =
-    Provider<StoryReader>((ref) => NativeStoryReader());
+final storyReaderProvider = Provider<StoryReader>((ref) => NativeStoryReader());
 
 /// Writes device-speech clips for pages with no real narration. Held per
 /// provider rather than per call so `awaitSynthCompletion` is configured once.
@@ -107,8 +107,9 @@ final arAudioDownloaderProvider = Provider<ArAudioDownloader>(
   (ref) => DioArAudioDownloader(ref.watch(apiClientProvider).dio),
 );
 
-final ttsTemporaryDirectoryProvider =
-    Provider<Directory Function()?>((ref) => null);
+final ttsTemporaryDirectoryProvider = Provider<Directory Function()?>(
+  (ref) => null,
+);
 
 /// Disposal callbacks for live narration/scan resources (Task 20). Providers
 /// that build a disposable client register its dispose here and unregister it
@@ -119,68 +120,52 @@ final liveResourceDisposersProvider = Provider<List<Future<void> Function()>>(
   (ref) => [],
 );
 
-/// Per-flow narration client for Scan Any Page (§14). Effective cloud consent
-/// is read at construction time: a disabled flow builds only the device client
-/// (never the HTTP one), an enabled flow gets the cloud-first wrapper, and a
-/// mid-flow preference change only affects the next newly constructed flow.
-final ttsClientProvider = Provider.autoDispose.family<TtsClient, Object>(
-  (ref, flowId) {
-    final cloudEnabled = ref.read(effectiveCloudTtsProvider);
-    final temporaryDirectory = ref.watch(ttsTemporaryDirectoryProvider) ??
-        (() => Directory.systemTemp);
-    final TtsClient client;
-    if (!cloudEnabled) {
-      client = DeviceTtsClient(
-        ref.watch(ttsFileSynthesizerProvider),
-        directory: temporaryDirectory,
-      );
-    } else {
-      client = selectNarrationSource(
-        cloudNarrationEnabled: cloudEnabled,
-        cloudClient: HttpTtsClient(
-          ref.watch(apiClientProvider),
-          temporaryDirectory: temporaryDirectory,
-        ),
-        deviceClient: DeviceTtsClient(
-          ref.watch(ttsFileSynthesizerProvider),
-          directory: temporaryDirectory,
-        ),
-      );
-    }
-    final liveDisposers = ref.watch(liveResourceDisposersProvider);
-    Future<void> disposer() => client.dispose();
-    liveDisposers.add(disposer);
-    ref.onDispose(() {
-      liveDisposers.remove(disposer);
-      client.dispose();
-    });
-    return client;
-  },
-);
-
-/// Per-story narration fetcher, used only by authored stories. autoDispose so
-/// the underlying TtsClient — and every temp clip it wrote — is torn down when
-/// the player leaves. Effective cloud consent is read at construction time:
-/// disabled stories get no fetcher at all (and no HTTP client), while active
-/// playback keeps its already-built fetcher (§14).
-final narrationAudioFetcherProvider =
-    Provider.autoDispose.family<NarrationAudioFetcher?, String>((ref, storyId) {
-  if (!ref.read(effectiveCloudTtsProvider)) return null;
-  final fetcher = TtsNarrationAudioFetcher(
-    HttpTtsClient(
+/// Per-flow narration client: server TTS first, device TTS on generation failure.
+final ttsClientProvider = Provider.autoDispose.family<TtsClient, Object>((
+  ref,
+  flowId,
+) {
+  final temporaryDirectory =
+      ref.watch(ttsTemporaryDirectoryProvider) ?? (() => Directory.systemTemp);
+  final client = selectNarrationSource(
+    cloudClient: HttpTtsClient(
       ref.watch(apiClientProvider),
-      temporaryDirectory: ref.watch(ttsTemporaryDirectoryProvider),
+      temporaryDirectory: temporaryDirectory,
+    ),
+    deviceClient: DeviceTtsClient(
+      ref.watch(ttsFileSynthesizerProvider),
+      directory: temporaryDirectory,
     ),
   );
   final liveDisposers = ref.watch(liveResourceDisposersProvider);
-  Future<void> disposer() => fetcher.dispose();
+  Future<void> disposer() => client.dispose();
   liveDisposers.add(disposer);
   ref.onDispose(() {
     liveDisposers.remove(disposer);
-    fetcher.dispose();
+    client.dispose();
   });
-  return fetcher;
+  return client;
 });
+
+/// Per-story server narration fetcher, used only by authored stories.
+/// autoDispose tears down the TtsClient and its temporary clips on exit.
+final narrationAudioFetcherProvider = Provider.autoDispose
+    .family<NarrationAudioFetcher?, String>((ref, storyId) {
+      final fetcher = TtsNarrationAudioFetcher(
+        HttpTtsClient(
+          ref.watch(apiClientProvider),
+          temporaryDirectory: ref.watch(ttsTemporaryDirectoryProvider),
+        ),
+      );
+      final liveDisposers = ref.watch(liveResourceDisposersProvider);
+      Future<void> disposer() => fetcher.dispose();
+      liveDisposers.add(disposer);
+      ref.onDispose(() {
+        liveDisposers.remove(disposer);
+        fetcher.dispose();
+      });
+      return fetcher;
+    });
 
 /// Ordered local child-data cleanup (Task 20). Disposal of live narration/scan
 /// resources runs first, then the store/file sweep; invalidation refreshes
@@ -240,18 +225,22 @@ typedef ScanAnyPageDependencies = ({
 
 final scanAnyPageControllerProvider = NotifierProvider.autoDispose
     .family<ScanAnyPageController, ScanAnyPageState, ScanAnyPageDependencies>(
-  (dependencies) => ScanAnyPageController(
-    scanService: dependencies.scanService,
-    ttsClient: dependencies.ttsClient,
-    characterReader: dependencies.characterReader,
-  ),
-);
+      (dependencies) => ScanAnyPageController(
+        scanService: dependencies.scanService,
+        ttsClient: dependencies.ttsClient,
+        characterReader: dependencies.characterReader,
+      ),
+    );
 
-final storyComposerControllerProvider = NotifierProvider.autoDispose.family<
-    StoryComposerController, StoryComposerState, StoryComposerDependencies>(
-  (dependencies) => StoryComposerController(
-    scanService: dependencies.scanService,
-    repository: dependencies.repository,
-    languageCode: dependencies.languageCode,
-  ),
-);
+final storyComposerControllerProvider = NotifierProvider.autoDispose
+    .family<
+      StoryComposerController,
+      StoryComposerState,
+      StoryComposerDependencies
+    >(
+      (dependencies) => StoryComposerController(
+        scanService: dependencies.scanService,
+        repository: dependencies.repository,
+        languageCode: dependencies.languageCode,
+      ),
+    );

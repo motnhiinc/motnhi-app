@@ -24,7 +24,7 @@ Future<void> _pumpState(
 }
 
 void main() {
-  testWidgets('consent-off handoff offers parent and story exits',
+  testWidgets('incomplete profile setup offers parent and story exits',
       (tester) async {
     var asked = false;
     var pickedStory = false;

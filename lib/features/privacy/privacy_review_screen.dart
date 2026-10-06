@@ -12,8 +12,8 @@ import 'privacy_providers.dart';
 import 'privacy_save_error.dart';
 
 /// Policy review / re-review surface (§14.2). Shown when consent is missing or
-/// stale. Presents the current required disclosure and the two optional
-/// choices (off by default); "Review and continue" submits consent, after
+/// stale. Presents the current required disclosure and optional progress
+/// choice; "Review and continue" submits the policy acknowledgement, after
 /// which the access router sends the parent to onboarding for profile entry
 /// (or home when the profile already exists).
 class PrivacyReviewScreen extends ConsumerStatefulWidget {
@@ -25,9 +25,7 @@ class PrivacyReviewScreen extends ConsumerStatefulWidget {
 }
 
 class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
-  bool _progressTracking = false; // optional, off by default (§14.2)
-  bool _cloudNarration = false; // optional, off by default (§14.2)
-  bool _pageImageValidation = false;
+  bool? _progressTracking; // preserve the existing choice on policy re-review
   bool _submitting = false;
   bool _deleting = false;
 
@@ -44,7 +42,8 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
     final s = AppLocalizations.of(context)!;
     try {
       final privacy = ref.read(privacyProvider).value;
-      final consentCurrent = privacy != null &&
+      final consentCurrent =
+          privacy != null &&
           privacy.acceptedPolicyVersion != null &&
           privacy.acceptedPolicyVersion == privacy.currentPolicyVersion;
       if (!consentCurrent) {
@@ -52,16 +51,22 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
         if (policyVersion == null) {
           // No server truth for the required policy version — do not guess.
           ref.invalidate(privacyProvider);
-          showPrivacySaveError(context, s.privacySaveError,
-              const PrivacyFailure('policy_unavailable'));
+          showPrivacySaveError(
+            context,
+            s.privacySaveError,
+            const PrivacyFailure('policy_unavailable'),
+          );
           return;
         }
-        await ref.read(privacyProvider.notifier).updatePrivacy(
+        await ref
+            .read(privacyProvider.notifier)
+            .updatePrivacy(
               policyVersion: policyVersion,
               coreStorageAccepted: true,
-              progressTrackingEnabled: _progressTracking,
-              cloudTtsEnabled: _cloudNarration,
-              pageImageValidationEnabled: _pageImageValidation,
+              progressTrackingEnabled:
+                  _progressTracking ?? privacy!.progressTrackingEnabled,
+              cloudTtsEnabled: true,
+              pageImageValidationEnabled: true,
             );
       }
       // No explicit navigation: the access router sends the parent to
@@ -154,11 +159,14 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Optional choices — off by default (§14.2).
+            // Progress tracking remains optional and off by default.
             PaperCard(
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                value: _progressTracking,
+                value:
+                    _progressTracking ??
+                    ref.watch(privacyProvider).value?.progressTrackingEnabled ??
+                    false,
                 onChanged: (v) => setState(() => _progressTracking = v),
                 title: Text(
                   s.privacyTrackingTitle,
@@ -172,34 +180,29 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
             ),
             const SizedBox(height: 12),
             PaperCard(
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _pageImageValidation,
-                onChanged: (v) => setState(() => _pageImageValidation = v),
-                title: Text(
-                  s.privacyPageImageTitle,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                subtitle: Text(
-                  s.privacyPageImageBody,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            PaperCard(
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _cloudNarration,
-                onChanged: (v) => setState(() => _cloudNarration = v),
-                title: Text(
-                  s.privacyCloudTitle,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                subtitle: Text(
-                  s.privacyCloudBody,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.privacyPageImageTitle,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    s.privacyPageImageBody,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    s.privacyCloudTitle,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    s.privacyCloudBody,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -222,8 +225,9 @@ class _PrivacyReviewScreenState extends ConsumerState<PrivacyReviewScreen> {
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
-              onPressed:
-                  (_submitting || _deleting) ? null : _deleteAllChildData,
+              onPressed: (_submitting || _deleting)
+                  ? null
+                  : _deleteAllChildData,
               style: OutlinedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),

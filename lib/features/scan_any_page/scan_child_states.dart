@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 
-/// Child-safe handoff when page upload and narration are not parent-enabled.
+/// Child-safe handoff when the required parent profile setup is incomplete.
 class ScanGrownUpHandoff extends StatelessWidget {
   const ScanGrownUpHandoff({
     super.key,

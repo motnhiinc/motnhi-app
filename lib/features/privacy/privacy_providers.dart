@@ -85,11 +85,11 @@ class PrivacyNotifier extends AsyncNotifier<PrivacyState> {
   Future<void> setProgressTracking(bool enabled) =>
       _updateCurrent(progressTrackingEnabled: enabled);
 
-  /// Parent data control: updates the cloud-narration choice. Same contract
-  /// as [setProgressTracking].
+  /// Legacy API compatibility: this field no longer controls narration.
   Future<void> setCloudTts(bool enabled) =>
       _updateCurrent(cloudTtsEnabled: enabled);
 
+  /// Legacy API compatibility: this field no longer controls scanning.
   Future<void> setPageImageValidation(bool enabled) =>
       _updateCurrent(pageImageValidationEnabled: enabled);
 
@@ -205,12 +205,12 @@ final effectiveProgressTrackingProvider = Provider<bool>((ref) {
       false;
 });
 
-/// Effective cloud-narration consent (§14). Reads ONLY the fresh async server
-/// result: false while loading, on error, or when absent.
+/// Legacy server field: narration availability after the current policy review.
 final effectiveCloudTtsProvider = Provider<bool>((ref) {
   return ref.watch(privacyProvider).value?.effectiveCloudTtsEnabled ?? false;
 });
 
+/// Legacy server field: scanning availability after the current policy review.
 final effectivePageImageValidationProvider = Provider<bool>(
   (ref) =>
       ref.watch(privacyProvider).value?.effectivePageImageValidationEnabled ??

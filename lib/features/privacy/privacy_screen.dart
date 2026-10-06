@@ -11,8 +11,8 @@ import '../dashboard/dashboard_providers.dart';
 import '../profile/profile_providers.dart';
 import 'privacy_providers.dart';
 
-/// Parent privacy & data controls (§14): stored-data counts, the optional
-/// processing choices, reading-history deletion, and the two-step full
+/// Parent privacy & data controls (§14): stored-data counts, optional progress
+/// tracking, reading-history deletion, and the two-step full
 /// child-data deletion. Reached only through the parental gate
 /// (`/parent/privacy`).
 class PrivacyScreen extends ConsumerStatefulWidget {
@@ -73,32 +73,6 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
       } else {
         ref.invalidate(dashboardStateProvider);
       }
-    } catch (_) {
-      _showMessage(s.privacySaveError);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _setCloudTts(bool enabled) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final s = AppLocalizations.of(context)!;
-    try {
-      await ref.read(privacyProvider.notifier).setCloudTts(enabled);
-    } catch (_) {
-      _showMessage(s.privacySaveError);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _setPageImageValidation(bool enabled) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final s = AppLocalizations.of(context)!;
-    try {
-      await ref.read(privacyProvider.notifier).setPageImageValidation(enabled);
     } catch (_) {
       _showMessage(s.privacySaveError);
     } finally {
@@ -337,20 +311,29 @@ class _PrivacyScreenState extends ConsumerState<PrivacyScreen> {
               ),
               const SizedBox(height: 12),
               PaperCard(
-                child: _SwitchTile(
-                  title: s.privacyCloudTitle,
-                  subtitle: s.privacyCloudBody,
-                  value: p.cloudTtsEnabled,
-                  onChanged: _busy ? null : _setCloudTts,
-                ),
-              ),
-              const SizedBox(height: 12),
-              PaperCard(
-                child: _SwitchTile(
-                  title: s.privacyPageImageTitle,
-                  subtitle: s.privacyPageImageBody,
-                  value: p.pageImageValidationEnabled,
-                  onChanged: _busy ? null : _setPageImageValidation,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.privacyPageImageTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      s.privacyPageImageBody,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      s.privacyCloudTitle,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      s.privacyCloudBody,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),

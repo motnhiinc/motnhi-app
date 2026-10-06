@@ -7,16 +7,18 @@ import 'package:flutter_test/flutter_test.dart';
 /// and must never claim that profile or progress data lives only on this
 /// device — profile storage and (optional) progress tracking are cloud-side.
 void main() {
-  final enArb = jsonDecode(File('lib/l10n/app_en.arb').readAsStringSync())
-      as Map<String, dynamic>;
-  final viArb = jsonDecode(File('lib/l10n/app_vi.arb').readAsStringSync())
-      as Map<String, dynamic>;
+  final enArb =
+      jsonDecode(File('lib/l10n/app_en.arb').readAsStringSync())
+          as Map<String, dynamic>;
+  final viArb =
+      jsonDecode(File('lib/l10n/app_vi.arb').readAsStringSync())
+          as Map<String, dynamic>;
 
   Map<String, String> strings(Map<String, dynamic> arb) => {
-        for (final entry in arb.entries)
-          if (!entry.key.startsWith('@') && entry.value is String)
-            entry.key: entry.value as String,
-      };
+    for (final entry in arb.entries)
+      if (!entry.key.startsWith('@') && entry.value is String)
+        entry.key: entry.value as String,
+  };
 
   final en = strings(enArb);
   final vi = strings(viArb);
@@ -26,27 +28,11 @@ void main() {
       'privacyStorageRequiredTitle',
       'privacyStorageRequiredBody',
     ],
-    'optional tracking': [
-      'privacyTrackingTitle',
-      'privacyTrackingBody',
-    ],
-    'OpenAI/cloud narration': [
-      'privacyCloudTitle',
-      'privacyCloudBody',
-    ],
-    'retention': [
-      'privacyRetentionTitle',
-      'privacyRetentionBody',
-    ],
-    'deletion': [
-      'privacyDeletionTitle',
-      'privacyDeletionBody',
-    ],
-    'retry': [
-      'privacySaveError',
-      'profileSaveError',
-      'privacyDeleteFailed',
-    ],
+    'optional tracking': ['privacyTrackingTitle', 'privacyTrackingBody'],
+    'OpenAI/cloud narration': ['privacyCloudTitle', 'privacyCloudBody'],
+    'retention': ['privacyRetentionTitle', 'privacyRetentionBody'],
+    'deletion': ['privacyDeletionTitle', 'privacyDeletionBody'],
+    'retry': ['privacySaveError', 'profileSaveError', 'privacyDeleteFailed'],
     'policy review': [
       'privacyReviewTitle',
       'privacyReviewIntro',
@@ -82,14 +68,23 @@ void main() {
 
     test('no source string claims profile or progress data is device-only', () {
       for (final entry in en.entries) {
-        expect(entry.value.contains('stored only on this device'), isFalse,
-            reason: '${entry.key} claims device-only storage');
-        expect(entry.value.contains('on this device only'), isFalse,
-            reason: '${entry.key} claims device-only storage');
+        expect(
+          entry.value.contains('stored only on this device'),
+          isFalse,
+          reason: '${entry.key} claims device-only storage',
+        );
+        expect(
+          entry.value.contains('on this device only'),
+          isFalse,
+          reason: '${entry.key} claims device-only storage',
+        );
       }
       for (final entry in vi.entries) {
-        expect(entry.value.contains('chỉ được lưu trên thiết bị'), isFalse,
-            reason: '${entry.key} claims device-only storage');
+        expect(
+          entry.value.contains('chỉ được lưu trên thiết bị'),
+          isFalse,
+          reason: '${entry.key} claims device-only storage',
+        );
       }
     });
 
@@ -116,38 +111,39 @@ void main() {
       }
     });
 
-    test('onboarding copy does not claim a real name is technically impossible',
-        () {
-      const onboardingKeys = [
-        'onboardingIntro',
-        'onboardingStorageBody',
-        'nicknameLabel',
-        'nicknameHint',
-        'consentTitle',
-        'consentBody',
-        'privacyStorageRequiredBody',
-      ];
-      const forbidden = [
-        'impossible',
-        'cannot technically',
-        'bất khả',
-        'không thể',
-      ];
-      for (final key in onboardingKeys) {
-        for (final (locale, value) in [
-          ('EN', en[key]!),
-          ('VI', vi[key]!),
-        ]) {
-          for (final phrase in forbidden) {
-            expect(value.toLowerCase().contains(phrase), isFalse,
-                reason: '$locale $key contains "$phrase"');
+    test(
+      'onboarding copy does not claim a real name is technically impossible',
+      () {
+        const onboardingKeys = [
+          'onboardingIntro',
+          'onboardingStorageBody',
+          'nicknameLabel',
+          'nicknameHint',
+          'consentTitle',
+          'consentBody',
+          'privacyStorageRequiredBody',
+        ];
+        const forbidden = [
+          'impossible',
+          'cannot technically',
+          'bất khả',
+          'không thể',
+        ];
+        for (final key in onboardingKeys) {
+          for (final (locale, value) in [('EN', en[key]!), ('VI', vi[key]!)]) {
+            for (final phrase in forbidden) {
+              expect(
+                value.toLowerCase().contains(phrase),
+                isFalse,
+                reason: '$locale $key contains "$phrase"',
+              );
+            }
           }
         }
-      }
-    });
+      },
+    );
 
-    test(
-        'required-storage copy names profile fields and saved story text, '
+    test('required-storage copy names profile fields and saved story text, '
         'and states what is not required', () {
       final enBody = en['privacyStorageRequiredBody']!.toLowerCase();
       for (final phrase in [
@@ -157,8 +153,11 @@ void main() {
         'story title',
         'page text',
       ]) {
-        expect(enBody, contains(phrase),
-            reason: 'EN required-storage copy must name "$phrase"');
+        expect(
+          enBody,
+          contains(phrase),
+          reason: 'EN required-storage copy must name "$phrase"',
+        );
       }
       expect(enBody, contains('never require'));
       for (final phrase in [
@@ -168,8 +167,11 @@ void main() {
         'voice recording',
         'camera images',
       ]) {
-        expect(enBody, contains(phrase),
-            reason: 'EN required-storage copy must list "$phrase"');
+        expect(
+          enBody,
+          contains(phrase),
+          reason: 'EN required-storage copy must list "$phrase"',
+        );
       }
 
       final viBody = vi['privacyStorageRequiredBody']!.toLowerCase();
@@ -180,8 +182,11 @@ void main() {
         'tên truyện',
         'nội dung trang',
       ]) {
-        expect(viBody, contains(phrase),
-            reason: 'VI required-storage copy must name "$phrase"');
+        expect(
+          viBody,
+          contains(phrase),
+          reason: 'VI required-storage copy must name "$phrase"',
+        );
       }
       expect(viBody, contains('không bao giờ yêu cầu'));
       for (final phrase in [
@@ -191,8 +196,11 @@ void main() {
         'giọng nói',
         'máy ảnh',
       ]) {
-        expect(viBody, contains(phrase),
-            reason: 'VI required-storage copy must list "$phrase"');
+        expect(
+          viBody,
+          contains(phrase),
+          reason: 'VI required-storage copy must list "$phrase"',
+        );
       }
     });
 
@@ -200,14 +208,13 @@ void main() {
       final enBody = en['privacyCloudBody']!;
       expect(enBody, contains('OpenAI'));
       expect(enBody.toLowerCase(), contains('app backend'));
-      expect(enBody.toLowerCase(), contains('approved page text'));
-      expect(enBody.toLowerCase(), contains('separately enabled'));
+      expect(enBody.toLowerCase(), contains('approved scanned-page text'));
 
       final viBody = vi['privacyCloudBody']!;
       expect(viBody, contains('OpenAI'));
       expect(viBody, contains('máy chủ ứng dụng'));
       expect(viBody, contains('đã được duyệt'));
-      expect(viBody, contains('bật riêng'));
+      expect(viBody, contains('trang đã được duyệt'));
     });
   });
 }

@@ -20,13 +20,10 @@ class PageValidationResult {
 class PageValidationClient {
   PageValidationClient(
     this._api, {
-    required bool Function() hasEffectiveConsent,
     Future<Directory> Function()? temporaryDirectory,
-  }) : _hasEffectiveConsent = hasEffectiveConsent,
-       _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory;
+  }) : _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory;
 
   final ApiClient _api;
-  final bool Function() _hasEffectiveConsent;
   final Future<Directory> Function() _temporaryDirectory;
   final Set<Directory> _ownedDirectories = {};
   final Set<File> _ownedFiles = {};
@@ -160,8 +157,7 @@ class PageValidationClient {
 
   void _checkAccess(String profileId) {
     _ensureLive();
-    final consent = _hasEffectiveConsent();
-    if (profileId.trim().isEmpty || !consent) {
+    if (profileId.trim().isEmpty) {
       throw StateError('page_reading_not_authorized');
     }
   }

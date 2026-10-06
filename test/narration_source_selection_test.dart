@@ -8,8 +8,9 @@ void main() {
   late Directory temporaryDirectory;
 
   setUp(() async {
-    temporaryDirectory =
-        await Directory.systemTemp.createTemp('narration_source_');
+    temporaryDirectory = await Directory.systemTemp.createTemp(
+      'narration_source_',
+    );
   });
 
   tearDown(() async {
@@ -20,31 +21,11 @@ void main() {
 
   File fileIn(String name) => File('${temporaryDirectory.path}/$name');
 
-  test(
-      'disabled consent selects the device client and never calls the cloud one',
-      () async {
+  test('prefers the cloud client', () async {
     final cloud = _FakeTtsClient(fileIn('cloud.mp3'));
     final device = _FakeTtsClient(fileIn('device.wav'));
 
     final selected = selectNarrationSource(
-      cloudNarrationEnabled: false,
-      cloudClient: cloud,
-      deviceClient: device,
-    );
-    final file = await selected.generate('Read me');
-
-    expect(selected, same(device));
-    expect(file.path, fileIn('device.wav').path);
-    expect(cloud.generateCalls, 0);
-    expect(device.generateCalls, 1);
-  });
-
-  test('enabled consent prefers the cloud client', () async {
-    final cloud = _FakeTtsClient(fileIn('cloud.mp3'));
-    final device = _FakeTtsClient(fileIn('device.wav'));
-
-    final selected = selectNarrationSource(
-      cloudNarrationEnabled: true,
       cloudClient: cloud,
       deviceClient: device,
     );
@@ -56,7 +37,6 @@ void main() {
   });
 
   for (final code in [
-    'cloud_tts_disabled',
     'backend_unreachable',
     'timeout',
     'upstream_failed',
@@ -65,12 +45,13 @@ void main() {
     'invalid_audio',
   ]) {
     test('a cloud $code failure falls back to the device client', () async {
-      final cloud =
-          _FakeTtsClient(fileIn('cloud.mp3'), failure: _failure(code));
+      final cloud = _FakeTtsClient(
+        fileIn('cloud.mp3'),
+        failure: _failure(code),
+      );
       final device = _FakeTtsClient(fileIn('device.wav'));
 
       final selected = selectNarrationSource(
-        cloudNarrationEnabled: true,
         cloudClient: cloud,
         deviceClient: device,
       );
@@ -90,7 +71,6 @@ void main() {
     final device = _FakeTtsClient(fileIn('device.wav'));
 
     final selected = selectNarrationSource(
-      cloudNarrationEnabled: true,
       cloudClient: cloud,
       deviceClient: device,
     );
@@ -107,7 +87,6 @@ void main() {
     final device = _FakeTtsClient(fileIn('device.wav'));
 
     final selected = selectNarrationSource(
-      cloudNarrationEnabled: true,
       cloudClient: cloud,
       deviceClient: device,
     );
@@ -121,12 +100,11 @@ void main() {
   test('passes the requested file name to the device fallback', () async {
     final cloud = _FakeTtsClient(
       fileIn('cloud.mp3'),
-      failure: _failure('cloud_tts_disabled'),
+      failure: _failure('backend_unreachable'),
     );
     final device = _FakeTtsClient(fileIn('device.wav'));
 
     final selected = selectNarrationSource(
-      cloudNarrationEnabled: true,
       cloudClient: cloud,
       deviceClient: device,
     );
@@ -142,7 +120,6 @@ void main() {
     final device = _FakeTtsClient(fileIn('device.wav'));
 
     final selected = selectNarrationSource(
-      cloudNarrationEnabled: true,
       cloudClient: cloud,
       deviceClient: device,
     );

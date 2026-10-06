@@ -22,7 +22,7 @@ def validate_page(
     user: User = Depends(get_current_user),
 ):
     try:
-        privacy_service.require_page_reading(privacy_repo.get_settings(db, user.id))
+        privacy_service.require_core_storage(privacy_repo.get_settings(db, user.id))
     except privacy_service.PrivacyError as error:
         raise HTTPException(status_code=error.status_code, detail=error.code) from error
     profile = profiles.get_owned(db, user.id, body.profile_id)
@@ -70,7 +70,7 @@ def generate_page_audio(
     user: User = Depends(get_current_user),
 ):
     try:
-        privacy_service.require_page_reading(privacy_repo.get_settings(db, user.id))
+        privacy_service.require_core_storage(privacy_repo.get_settings(db, user.id))
     except privacy_service.PrivacyError as error:
         raise HTTPException(status_code=error.status_code, detail=error.code) from error
     if profiles.get_owned(db, user.id, body.profile_id) is None:

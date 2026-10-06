@@ -26,11 +26,11 @@ class _PrivacyRepo implements PrivacyRepository {
   bool? pageCheck;
 
   PrivacyState get initial => PrivacyState(
-        currentPolicyVersion: 'v1',
-        reviewRequired: true,
-        lastActiveAt: DateTime(2026, 9, 1),
-        updatedAt: DateTime(2026, 9, 1),
-      );
+    currentPolicyVersion: 'v1',
+    reviewRequired: true,
+    lastActiveAt: DateTime(2026, 9, 1),
+    updatedAt: DateTime(2026, 9, 1),
+  );
 
   @override
   Future<PrivacyState> fetchPrivacy() async => initial;
@@ -96,53 +96,70 @@ Future<void> _pumpSetup(
   addTearDown(tester.view.resetDevicePixelRatio);
   SharedPreferences.setMockInitialValues({});
   final store = await KeyValueStore.create();
-  final container = ProviderContainer(overrides: [
-    keyValueStoreProvider.overrideWithValue(store),
-    privacyRepositoryProvider.overrideWithValue(privacy),
-    profileRepositoryProvider.overrideWithValue(profile),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      keyValueStoreProvider.overrideWithValue(store),
+      privacyRepositoryProvider.overrideWithValue(privacy),
+      profileRepositoryProvider.overrideWithValue(profile),
+    ],
+  );
   addTearDown(container.dispose);
   await container.read(privacyProvider.future);
 
-  final router = GoRouter(initialLocation: AppRoutes.onboarding, routes: [
-    GoRoute(
+  final router = GoRouter(
+    initialLocation: AppRoutes.onboarding,
+    routes: [
+      GoRoute(
         path: AppRoutes.onboarding,
-        builder: (_, _) => const OnboardingScreen()),
-    GoRoute(
+        builder: (_, _) => const OnboardingScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.privacyNotice,
-        builder: (_, _) => const Scaffold(body: Text('Full notice opened'))),
-    GoRoute(
+        builder: (_, _) => const Scaffold(body: Text('Full notice opened')),
+      ),
+      GoRoute(
         path: AppRoutes.home,
-        builder: (_, _) => const Scaffold(body: Text('Home opened'))),
-  ]);
+        builder: (_, _) => const Scaffold(body: Text('Home opened')),
+      ),
+    ],
+  );
   addTearDown(router.dispose);
-  await tester.pumpWidget(UncontrolledProviderScope(
-    container: container,
-    child: MaterialApp.router(
-      theme: AppTheme.day(),
-      locale: const Locale('en'),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        theme: AppTheme.day(),
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
     ),
-  ));
+  );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('privacy save failure shows diagnostics long enough to read',
-      (tester) async {
+  testWidgets('privacy save failure shows diagnostics long enough to read', (
+    tester,
+  ) async {
     final events = <String>[];
     await _pumpSetup(
       tester,
-      _PrivacyRepo(events,
-          failure:
-              const PrivacyFailure('policy_version_mismatch', statusCode: 409)),
+      _PrivacyRepo(
+        events,
+        failure: const PrivacyFailure(
+          'policy_version_mismatch',
+          statusCode: 409,
+        ),
+      ),
       _ProfileRepo(events),
     );
 
+    await tester.ensureVisible(find.byType(CheckboxListTile));
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pump();
+    await tester.ensureVisible(find.text('Start reading'));
     await tester.tap(find.text('Start reading'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
@@ -154,8 +171,9 @@ void main() {
     expect(find.textContaining('HTTP 409'), findsOneWidget);
   });
 
-  testWidgets('quick start has no fields, requires consent, and opens notice',
-      (tester) async {
+  testWidgets('quick start has no fields, requires consent, and opens notice', (
+    tester,
+  ) async {
     final events = <String>[];
     final privacy = _PrivacyRepo(events);
     await _pumpSetup(tester, privacy, _ProfileRepo(events));
@@ -163,15 +181,19 @@ void main() {
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Starting at ages 5–6'), findsOneWidget);
     expect(find.byType(CheckboxListTile), findsOneWidget);
-    expect(tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
-        isFalse);
     expect(
-        tester
-            .widget<PressablePillButton>(find.byType(PressablePillButton))
-            .onPressed,
-        isNull);
+      tester.widget<CheckboxListTile>(find.byType(CheckboxListTile)).value,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<PressablePillButton>(find.byType(PressablePillButton))
+          .onPressed,
+      isNull,
+    );
     expect(events, isEmpty);
 
+    await tester.ensureVisible(find.text('Read full privacy notice'));
     await tester.tap(find.text('Read full privacy notice'));
     await tester.pumpAndSettle();
     expect(find.text('Full notice opened'), findsOneWidget);
@@ -179,34 +201,37 @@ void main() {
   });
 
   testWidgets(
-      'consent precedes default profile and profile retry skips consent',
-      (tester) async {
-    final events = <String>[];
-    final privacy = _PrivacyRepo(events);
-    final profile = _ProfileRepo(events, failFirst: true);
-    await _pumpSetup(tester, privacy, profile);
+    'consent precedes default profile and profile retry skips consent',
+    (tester) async {
+      final events = <String>[];
+      final privacy = _PrivacyRepo(events);
+      final profile = _ProfileRepo(events, failFirst: true);
+      await _pumpSetup(tester, privacy, profile);
 
-    await tester.tap(find.byType(CheckboxListTile));
-    await tester.pump();
-    await tester.tap(find.text('Start reading'));
-    await tester.pumpAndSettle();
-    expect(events, ['privacy', 'profile']);
-    expect(privacy.tracking, isFalse);
-    expect(privacy.cloud, isFalse);
-    expect(privacy.pageCheck, isFalse);
-    expect(profile.saved.single.ageBand, AgeBand.fiveToSix);
-    expect(profile.saved.single.nickname, isNull);
-    expect(profile.saved.single.languageCode, 'en');
-    expect(profile.saved.single.arEnabled, isTrue);
-    expect(profile.saved.single.microphoneEnabled, isFalse);
+      await tester.ensureVisible(find.byType(CheckboxListTile));
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Start reading'));
+      await tester.tap(find.text('Start reading'));
+      await tester.pumpAndSettle();
+      expect(events, ['privacy', 'profile']);
+      expect(privacy.tracking, isFalse);
+      expect(privacy.cloud, isTrue);
+      expect(privacy.pageCheck, isTrue);
+      expect(profile.saved.single.ageBand, AgeBand.fiveToSix);
+      expect(profile.saved.single.nickname, isNull);
+      expect(profile.saved.single.languageCode, 'en');
+      expect(profile.saved.single.arEnabled, isTrue);
+      expect(profile.saved.single.microphoneEnabled, isFalse);
 
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Start reading'));
-    await tester.pumpAndSettle();
-    expect(events, ['privacy', 'profile', 'profile']);
-    expect(privacy.updates, 1);
-    expect(profile.saved[1].id, profile.saved[0].id);
-    expect(find.text('Home opened'), findsOneWidget);
-  });
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Start reading'));
+      await tester.pumpAndSettle();
+      expect(events, ['privacy', 'profile', 'profile']);
+      expect(privacy.updates, 1);
+      expect(profile.saved[1].id, profile.saved[0].id);
+      expect(find.text('Home opened'), findsOneWidget);
+    },
+  );
 }

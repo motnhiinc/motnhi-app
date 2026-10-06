@@ -12,7 +12,7 @@ from app.routers import speakable_page
 from app.services import page_approval
 from app.services.page_validation import ValidationVerdict
 
-POLICY = "2026-09-26"
+POLICY = "2026-10-06"
 
 
 def _auth(client, device):
@@ -169,7 +169,7 @@ def test_audio_returns_complete_ordered_bundle_and_never_partial(
     assert b"Second line" not in response.content
 
 
-def test_invalid_proof_and_disabled_image_consent_make_no_tts_calls(
+def test_invalid_proof_makes_no_tts_calls_even_with_old_flags_disabled(
     client, db, monkeypatch
 ):
     headers = _auth(client, "page-audio-denied")
@@ -184,14 +184,48 @@ def test_invalid_proof_and_disabled_image_consent_make_no_tts_calls(
     assert response.status_code == 403
     assert service.calls == []
 
-    db.get(PrivacySettings, user_id).page_image_validation_enabled = False
+    settings = db.get(PrivacySettings, user_id)
+    settings.page_image_validation_enabled = False
+    settings.cloud_tts_enabled = False
     db.flush()
     proof = page_approval.issue_approval(user_id, profile_id, ["private text"])
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": proof, "lines": ["private text"],
     })
-    assert response.status_code == 403
-    assert service.calls == []
+    assert response.status_code == 200
+    assert service.calls == ["private text"]
+
+
+def test_legacy_flags_off_still_validate_and_generate_audio(client, db, monkeypatch):
+    headers = _auth(client, "page-legacy-flags")
+    user_id = _user(headers)
+    profile_id = "page-legacy-profile"
+    _owned_profile(db, user_id, profile_id)
+    settings = db.get(PrivacySettings, user_id)
+    settings.cloud_tts_enabled = False
+    settings.page_image_validation_enabled = False
+    db.flush()
+    monkeypatch.setattr(
+        speakable_page.page_validation, "OpenAiPageValidator",
+        lambda: FakeValidator(ValidationVerdict(
+            text_matches=True, age_suitable=True, certain=True,
+        )),
+    )
+    service = FakeTts()
+    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+
+    validation = client.post("/v1/speakable-page/validate", headers=headers, json={
+        "profile_id": profile_id, "image_base64": _image_base64(),
+        "lines": [_line("A little fox")],
+    })
+    assert validation.status_code == 200
+    assert validation.json()["status"] == "approved"
+    audio = client.post("/v1/speakable-page/audio", headers=headers, json={
+        "profile_id": profile_id, "proof": validation.json()["proof"],
+        "lines": ["A little fox"],
+    })
+    assert audio.status_code == 200
+    assert service.calls == ["A little fox"]
 
 
 def test_invalid_request_does_not_echo_ocr_text(client):

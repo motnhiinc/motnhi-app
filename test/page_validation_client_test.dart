@@ -15,7 +15,7 @@ import 'package:storybook_ar/features/scan_any_page/scanned_page.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('does not send requests without fresh effective consent', () async {
+  test('does not send requests without a profile ID', () async {
     SharedPreferences.setMockInitialValues({});
     final store = await KeyValueStore.create();
     final dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -29,10 +29,9 @@ void main() {
     called = false;
     final client = PageValidationClient(
       ApiClient(dio: dio, store: store, authDio: dio),
-      hasEffectiveConsent: () => false,
     );
 
-    await expectLater(client.validate(_page(), 'profile-1'), throwsStateError);
+    await expectLater(client.validate(_page(), ' '), throwsStateError);
     expect(called, isFalse);
     expect(store.getString(authTokenKey), isNull);
     await client.dispose();
@@ -65,7 +64,6 @@ void main() {
     );
     final client = PageValidationClient(
       ApiClient(dio: dio, store: store, authDio: dio),
-      hasEffectiveConsent: () => true,
     );
     final page = _page();
 
@@ -118,7 +116,6 @@ void main() {
       );
       final client = PageValidationClient(
         ApiClient(dio: dio, store: store, authDio: dio),
-        hasEffectiveConsent: () => true,
         temporaryDirectory: () async => temp,
       );
       final clips = await client.prepareAudio('proof', 'profile-1', [
@@ -162,7 +159,6 @@ void main() {
       );
       final client = PageValidationClient(
         ApiClient(dio: dio, store: store, authDio: dio),
-        hasEffectiveConsent: () => true,
         temporaryDirectory: () async => temp,
       );
 

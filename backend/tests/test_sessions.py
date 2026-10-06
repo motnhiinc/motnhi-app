@@ -8,7 +8,7 @@ from app.auth import decode_token
 from app.models import InteractionEvent, PrivacySettings, StorySession
 from app.repositories import sessions as sessions_repo
 
-POLICY_VERSION = "2026-09-26"
+POLICY_VERSION = "2026-10-06"
 
 
 def _auth(client, device="s-dev"):

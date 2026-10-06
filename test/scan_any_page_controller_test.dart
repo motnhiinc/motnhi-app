@@ -12,7 +12,6 @@ import 'package:storybook_ar/data/sources/key_value_store.dart';
 import 'package:storybook_ar/features/ar/ar_narration_bundle.dart';
 import 'package:storybook_ar/features/player/narration_source_selection.dart';
 import 'package:storybook_ar/features/privacy/privacy_providers.dart';
-import 'package:storybook_ar/features/scan_any_page/device_tts_client.dart';
 import 'package:storybook_ar/features/scan_any_page/native_character_reader.dart';
 import 'package:storybook_ar/features/scan_any_page/native_scan_service.dart';
 import 'package:storybook_ar/features/scan_any_page/scanned_page.dart';
@@ -373,27 +372,27 @@ void main() {
     },
   );
 
-  test(
-    'consent-disabled scan flow receives the device-only TtsClient',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final container = ProviderContainer(
-        overrides: [
-          effectiveCloudTtsProvider.overrideWithValue(false),
-          apiClientProvider.overrideWith(
-            (ref) => throw StateError('HTTP client must not be constructed'),
+  test('legacy cloud choice does not prevent server-first TTS', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await KeyValueStore.create();
+    final container = ProviderContainer(
+      overrides: [
+        effectiveCloudTtsProvider.overrideWithValue(false),
+        apiClientProvider.overrideWith(
+          (ref) => ApiClient(
+            dio: Dio(BaseOptions(baseUrl: 'http://localhost')),
+            store: store,
           ),
-          ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
-        ],
-      );
-      addTearDown(container.dispose);
+        ),
+        ttsFileSynthesizerProvider.overrideWith((ref) => _FakeSynthesizer()),
+      ],
+    );
+    addTearDown(container.dispose);
 
-      final client = container.read(ttsClientProvider(Object()));
+    final client = container.read(ttsClientProvider(Object()));
 
-      expect(client, isA<DeviceTtsClient>());
-      expect(client, isNot(isA<CloudFirstTtsClient>()));
-    },
-  );
+    expect(client, isA<CloudFirstTtsClient>());
+  });
 
   test(
     'consent-enabled scan flow receives the cloud-first TtsClient',
@@ -427,15 +426,15 @@ void main() {
     final cloudClient = _RejectingCloudTtsClient();
     final fallbackProvider =
         NotifierProvider<ScanAnyPageController, ScanAnyPageState>(
-      () => ScanAnyPageController(
-        scanService: scanService,
-        ttsClient: CloudFirstTtsClient(
-          cloud: cloudClient,
-          device: deviceClient,
-        ),
-        characterReader: characterReader,
-      ),
-    );
+          () => ScanAnyPageController(
+            scanService: scanService,
+            ttsClient: CloudFirstTtsClient(
+              cloud: cloudClient,
+              device: deviceClient,
+            ),
+            characterReader: characterReader,
+          ),
+        );
     final fallbackContainer = ProviderContainer();
     addTearDown(fallbackContainer.dispose);
 
@@ -468,11 +467,11 @@ final class _FakeScanService implements ScanService {
 }
 
 ScannedPage _scannedPage(String text) => ScannedPage(
-      Uint8List.fromList([0xff, 0xd8, 0xff]),
-      440,
-      585,
-      [ScannedLine(text, 0.1, 0.1, 0.8, 0.2)],
-    );
+  Uint8List.fromList([0xff, 0xd8, 0xff]),
+  440,
+  585,
+  [ScannedLine(text, 0.1, 0.1, 0.8, 0.2)],
+);
 
 final class _FakeTtsClient implements TtsClient {
   final results = <Future<File>>[];

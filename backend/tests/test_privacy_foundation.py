@@ -133,6 +133,11 @@ def test_effective_choices_require_current_policy():
     assert privacy.effective_cloud_tts(settings) is True
     assert privacy.effective_page_image_validation(settings) is True
 
+    settings.cloud_tts_enabled = False
+    settings.page_image_validation_enabled = False
+    assert privacy.effective_cloud_tts(settings) is True
+    assert privacy.effective_page_image_validation(settings) is True
+
 
 def test_lock_user_uses_retained_user_row(independent_session_factory):
     owner = independent_session_factory(user_id="retained-user")
@@ -150,7 +155,7 @@ def test_lock_user_uses_retained_user_row(independent_session_factory):
         )
 
 
-def test_update_appends_all_scopes_on_first_acceptance(
+def test_update_records_only_current_choices_on_first_acceptance(
     independent_session_factory,
 ):
     db = independent_session_factory(user_id="first-acceptance-user")
@@ -170,18 +175,14 @@ def test_update_appends_all_scopes_on_first_acceptance(
 
     assert settings.accepted_policy_version == privacy.CURRENT_PRIVACY_POLICY_VERSION
     assert settings.core_storage_accepted_at is not None
-    assert len(events) == 4
+    assert len(events) == 2
     assert {event.scope for event in events} == {
         "core_storage",
         "progress_tracking",
-        "cloud_tts",
-        "page_image_validation",
     }
     assert {event.scope: event.granted for event in events} == {
         "core_storage": True,
         "progress_tracking": False,
-        "cloud_tts": True,
-        "page_image_validation": False,
     }
 
 
@@ -222,7 +223,7 @@ def test_repeated_update_appends_only_changed_scope(
     ))
 
     assert updated.core_storage_accepted_at == first_accepted_at
-    assert len(initial_event_ids) == 4
+    assert len(initial_event_ids) == 2
     assert len(appended_events) == 1
     assert appended_events[0].scope == "progress_tracking"
     assert appended_events[0].granted is True

@@ -36,7 +36,7 @@ def generate_tts(
     user: User = Depends(get_current_user),
 ) -> Response:
     try:
-        privacy_service.require_cloud_tts(privacy_repo.get_settings(db, user.id))
+        privacy_service.require_core_storage(privacy_repo.get_settings(db, user.id))
     except privacy_service.PrivacyError as error:
         raise HTTPException(status_code=error.status_code, detail=error.code) from error
     service = get_tts_service()

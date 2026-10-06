@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.models import PrivacySettings, User
 from app.repositories import privacy as privacy_repo
 
-CURRENT_PRIVACY_POLICY_VERSION = "2026-09-26"
+CURRENT_PRIVACY_POLICY_VERSION = "2026-10-06"
 
 
 class PrivacyError(Exception):
@@ -52,18 +52,19 @@ def effective_progress(settings: PrivacySettings | None) -> bool:
 
 
 def effective_cloud_tts(settings: PrivacySettings | None) -> bool:
+    # Legacy response field: narration now follows the required policy review,
+    # not the historical cloud-TTS preference.
     return bool(
         settings
         and settings.accepted_policy_version == CURRENT_PRIVACY_POLICY_VERSION
-        and settings.cloud_tts_enabled
     )
 
 
 def effective_page_image_validation(settings: PrivacySettings | None) -> bool:
+    # Legacy response field: page validation is available after setup.
     return bool(
         settings
         and settings.accepted_policy_version == CURRENT_PRIVACY_POLICY_VERSION
-        and settings.page_image_validation_enabled
     )
 
 
@@ -78,17 +79,6 @@ def require_core_storage(settings: PrivacySettings | None) -> None:
 def require_progress(settings: PrivacySettings | None) -> None:
     if not effective_progress(settings):
         raise PrivacyError(403, "progress_tracking_disabled")
-
-
-def require_cloud_tts(settings: PrivacySettings | None) -> None:
-    if not effective_cloud_tts(settings):
-        raise PrivacyError(403, "cloud_tts_disabled")
-
-
-def require_page_reading(settings: PrivacySettings | None) -> None:
-    require_cloud_tts(settings)
-    if not effective_page_image_validation(settings):
-        raise PrivacyError(403, "page_image_validation_disabled")
 
 
 def update_settings(
@@ -117,28 +107,16 @@ def update_settings(
     progress_changed = (
         settings.progress_tracking_enabled != progress_tracking_enabled
     )
-    cloud_tts_changed = settings.cloud_tts_enabled != cloud_tts_enabled
-    page_image_validation_changed = (
-        settings.page_image_validation_enabled != page_image_validation_enabled
-    )
-
     if accepts_new_policy:
         settings.core_storage_accepted_at = now
         events = (
             ("core_storage", True),
             ("progress_tracking", progress_tracking_enabled),
-            ("cloud_tts", cloud_tts_enabled),
-            ("page_image_validation", page_image_validation_enabled),
         )
     else:
         events = []
         if progress_changed:
             events.append(("progress_tracking", progress_tracking_enabled))
-        if cloud_tts_changed:
-            events.append(("cloud_tts", cloud_tts_enabled))
-        if page_image_validation_changed:
-            events.append(("page_image_validation", page_image_validation_enabled))
-
     settings.accepted_policy_version = policy_version
     settings.progress_tracking_enabled = progress_tracking_enabled
     settings.cloud_tts_enabled = cloud_tts_enabled
