@@ -10,7 +10,6 @@ from app.auth import decode_token
 from app.models import ChildProfile, PrivacySettings
 from app.routers import speakable_page
 from app.services import page_approval
-from app.services.page_validation import ValidationVerdict
 
 POLICY = "2026-10-06"
 
@@ -56,14 +55,8 @@ def _line(text="A little fox"):
     return {"text": text, "left": 0.1, "top": 0.2, "width": 0.8, "height": 0.1}
 
 
-@dataclass
-class FakeValidator:
-    verdict: ValidationVerdict
-
-    def validate(self, image, lines, age_band):
-        assert image.startswith(b"\xff\xd8\xff")
-        assert age_band == "5-6"
-        return self.verdict
+def _forbidden_validator():
+    raise AssertionError("Chat Completions must not be used for scanned pages")
 
 
 @dataclass
@@ -81,7 +74,7 @@ class FakeTts:
         return f"MP3:{text}".encode()
 
 
-def test_validate_returns_proof_only_for_explicitly_approved_result(
+def test_validate_returns_bound_proof_without_chat_completions(
     client, db, monkeypatch
 ):
     headers = _auth(client, "page-validation-approved")
@@ -91,9 +84,7 @@ def test_validate_returns_proof_only_for_explicitly_approved_result(
     monkeypatch.setattr(
         speakable_page.page_validation,
         "OpenAiPageValidator",
-        lambda: FakeValidator(ValidationVerdict(
-            text_matches=True, age_suitable=True, certain=True,
-        )),
+        _forbidden_validator,
     )
 
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
@@ -110,28 +101,25 @@ def test_validate_returns_proof_only_for_explicitly_approved_result(
     )
 
 
-def test_validate_blocks_uncertain_page_without_proof(client, db, monkeypatch):
-    headers = _auth(client, "page-validation-blocked")
+def test_validate_rejects_invalid_image_without_proof_or_chat_completions(client, db, monkeypatch):
+    headers = _auth(client, "page-validation-invalid-image")
     user_id = _user(headers)
-    profile_id = "page-validation-blocked-profile"
+    profile_id = "page-validation-invalid-image-profile"
     _owned_profile(db, user_id, profile_id)
     monkeypatch.setattr(
         speakable_page.page_validation,
         "OpenAiPageValidator",
-        lambda: FakeValidator(ValidationVerdict(
-            text_matches=True, age_suitable=True, certain=False,
-        )),
+        _forbidden_validator,
     )
 
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id,
-        "image_base64": _image_base64(),
+        "image_base64": base64.b64encode(b"not a JPEG").decode("ascii"),
         "lines": [_line()],
     })
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "blocked"}
-    assert response.headers["cache-control"] == "no-store"
+    assert response.status_code == 422
+    assert response.json() == {"detail": "invalid page"}
 
 
 def test_audio_returns_complete_ordered_bundle_and_never_partial(
@@ -207,9 +195,7 @@ def test_legacy_flags_off_still_validate_and_generate_audio(client, db, monkeypa
     db.flush()
     monkeypatch.setattr(
         speakable_page.page_validation, "OpenAiPageValidator",
-        lambda: FakeValidator(ValidationVerdict(
-            text_matches=True, age_suitable=True, certain=True,
-        )),
+        _forbidden_validator,
     )
     service = FakeTts()
     monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)

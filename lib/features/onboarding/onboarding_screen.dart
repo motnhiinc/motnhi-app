@@ -45,23 +45,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // Submit the privacy contract, then save the
       // profile. When a prior attempt already recorded the current acceptance
       // (profile save failed afterwards), retry only the profile save.
-      final privacy = ref.read(privacyProvider).value;
+      // Await an in-flight fetch, or retry a failed one, before using the
+      // server policy. Fetch failures reach the handler with their real code.
+      final privacy = await (ref.read(privacyProvider).hasError
+          ? ref.refresh(privacyProvider.future)
+          : ref.read(privacyProvider.future));
+      if (!mounted) return;
       final consentCurrent =
-          privacy != null &&
           privacy.acceptedPolicyVersion != null &&
           privacy.acceptedPolicyVersion == privacy.currentPolicyVersion;
       if (!consentCurrent) {
-        final policyVersion = privacy?.currentPolicyVersion;
-        if (policyVersion == null) {
-          // No server truth for the required policy version — do not guess.
-          ref.invalidate(privacyProvider);
-          showPrivacySaveError(
-            context,
-            s.privacySaveError,
-            const PrivacyFailure('policy_unavailable'),
-          );
-          return;
-        }
+        final policyVersion = privacy.currentPolicyVersion;
         await ref
             .read(privacyProvider.notifier)
             .updatePrivacy(

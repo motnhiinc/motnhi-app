@@ -29,30 +29,12 @@ def validate_page(
     if profile is None:
         raise HTTPException(status_code=404, detail="profile not found")
     try:
-        image, _, _ = page_validation.decode_page_image(body.image_base64)
+        page_validation.decode_page_image(body.image_base64)
     except page_validation.PageValidationError as error:
         raise HTTPException(status_code=422, detail="invalid page") from error
-    try:
-        validator = page_validation.OpenAiPageValidator()
-        verdict = validator.validate(image, [line.text for line in body.lines], profile.age_band)
-        approved = (
-            verdict.text_matches is True
-            and verdict.age_suitable is True
-            and verdict.certain is True
-        )
-    except Exception:
-        return Response(
-            content=b'{"status":"temporary_error"}',
-            status_code=503,
-            media_type="application/json",
-            headers={"Cache-Control": "no-store"},
-        )
-    if not approved:
-        return Response(
-            content=b'{"status":"blocked"}',
-            media_type="application/json",
-            headers={"Cache-Control": "no-store"},
-        )
+    # AI text matching and age-suitability validation are temporarily disabled.
+    # Bind the supplied OCR text to this user/profile for OpenAI speech without
+    # requiring a Chat Completions request.
     proof = page_approval.issue_approval(user.id, body.profile_id, [line.text for line in body.lines])
     return Response(
         content=(

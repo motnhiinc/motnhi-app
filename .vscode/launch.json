@@ -4,7 +4,7 @@
   //
   // API_BASE_URL notes:
   //   - All three configs point at the deployed backend,
-  //     https://api.workbuddylite.space.
+  //     https://api.phuchuynh.dev.
   //   - To run against a local backend instead, change the define to
   //     http://localhost:8000 (simulator only) or http://<this-Mac-LAN-IP>:8000
   //     for a physical Pixel/iPad -- "localhost" on a device means the DEVICE.
@@ -20,7 +20,7 @@
       "program": "lib/main.dart",
       "flutterMode": "debug",
       "args": [
-        "--dart-define=API_BASE_URL=https://api.workbuddylite.space"
+        "--dart-define=API_BASE_URL=https://api.phuchuynh.dev"
       ]
     },
     {
@@ -30,7 +30,7 @@
       "program": "lib/main.dart",
       "flutterMode": "profile",
       "args": [
-        "--dart-define=API_BASE_URL=https://api.workbuddylite.space"
+        "--dart-define=API_BASE_URL=https://api.phuchuynh.dev"
       ]
     },
     {
@@ -40,7 +40,7 @@
       "program": "lib/main.dart",
       "flutterMode": "release",
       "args": [
-        "--dart-define=API_BASE_URL=https://api.workbuddylite.space"
+        "--dart-define=API_BASE_URL=https://api.phuchuynh.dev"
       ]
     }
   ]
