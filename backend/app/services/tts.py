@@ -1,8 +1,13 @@
+import logging
+import re
 from functools import lru_cache
+from time import monotonic
 
 from openai import OpenAI
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class TtsUpstreamError(RuntimeError):
@@ -20,6 +25,7 @@ class OpenAiTtsService:
         )
 
     def generate(self, text: str) -> bytes:
+        started = monotonic()
         try:
             response = self._client.audio.speech.create(
                 model=settings.openai_tts_model,
@@ -29,6 +35,16 @@ class OpenAiTtsService:
             )
             return response.content
         except Exception as error:
+            code = getattr(error, "code", None)
+            if not isinstance(code, str) or not re.fullmatch(r"[a-z0-9_]{1,64}", code):
+                code = "unknown"
+            logger.warning(
+                "OpenAI speech failed: error_type=%s, status=%s, code=%s, elapsed_seconds=%.3f",
+                type(error).__name__,
+                getattr(error, "status_code", None),
+                code,
+                monotonic() - started,
+            )
             raise TtsUpstreamError("OpenAI speech request failed") from error
 
 
