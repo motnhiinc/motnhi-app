@@ -10,12 +10,16 @@ import '../../core/router/app_router.dart';
 import '../../features/profile/profile_providers.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
+import '../ar/ar_character_providers.dart';
+import '../ar/ar_narration_bundle.dart';
+import '../ar/native_story_reader.dart';
 import 'scan_child_states.dart';
 import 'line_audio_player.dart';
 import 'native_scan_service.dart';
 import 'page_image_view.dart';
 import 'page_validation_client.dart';
 import 'scanned_page.dart';
+import 'scanned_page_ar_audio.dart';
 
 enum _PagePhase {
   scanning,
@@ -46,6 +50,10 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   _PagePhase _phase = _PagePhase.scanning;
   int _generation = 0;
   String? _failureCode;
+  ScannedPageArAudio _arAudio = ScannedPageArAudio();
+  bool _arSupported = false;
+  bool _arBusy = false;
+  bool _resourcesDisposed = false;
 
   @override
   void initState() {
@@ -53,11 +61,10 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     _client = PageValidationClient(ref.read(apiClientProvider));
     _player = LineAudioPlayer();
     _liveDisposers = ref.read(liveResourceDisposersProvider);
-    _disposeResources = () async {
-      await _client.dispose();
-      await _player.dispose();
-    };
+    Future<void>? disposal;
+    _disposeResources = () => disposal ??= _releaseResources();
     _liveDisposers.add(_disposeResources);
+    unawaited(_probeArSupport());
     WidgetsBinding.instance.addPostFrameCallback((_) => _scan());
   }
 
@@ -69,7 +76,27 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     super.dispose();
   }
 
+  Future<void> _releaseResources() async {
+    _resourcesDisposed = true;
+    _generation++;
+    await _arAudio.dispose();
+    await _client.dispose();
+    await _player.dispose();
+  }
+
+  Future<void> _probeArSupport() async {
+    try {
+      final support = await ref.read(storyReaderProvider).isSupported();
+      if (mounted && !_resourcesDisposed) {
+        setState(() => _arSupported = support.supported);
+      }
+    } catch (_) {
+      // Listen remains available if the capability probe fails.
+    }
+  }
+
   Future<void> _scan() async {
+    if (!mounted || _resourcesDisposed || _arBusy) return;
     final generation = ++_generation;
     setState(() {
       _phase = _PagePhase.scanning;
@@ -77,6 +104,9 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       _failureCode = null;
     });
     await _player.stop();
+    await _arAudio.dispose();
+    if (!mounted || generation != _generation) return;
+    _arAudio = ScannedPageArAudio();
     await _clearClips();
     var step = 'profile';
     try {
@@ -138,6 +168,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   }
 
   Future<void> _listen() async {
+    if (_arBusy || _resourcesDisposed || _phase != _PagePhase.ready) return;
     final generation = _generation;
     try {
       if (_profileId == null) {
@@ -145,18 +176,83 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         if (mounted) setState(() => _phase = _PagePhase.setup);
         return;
       }
+      // play() completes when playback stops, so switch controls immediately.
+      setState(() => _phase = _PagePhase.playing);
       await _player.play();
-      if (mounted && generation == _generation) {
-        setState(() => _phase = _PagePhase.playing);
-      }
     } catch (_) {
+      if (!mounted || generation != _generation) return;
       await _stopAndWipe();
       if (mounted) setState(() => _phase = _PagePhase.setup);
     }
   }
 
+  Future<void> _openArReader() async {
+    final profile = ref.read(childProfileProvider).value;
+    if (_arBusy ||
+        _resourcesDisposed ||
+        !_arSupported ||
+        profile?.arEnabled != true ||
+        profile?.id != _profileId ||
+        _phase != _PagePhase.ready ||
+        _page == null) {
+      return;
+    }
+    final generation = _generation;
+    final reader = ref.read(storyReaderProvider);
+    final character = ref.read(selectedArCharacterProvider);
+    setState(() => _arBusy = true);
+    try {
+      await _player.pause();
+      if (!mounted || generation != _generation) return;
+      final page = await _arAudio.prepare(_clips);
+      if (!mounted || generation != _generation) return;
+      final currentProfile = ref.read(childProfileProvider).value;
+      if (currentProfile?.arEnabled != true ||
+          currentProfile?.id != _profileId) {
+        return;
+      }
+      await reader.open(
+        pages: [page],
+        initialPageIndex: 0,
+        character: character,
+      );
+    } catch (error) {
+      if (!mounted || generation != _generation) return;
+      final code = error is StoryReaderFailure
+          ? error.code
+          : error is ArNarrationFailure
+              ? error.code
+              : 'ar_failed';
+      if (code == 'cancelled' || code == 'reader_in_progress') return;
+      final s = AppLocalizations.of(context)!;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(s.arNotReadyTitle),
+          content: Text(switch (code) {
+            'ar_unsupported' => s.arErrUnsupported,
+            'audio_missing' || 'audio_failed' => s.arErrAudio,
+            'model_missing' || 'model_load_failed' => s.arErrModel,
+            _ => s.arErrStart,
+          }),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(s.keepReading),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted && generation == _generation) {
+        setState(() => _arBusy = false);
+      }
+    }
+  }
+
   Future<void> _stopAndWipe() async {
     await _player.stop();
+    await _arAudio.dispose();
     await _clearClips();
     _page = null;
   }
@@ -172,6 +268,8 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   Widget build(BuildContext context) {
     final s = AppLocalizations.of(context)!;
     final page = _page;
+    final arAvailable = _arSupported &&
+        ref.watch(childProfileProvider).value?.arEnabled == true;
     if (_phase == _PagePhase.setup) {
       return ScanGrownUpHandoff(
         readyToRetry: false,
@@ -252,11 +350,29 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                           ),
                           const SizedBox(height: 20),
                           if (_phase == _PagePhase.ready)
-                            PressablePillButton(
-                              label: s.speakableListen,
-                              icon: Icons.volume_up_rounded,
-                              height: 64,
-                              onPressed: _listen,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: PressablePillButton(
+                                    label: s.speakableListen,
+                                    icon: Icons.volume_up_rounded,
+                                    height: 64,
+                                    onPressed: _arBusy ? null : _listen,
+                                  ),
+                                ),
+                                if (arAvailable) ...[
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: PressablePillButton(
+                                      label: s.seeInAr,
+                                      icon: Icons.view_in_ar_rounded,
+                                      variant: PillVariant.secondary,
+                                      height: 64,
+                                      onPressed: _arBusy ? null : _openArReader,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             )
                           else
                             ValueListenableBuilder<bool>(
@@ -319,7 +435,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                             ),
                           const SizedBox(height: 12),
                           TextButton(
-                            onPressed: _scan,
+                            onPressed: _arBusy ? null : _scan,
                             child: Text(s.scanAnotherPage),
                           ),
                         ],
