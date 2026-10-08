@@ -1,6 +1,8 @@
 import ARKit
 import AVFoundation
 import Combine
+import CoreText
+import Flutter
 import RealityKit
 import UIKit
 
@@ -23,6 +25,7 @@ struct CharacterReaderProgress {
 }
 
 enum CharacterReaderResult {
+  case scanNext(CharacterReaderProgress)
   /// Carried on cancel as well as completion: cancel is the normal way to leave AR, and the
   /// page the child reached still matters to the player.
   case completed(CharacterReaderProgress)
@@ -59,6 +62,7 @@ final class CharacterReaderViewController: UIViewController {
   /// single-clip scan-any-page flow is simply a one-page, one-clip story.
   private let pages: [StoryReaderPage]
   private let storyMode: Bool
+  private let scannedPageMode: Bool
   /// Base name, without extension, of the bundled `.usdz` character to load. Chosen by the
   /// player in Flutter and passed through the bridge's `[a-z0-9_]` allowlist, so only a vetted
   /// bundle resource can be named here; the scan-any-page flow keeps its original default.
@@ -76,9 +80,32 @@ final class CharacterReaderViewController: UIViewController {
   private let readButton = UIButton(type: .system)
   private let previousButton = UIButton(type: .system)
   private let nextButton = UIButton(type: .system)
+  private let scanNextButton = UIButton(type: .system)
   private let pageLabel = UILabel()
+  private let dockView = UIView()
+  private let dockContentStack = UIStackView()
+  private let dockTitleLabel = UILabel()
+  private let placementStatusLabel = UILabel()
+  private let headingStack = UIStackView()
+  private let controlsStack = UIStackView()
+  private let arBadge = UILabel()
   private let waveStack = UIStackView()
   private let waveBars = (0..<3).map { _ in UIView() }
+  private let paperColor = UIColor(red: 1, green: 0.98, blue: 0.957, alpha: 1)
+  private let inkColor = UIColor(red: 0.125, green: 0.102, blue: 0.094, alpha: 1)
+  private let mutedColor = UIColor(red: 0.455, green: 0.42, blue: 0.4, alpha: 1)
+  private let lineColor = UIColor(red: 0.859, green: 0.816, blue: 0.769, alpha: 1)
+  private let coralColor = UIColor(red: 0.863, green: 0.439, blue: 0.294, alpha: 1)
+  private let sageColor = UIColor(red: 0.231, green: 0.392, blue: 0.298, alpha: 1)
+  private var guidanceText = "Preparing character reader" {
+    didSet { if oldValue != guidanceText { renderGuidance() } }
+  }
+  private static var registeredFontNames: [String: String] = [:]
+  private var dockLayoutKey: String?
+  private var controlHeightConstraint: NSLayoutConstraint?
+  private var previousWidthConstraint: NSLayoutConstraint?
+  private var nextWidthConstraint: NSLayoutConstraint?
+  private var dockBottomConstraint: NSLayoutConstraint?
 
   private var configuration: ARWorldTrackingConfiguration?
   private var modelTemplate: Entity?
@@ -99,6 +126,7 @@ final class CharacterReaderViewController: UIViewController {
   private var isTerminal = false
   private var isApplicationActive = true
   private var ownsAudioSession = false
+  private var pageFinished = false
 
   /// Single-clip entry point, unchanged for the scan-any-page flow.
   convenience init(audioURL: URL, onComplete: @escaping (CharacterReaderResult) -> Void) {
@@ -115,10 +143,12 @@ final class CharacterReaderViewController: UIViewController {
     initialPageIndex: Int,
     storyMode: Bool,
     modelAssetBaseName: String = "scan_any_page_character",
+    scannedPageMode: Bool = false,
     onComplete: @escaping (CharacterReaderResult) -> Void
   ) {
     self.pages = pages
     self.storyMode = storyMode
+    self.scannedPageMode = scannedPageMode && storyMode && pages.count == 1
     self.modelAssetBaseName = modelAssetBaseName
     self.pageIndex = min(max(initialPageIndex, 0), max(pages.count - 1, 0))
     self.onComplete = onComplete
@@ -181,36 +211,149 @@ final class CharacterReaderViewController: UIViewController {
 
     closeButton.translatesAutoresizingMaskIntoConstraints = false
     closeButton.setTitle("Close", for: .normal)
-    closeButton.setTitleColor(.white, for: .normal)
-    closeButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-    closeButton.backgroundColor = UIColor.black.withAlphaComponent(0.65)
-    closeButton.layer.cornerRadius = 12
+    closeButton.setImage(UIImage(systemName: "xmark"), for: .normal)
+    closeButton.setTitleColor(inkColor, for: .normal)
+    closeButton.tintColor = inkColor
+    closeButton.backgroundColor = paperColor
+    closeButton.layer.cornerRadius = 26
+    closeButton.contentEdgeInsets = UIEdgeInsets(top: 14, left: 18, bottom: 14, right: 18)
+    closeButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -5, bottom: 0, right: 5)
+    closeButton.titleEdgeInsets = UIEdgeInsets(top: 0, left: 5, bottom: 0, right: -5)
+    closeButton.titleLabel?.font = readerFont("NunitoSans-Bold", size: 16, style: .headline)
+    closeButton.titleLabel?.adjustsFontForContentSizeCategory = true
     closeButton.addTarget(self, action: #selector(close), for: .touchUpInside)
     view.addSubview(closeButton)
 
-    guidanceLabel.translatesAutoresizingMaskIntoConstraints = false
+    arBadge.translatesAutoresizingMaskIntoConstraints = false
+    let badgeIcon = NSTextAttachment()
+    badgeIcon.image = UIImage(systemName: "cube")?.withTintColor(paperColor, renderingMode: .alwaysOriginal)
+    badgeIcon.bounds = CGRect(x: 0, y: -3, width: 18, height: 18)
+    let badgeText = NSMutableAttributedString(string: "  ")
+    badgeText.append(NSAttributedString(attachment: badgeIcon))
+    badgeText.append(NSAttributedString(string: "  STORY IN AR  "))
+    arBadge.attributedText = badgeText
+    arBadge.textColor = paperColor
+    arBadge.backgroundColor = inkColor.withAlphaComponent(0.85)
+    arBadge.font = readerFont("NunitoSans-Bold", size: 14, style: .caption1)
+    arBadge.textAlignment = .center
+    arBadge.layer.cornerRadius = 22
+    arBadge.layer.masksToBounds = true
+    arBadge.isAccessibilityElement = false
+    view.addSubview(arBadge)
+
+    dockView.translatesAutoresizingMaskIntoConstraints = false
+    dockView.backgroundColor = paperColor
+    dockView.layer.cornerRadius = 24
+    dockView.layer.cornerCurve = .continuous
+    dockView.layer.borderWidth = 1
+    dockView.layer.borderColor = lineColor.cgColor
+    dockView.clipsToBounds = true
+    view.addSubview(dockView)
+
+    let scrollView = UIScrollView()
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.showsVerticalScrollIndicator = false
+    dockView.addSubview(scrollView)
+
+    let contentStack = dockContentStack
+    contentStack.translatesAutoresizingMaskIntoConstraints = false
+    contentStack.axis = .vertical
+    contentStack.spacing = 16
+    contentStack.isLayoutMarginsRelativeArrangement = true
+    contentStack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20)
+    scrollView.addSubview(contentStack)
+
+    placementStatusLabel.font = readerFont("NunitoSans-ExtraBold", size: 14, style: .caption1)
+    placementStatusLabel.textColor = sageColor
+    placementStatusLabel.numberOfLines = 0
+    contentStack.addArrangedSubview(placementStatusLabel)
+
+    dockTitleLabel.font = readerFont("SourceSerif4-SemiBold", size: 24, style: .title2)
+    dockTitleLabel.textColor = inkColor
+    dockTitleLabel.numberOfLines = 0
+    dockTitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    headingStack.axis = .horizontal
+    headingStack.alignment = .center
+    headingStack.spacing = 12
+    headingStack.addArrangedSubview(dockTitleLabel)
+    configurePageControls()
+    headingStack.addArrangedSubview(pageLabel)
+    contentStack.addArrangedSubview(headingStack)
+
     guidanceLabel.numberOfLines = 0
-    guidanceLabel.textAlignment = .center
-    guidanceLabel.textColor = .white
-    guidanceLabel.font = .preferredFont(forTextStyle: .headline)
-    guidanceLabel.backgroundColor = UIColor.black.withAlphaComponent(0.65)
-    guidanceLabel.layer.cornerRadius = 12
-    guidanceLabel.layer.masksToBounds = true
-    guidanceLabel.text = "Preparing character reader"
-    view.addSubview(guidanceLabel)
+    guidanceLabel.textColor = mutedColor
+    guidanceLabel.font = readerFont("NunitoSans-Regular", size: 16, style: .body)
+    configureWaveBadge()
+    let statusStack = UIStackView(arrangedSubviews: [waveStack, guidanceLabel])
+    statusStack.axis = .horizontal
+    statusStack.alignment = .center
+    statusStack.spacing = 10
+    contentStack.addArrangedSubview(statusStack)
 
     readButton.translatesAutoresizingMaskIntoConstraints = false
     readButton.setTitle("Read", for: .normal)
-    readButton.setTitleColor(.white, for: .normal)
-    readButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-    readButton.backgroundColor = .systemIndigo
-    readButton.layer.cornerRadius = 14
+    readButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+    readButton.setTitleColor(inkColor, for: .normal)
+    readButton.tintColor = inkColor
+    readButton.backgroundColor = coralColor
+    readButton.layer.cornerRadius = 28
+    readButton.contentEdgeInsets = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+    readButton.imageEdgeInsets = UIEdgeInsets(top: 0, left: -5, bottom: 0, right: 5)
+    readButton.titleEdgeInsets = UIEdgeInsets(top: 0, left: 5, bottom: 0, right: -5)
+    readButton.titleLabel?.font = readerFont("NunitoSans-ExtraBold", size: 16, style: .headline)
+    readButton.titleLabel?.adjustsFontForContentSizeCategory = true
+    readButton.titleLabel?.numberOfLines = 0
+    readButton.titleLabel?.textAlignment = .center
     readButton.isHidden = true
     readButton.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
-    view.addSubview(readButton)
+    controlsStack.axis = .horizontal
+    controlsStack.alignment = .fill
+    controlsStack.spacing = 12
+    controlsStack.addArrangedSubview(previousButton)
+    controlsStack.addArrangedSubview(readButton)
+    controlsStack.addArrangedSubview(nextButton)
+    controlsStack.isHidden = true
+    contentStack.addArrangedSubview(controlsStack)
 
-    configurePageControls()
-    configureWaveBadge()
+    if scannedPageMode {
+      scanNextButton.setTitle(scanLabel("Scan next page", "Quét trang tiếp"), for: .normal)
+      scanNextButton.setImage(UIImage(systemName: "doc.viewfinder"), for: .normal)
+      scanNextButton.setTitleColor(inkColor, for: .normal)
+      scanNextButton.tintColor = inkColor
+      scanNextButton.titleLabel?.font = readerFont("NunitoSans-Bold", size: 16, style: .headline)
+      scanNextButton.titleLabel?.adjustsFontForContentSizeCategory = true
+      scanNextButton.titleLabel?.numberOfLines = 0
+      scanNextButton.titleLabel?.textAlignment = .center
+      scanNextButton.contentEdgeInsets = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+      scanNextButton.layer.cornerRadius = 26
+      scanNextButton.layer.borderWidth = 1
+      scanNextButton.layer.borderColor = lineColor.cgColor
+      scanNextButton.addTarget(self, action: #selector(scanNext), for: .touchUpInside)
+      contentStack.addArrangedSubview(scanNextButton)
+      scanNextButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 52).isActive = true
+    }
+
+    for label in [guidanceLabel, dockTitleLabel, placementStatusLabel, pageLabel, arBadge] {
+      label.adjustsFontForContentSizeCategory = true
+      label.setContentCompressionResistancePriority(UILayoutPriority(999), for: .vertical)
+    }
+    readButton.setContentCompressionResistancePriority(UILayoutPriority(999), for: .vertical)
+    let dockWidth = dockView.widthAnchor.constraint(equalTo: view.safeAreaLayoutGuide.widthAnchor, constant: -32)
+    dockWidth.priority = .defaultHigh
+    let scrollHeight = scrollView.heightAnchor.constraint(equalTo: contentStack.heightAnchor)
+    scrollHeight.priority = .defaultHigh
+    let readHeight = readButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 56)
+    let waveWidth = waveStack.widthAnchor.constraint(equalToConstant: 20)
+    let previousWidth = previousButton.widthAnchor.constraint(equalToConstant: 52)
+    let nextWidth = nextButton.widthAnchor.constraint(equalToConstant: 52)
+    let dockBottom = dockView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24)
+    controlHeightConstraint = readHeight
+    previousWidthConstraint = previousWidth
+    nextWidthConstraint = nextWidth
+    dockBottomConstraint = dockBottom
+    for constraint in [readHeight, waveWidth, previousWidth, nextWidth] {
+      constraint.priority = UILayoutPriority(999)
+    }
 
     NSLayoutConstraint.activate([
       arView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -219,34 +362,35 @@ final class CharacterReaderViewController: UIViewController {
       arView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
       closeButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
       closeButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-      closeButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
-      closeButton.heightAnchor.constraint(equalToConstant: 48),
-      guidanceLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-      guidanceLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      guidanceLabel.leadingAnchor.constraint(greaterThanOrEqualTo: closeButton.trailingAnchor, constant: 16),
-      guidanceLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-      guidanceLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520),
-      guidanceLabel.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
-      readButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
-      readButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      readButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 148),
-      readButton.heightAnchor.constraint(equalToConstant: 56),
-      waveStack.centerYAnchor.constraint(equalTo: readButton.centerYAnchor),
-      waveStack.trailingAnchor.constraint(equalTo: readButton.leadingAnchor, constant: -14),
-      waveStack.widthAnchor.constraint(equalToConstant: 42),
-      waveStack.heightAnchor.constraint(equalToConstant: 40),
-      previousButton.centerYAnchor.constraint(equalTo: readButton.centerYAnchor),
-      previousButton.trailingAnchor.constraint(equalTo: waveStack.leadingAnchor, constant: -12),
-      previousButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
-      previousButton.heightAnchor.constraint(equalToConstant: 56),
-      nextButton.centerYAnchor.constraint(equalTo: readButton.centerYAnchor),
-      nextButton.leadingAnchor.constraint(equalTo: readButton.trailingAnchor, constant: 12),
-      nextButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
-      nextButton.heightAnchor.constraint(equalToConstant: 56),
-      pageLabel.bottomAnchor.constraint(equalTo: readButton.topAnchor, constant: -12),
-      pageLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-      pageLabel.heightAnchor.constraint(equalToConstant: 32),
+      closeButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
+      arBadge.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
+      arBadge.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+      arBadge.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+      dockView.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+      dockView.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+      dockView.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+      dockView.widthAnchor.constraint(lessThanOrEqualToConstant: 640),
+      dockWidth,
+      dockBottom,
+      dockView.heightAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.heightAnchor, multiplier: 0.65),
+      scrollView.topAnchor.constraint(equalTo: dockView.topAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: dockView.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: dockView.trailingAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: dockView.bottomAnchor),
+      contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+      contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+      contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+      contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+      contentStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+      scrollHeight,
+      readHeight,
+      waveWidth,
+      waveStack.heightAnchor.constraint(equalToConstant: 24),
+      previousWidth,
+      nextWidth,
     ])
+    updateAccessibleLayout()
+    renderGuidance()
 
     let placementTap = UITapGestureRecognizer(target: self, action: #selector(placeCharacter))
     placementTap.isEnabled = false
@@ -257,30 +401,29 @@ final class CharacterReaderViewController: UIViewController {
   /// Page controls exist only in story mode; the scan-any-page flow has a single clip and no
   /// pages to move between, so they stay hidden and unreachable there.
   private func configurePageControls() {
-    for (button, title, action) in [
-      (previousButton, "Back", #selector(goToPreviousPage)),
-      (nextButton, "Next", #selector(goToNextPage)),
+    for (button, symbol, label, action) in [
+      (previousButton, "chevron.left", "Previous page", #selector(goToPreviousPage)),
+      (nextButton, "chevron.right", "Next page", #selector(goToNextPage)),
     ] {
       button.translatesAutoresizingMaskIntoConstraints = false
-      button.setTitle(title, for: .normal)
-      button.setTitleColor(.white, for: .normal)
-      button.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-      button.backgroundColor = .systemIndigo
-      button.layer.cornerRadius = 14
+      button.setImage(UIImage(systemName: symbol), for: .normal)
+      button.tintColor = inkColor
+      button.accessibilityLabel = label
+      button.backgroundColor = paperColor
+      button.layer.cornerRadius = 26
+      button.layer.borderWidth = 1
+      button.layer.borderColor = lineColor.cgColor
       button.isHidden = true
       button.addTarget(self, action: action, for: .touchUpInside)
-      view.addSubview(button)
     }
 
     pageLabel.translatesAutoresizingMaskIntoConstraints = false
-    pageLabel.textAlignment = .center
-    pageLabel.textColor = .white
-    pageLabel.font = .preferredFont(forTextStyle: .subheadline)
-    pageLabel.backgroundColor = UIColor.black.withAlphaComponent(0.65)
-    pageLabel.layer.cornerRadius = 10
-    pageLabel.layer.masksToBounds = true
+    pageLabel.textAlignment = .right
+    pageLabel.textColor = mutedColor
+    pageLabel.font = readerFont("NunitoSans-Bold", size: 14, style: .subheadline)
+    pageLabel.numberOfLines = 0
+    pageLabel.setContentCompressionResistancePriority(UILayoutPriority(999), for: .horizontal)
     pageLabel.isHidden = true
-    view.addSubview(pageLabel)
   }
 
   private func configureWaveBadge() {
@@ -288,21 +431,108 @@ final class CharacterReaderViewController: UIViewController {
     waveStack.axis = .horizontal
     waveStack.alignment = .center
     waveStack.distribution = .fillEqually
-    waveStack.spacing = 4
-    waveStack.backgroundColor = UIColor.black.withAlphaComponent(0.65)
-    waveStack.layer.cornerRadius = 12
-    waveStack.isLayoutMarginsRelativeArrangement = true
-    waveStack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+    waveStack.spacing = 3
     waveStack.isHidden = true
-    view.addSubview(waveStack)
+    waveStack.isAccessibilityElement = false
 
     for (index, bar) in waveBars.enumerated() {
-      bar.backgroundColor = .systemGreen
+      bar.backgroundColor = sageColor
       bar.layer.cornerRadius = 2
       bar.translatesAutoresizingMaskIntoConstraints = false
-      bar.heightAnchor.constraint(equalToConstant: index == 1 ? 22 : 14).isActive = true
+      bar.heightAnchor.constraint(equalToConstant: index == 1 ? 18 : 10).isActive = true
       waveStack.addArrangedSubview(bar)
     }
+  }
+
+  private func readerFont(_ asset: String, size: CGFloat, style: UIFont.TextStyle) -> UIFont {
+    if Self.registeredFontNames[asset] == nil {
+      let key = FlutterDartProject.lookupKey(forAsset: "assets/fonts/\(asset).ttf")
+      let framework = Bundle.main.bundleURL.appendingPathComponent("Frameworks/App.framework")
+      if let bundle = Bundle(url: framework),
+         let url = bundle.url(forResource: key, withExtension: nil),
+         let provider = CGDataProvider(url: url as CFURL),
+         let font = CGFont(provider),
+         let name = font.postScriptName as String?
+      {
+        CTFontManagerRegisterGraphicsFont(font, nil)
+        Self.registeredFontNames[asset] = name
+      }
+    }
+    let fallback = UIFont.systemFont(ofSize: size, weight: asset.contains("Bold") ? .bold : .regular)
+    let font = Self.registeredFontNames[asset].flatMap { UIFont(name: $0, size: size) } ?? fallback
+    return UIFontMetrics(forTextStyle: style).scaledFont(for: font)
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    updateAccessibleLayout()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    closeButton.layer.cornerRadius = closeButton.bounds.height / 2
+    readButton.layer.cornerRadius = readButton.bounds.height / 2
+    updateDockLayout()
+    updateAccessibleLayout()
+  }
+
+  private func updateAccessibleLayout() {
+    let largeText = traitCollection.preferredContentSizeCategory.isAccessibilityCategory
+    headingStack.axis = largeText ? .vertical : .horizontal
+    headingStack.alignment = largeText ? .leading : .center
+    arBadge.isHidden = largeText || closeButton.intrinsicContentSize.width + arBadge.intrinsicContentSize.width + 48
+      > view.safeAreaLayoutGuide.layoutFrame.width
+  }
+
+  private func updateDockLayout() {
+    let tablet = view.safeAreaLayoutGuide.layoutFrame.width >= 600
+    let key = "\(tablet)-\(isPlaced)-\(traitCollection.preferredContentSizeCategory.rawValue)"
+    guard key != dockLayoutKey else { return }
+    dockLayoutKey = key
+    let padding: CGFloat = tablet ? (isPlaced ? 24 : 28) : 20
+    dockContentStack.directionalLayoutMargins = NSDirectionalEdgeInsets(
+      top: padding, leading: padding, bottom: padding, trailing: padding
+    )
+    dockContentStack.spacing = tablet ? (isPlaced ? 20 : 12) : 16
+    dockView.layer.cornerRadius = tablet ? 28 : 24
+    dockBottomConstraint?.constant = tablet ? -32 : -24
+    controlsStack.spacing = tablet ? 16 : 12
+    controlHeightConstraint?.constant = tablet ? 60 : 56
+    previousWidthConstraint?.constant = tablet ? 60 : 52
+    nextWidthConstraint?.constant = tablet ? 60 : 52
+    previousButton.layer.cornerRadius = tablet ? 30 : 26
+    nextButton.layer.cornerRadius = tablet ? 30 : 26
+    dockTitleLabel.font = readerFont("SourceSerif4-SemiBold", size: tablet ? (isPlaced ? 28 : 32) : 24, style: .title2)
+    pageLabel.font = readerFont("NunitoSans-Bold", size: tablet ? 16 : 14, style: .subheadline)
+    guidanceLabel.font = readerFont("NunitoSans-Regular", size: tablet && !isPlaced ? 18 : 16, style: .body)
+    readButton.titleLabel?.font = readerFont("NunitoSans-ExtraBold", size: tablet ? 18 : 16, style: .headline)
+  }
+
+  private func renderGuidance() {
+    placementStatusLabel.isHidden = isPlaced
+    dockTitleLabel.text = isPlaced ? "Story time" : "Find a spot for your story."
+    guidanceLabel.textColor = isPlaced && playbackState == .playing ? sageColor : mutedColor
+    guidanceLabel.text = playbackState == .paused && guidanceText == "Reading aloud" ? "Reading paused" : guidanceText
+    if !isPlaced {
+      switch guidanceText {
+      case "Loading character":
+        placementStatusLabel.text = "GETTING READY"
+      case "Table found - Tap to place the character":
+        placementStatusLabel.text = "TABLE FOUND"
+        dockTitleLabel.text = "Make room for a little magic."
+        guidanceLabel.text = scannedPageMode
+          ? scanLabel("Hold still — placing your character.", "Giữ yên — đang đặt nhân vật.")
+          : "Tap the table to place your character."
+      case "Move the iPad slowly to find a table":
+        placementStatusLabel.text = "LOOKING FOR A TABLE"
+        guidanceLabel.text = scannedPageMode
+          ? scanLabel("Keep the page in view. Move slowly to find its surface.", "Giữ trang sách trong khung hình. Di chuyển chậm để tìm mặt phẳng.")
+          : "Move your device slowly to find a table."
+      default:
+        placementStatusLabel.text = "GETTING READY"
+      }
+    }
+    updateDockLayout()
   }
 
   private func observeApplicationLifecycle() {
@@ -353,7 +583,7 @@ final class CharacterReaderViewController: UIViewController {
       finish(.failure(.modelMissing))
       return
     }
-    guidanceLabel.text = "Loading character"
+    guidanceText = "Loading character"
     modelLoadCancellable = Entity.loadAsync(contentsOf: modelURL)
       .receive(on: DispatchQueue.main)
       .sink(
@@ -386,15 +616,15 @@ final class CharacterReaderViewController: UIViewController {
     if isApplicationActive {
       activateARSession(configuration)
     } else {
-      guidanceLabel.text = "Character reader paused"
+      guidanceText = "Character reader paused"
     }
   }
 
   private func activateARSession(_ configuration: ARWorldTrackingConfiguration) {
     arView.session.run(configuration)
-    placementTap?.isEnabled = !isPlaced
+    placementTap?.isEnabled = !isPlaced && !scannedPageMode
     if !isPlaced {
-      guidanceLabel.text = "Move the iPad slowly to find a table"
+      guidanceText = "Move the iPad slowly to find a table"
     }
   }
 
@@ -408,29 +638,42 @@ final class CharacterReaderViewController: UIViewController {
   }
 
   private func updateRaycast() {
+    guard isApplicationActive else { return }
     let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
     let result = arView.raycast(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal).first
-      ?? arView.raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal).first
+      ?? (scannedPageMode ? nil : arView.raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal).first)
     currentRaycastResult = result
 
     guard let result else {
       reticleEntity?.isEnabled = false
-      guidanceLabel.text = "Move the iPad slowly to find a table"
+      guidanceText = "Move the iPad slowly to find a table"
       return
     }
-    guidanceLabel.text = "Table found - Tap to place the character"
+    guidanceText = "Table found - Tap to place the character"
     let anchor = reticleAnchor ?? makeReticleAnchor()
     anchor.transform.matrix = result.worldTransform
     reticleEntity?.isEnabled = true
+    if scannedPageMode, let frame = arView.session.currentFrame,
+       case .normal = frame.camera.trackingState {
+      placeCharacter()
+    }
   }
 
   private func makeReticleAnchor() -> AnchorEntity {
     let anchor = AnchorEntity(world: matrix_identity_float4x4)
-    let material = SimpleMaterial(color: UIColor.systemYellow.withAlphaComponent(0.85), isMetallic: false)
-    let reticle = ModelEntity(
-      mesh: .generatePlane(width: 0.12, depth: 0.12, cornerRadius: 0.06),
-      materials: [material]
-    )
+    let material = UnlitMaterial(color: paperColor)
+    let reticle = ModelEntity()
+    for index in 0..<24 {
+      let angle = Float(index) * 2 * .pi / 24
+      let dash = ModelEntity(mesh: .generatePlane(width: 0.008, depth: 0.002), materials: [material])
+      dash.position = SIMD3(cos(angle) * 0.06, 0, sin(angle) * 0.06)
+      dash.orientation = simd_quatf(angle: -angle - .pi / 2, axis: SIMD3(0, 1, 0))
+      reticle.addChild(dash)
+    }
+    let crossSizes: [(Float, Float)] = [(0.024, 0.002), (0.002, 0.024)]
+    for (width, depth) in crossSizes {
+      reticle.addChild(ModelEntity(mesh: .generatePlane(width: width, depth: depth), materials: [material]))
+    }
     reticle.position.y = 0.001
     anchor.addChild(reticle)
     arView.scene.addAnchor(anchor)
@@ -451,18 +694,21 @@ final class CharacterReaderViewController: UIViewController {
     anchor.addChild(model)
     placedModel = model
     isPlaced = true
-    guidanceLabel.text = "Character ready"
+    guidanceText = "Character ready"
     readButton.isHidden = false
-    waveStack.isHidden = false
-    previousButton.isHidden = !storyMode
-    nextButton.isHidden = !storyMode
-    pageLabel.isHidden = !storyMode
+    controlsStack.isHidden = false
+    previousButton.isHidden = !storyMode || scannedPageMode
+    nextButton.isHidden = !storyMode || scannedPageMode
+    pageLabel.isHidden = !storyMode || scannedPageMode
     syncPageControls()
     renderPlaybackState()
 
     if !playFirstAnimation(in: model) {
       bobBaseY = model.position.y
       bobStartTime = CACurrentMediaTime()
+    }
+    if scannedPageMode, isApplicationActive, !startCurrentClip() {
+      showPlaybackRetry()
     }
   }
 
@@ -493,11 +739,25 @@ final class CharacterReaderViewController: UIViewController {
   }
 
   @objc private func togglePlayback() {
-    guard isPlaced, let audioPlayer else { return }
+    guard isPlaced else { return }
+    if scannedPageMode && pageFinished {
+      clipIndex = 0
+      guard loadCurrentClip() else {
+        showPlaybackRetry()
+        return
+      }
+      pageFinished = false
+    } else if scannedPageMode && playbackState == .retry {
+      guard loadCurrentClip() else {
+        showPlaybackRetry()
+        return
+      }
+    }
+    guard let audioPlayer else { return }
     if playbackState == .playing {
       audioPlayer.pause()
       playbackState = .paused
-      guidanceLabel.text = "Reading paused"
+      guidanceText = "Reading paused"
       renderPlaybackState()
       return
     }
@@ -514,7 +774,7 @@ final class CharacterReaderViewController: UIViewController {
       hasPlaybackStarted = true
       playbackState = .playing
       markCurrentPageRead()
-      guidanceLabel.text = "Reading aloud"
+      guidanceText = "Reading aloud"
       renderPlaybackState()
     } catch {
       showPlaybackRetry()
@@ -556,7 +816,7 @@ final class CharacterReaderViewController: UIViewController {
       hasPlaybackStarted = true
       playbackState = .playing
       markCurrentPageRead()
-      guidanceLabel.text = "Reading aloud"
+      guidanceText = "Reading aloud"
       renderPlaybackState()
       return true
     } catch {
@@ -588,14 +848,14 @@ final class CharacterReaderViewController: UIViewController {
       if !startCurrentClip() { showPlaybackRetry() }
     } else {
       playbackState = .ready
-      guidanceLabel.text = "Character ready"
+      guidanceText = "Character ready"
       renderPlaybackState()
     }
   }
 
   private func syncPageControls() {
     guard storyMode else { return }
-    pageLabel.text = "  Page \(pageIndex + 1) of \(pages.count)  "
+    pageLabel.text = "Page \(pageIndex + 1) of \(pages.count)"
     previousButton.isEnabled = pageIndex > 0
     nextButton.isEnabled = pageIndex < pages.count - 1
     previousButton.alpha = previousButton.isEnabled ? 1.0 : 0.35
@@ -606,21 +866,27 @@ final class CharacterReaderViewController: UIViewController {
     audioPlayer?.pause()
     playbackState = .retry
     deactivateOwnedAudioSession()
-    guidanceLabel.text = "Audio couldn't play - Tap Retry"
+    guidanceText = "Audio couldn't play - Tap Retry"
     renderPlaybackState()
   }
 
   private func renderPlaybackState() {
     switch playbackState {
     case .ready:
-      readButton.setTitle("Read", for: .normal)
+      readButton.setTitle(scannedPageMode && pageFinished ? scanLabel("Replay", "Đọc lại") : "Read", for: .normal)
+      readButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
     case .playing:
       readButton.setTitle("Pause", for: .normal)
+      readButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
     case .paused:
       readButton.setTitle("Resume", for: .normal)
+      readButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
     case .retry:
       readButton.setTitle("Retry", for: .normal)
+      readButton.setImage(UIImage(systemName: "arrow.clockwise"), for: .normal)
     }
+    waveStack.isHidden = playbackState != .playing
+    renderGuidance()
     setWaveAnimating(playbackState == .playing && audioPlayer?.isPlaying == true)
   }
 
@@ -643,6 +909,15 @@ final class CharacterReaderViewController: UIViewController {
 
   @objc private func close() {
     finish(hasPlaybackStarted ? .completed(progress) : .cancelled(progress))
+  }
+
+  private func scanLabel(_ en: String, _ vi: String) -> String {
+    Locale.preferredLanguages.first?.hasPrefix("vi") == true ? vi : en
+  }
+
+  @objc private func scanNext() {
+    guard scannedPageMode else { return }
+    finish(.scanNext(progress))
   }
 
   private func finish(_ result: CharacterReaderResult) {
@@ -719,7 +994,7 @@ final class CharacterReaderViewController: UIViewController {
 
     if playbackState.pauseForInterruption() {
       audioPlayer?.pause()
-      guidanceLabel.text = "Reading paused"
+      guidanceText = "Reading paused"
       renderPlaybackState()
     }
     deactivateOwnedAudioSession()
@@ -733,7 +1008,7 @@ extension CharacterReaderViewController: AVAudioPlayerDelegate {
       guard let self, !self.isTerminal else { return }
       guard flag else {
         self.playbackState = .retry
-        self.guidanceLabel.text = "Audio stopped - Tap Retry"
+        self.guidanceText = "Audio stopped - Tap Retry"
         self.deactivateOwnedAudioSession()
         self.renderPlaybackState()
         return
@@ -752,8 +1027,9 @@ extension CharacterReaderViewController: AVAudioPlayerDelegate {
       }
 
       player.currentTime = 0
+      self.pageFinished = true
       self.playbackState = .ready
-      self.guidanceLabel.text = self.storyMode && self.pageIndex < self.pages.count - 1
+      self.guidanceText = self.storyMode && self.pageIndex < self.pages.count - 1
         ? "Page finished - Tap Next"
         : "Reading complete"
       self.deactivateOwnedAudioSession()

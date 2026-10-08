@@ -2,16 +2,12 @@ package com.motnhi.app.scananypage
 
 import android.app.Activity
 import android.content.Intent
-import android.content.IntentSender
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
-import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.motnhi.app.OneAtATimeGate
@@ -19,6 +15,7 @@ import com.motnhi.app.OneShotGate
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class ScanAnyPageBridge(
     private val activity: Activity,
@@ -58,61 +55,34 @@ class ScanAnyPageBridge(
     }
 
     private fun launchScanner() {
-        val options = GmsDocumentScannerOptions.Builder()
-            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
-            .setGalleryImportAllowed(false)
-            .setPageLimit(1)
-            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-            .build()
-
-        GmsDocumentScanning.getClient(options)
-            .getStartScanIntent(activity)
-            .addOnSuccessListener { intentSender ->
-                runOnMain {
-                    try {
-                        activity.startIntentSenderForResult(
-                            intentSender,
-                            requestCode,
-                            null,
-                            0,
-                            0,
-                            0,
-                            null,
-                        )
-                    } catch (_: IntentSender.SendIntentException) {
-                        finishError("camera_unavailable")
-                    } catch (_: RuntimeException) {
-                        finishError("camera_unavailable")
-                    }
-                }
-            }
-            .addOnFailureListener {
-                finishError("camera_unavailable")
-            }
+        try {
+            activity.startActivityForResult(Intent(activity, PageScannerActivity::class.java), requestCode)
+        } catch (_: RuntimeException) {
+            finishError("camera_unavailable")
+        }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != this.requestCode) return false
         if (pendingResult == null) return true
 
-        val scanResult = data?.let { GmsDocumentScanningResult.fromActivityResultIntent(it) }
-        val pages = scanResult?.pages.orEmpty()
-        val failureCode = ScannerFailureMapper.activityResultFailureCode(
-            resultCode = resultCode,
-            hasParsedResult = scanResult != null,
-            pageCount = pages.size,
-        )
-        if (failureCode != null) {
-            finishError(failureCode)
+        val failure = data?.getStringExtra(PageScannerActivity.EXTRA_ERROR)
+        if (failure != null || resultCode != Activity.RESULT_OK) {
+            finishError(failure ?: "cancelled")
             return true
         }
-
-        val uri = pages.first().imageUri
-        recognize(uri)
+        val path = data?.getStringExtra(PageScannerActivity.EXTRA_IMAGE_PATH)
+        val file = path?.let { runCatching { File(it).canonicalFile }.getOrNull() }
+        if (file == null || file.parentFile != activity.cacheDir.canonicalFile ||
+            !file.name.startsWith("scan-page-") || !file.name.endsWith(".jpg")) {
+            finishError("capture_failed")
+            return true
+        }
+        recognize(Uri.fromFile(file), file)
         return true
     }
 
-    private fun recognize(uri: Uri) {
+    private fun recognize(uri: Uri, ownedFile: File) {
         // Decode/compress off the UI thread. OCR and Flutter both use the same
         // orientation-corrected bitmap, including on devices with EXIF rotation.
         Thread {
@@ -121,6 +91,8 @@ class ScanAnyPageBridge(
             } catch (_: Exception) {
                 runOnMain { finishError("capture_failed") }
                 return@Thread
+            } finally {
+                ownedFile.delete()
             }
             runOnMain { recognizePage(page) }
         }.start()

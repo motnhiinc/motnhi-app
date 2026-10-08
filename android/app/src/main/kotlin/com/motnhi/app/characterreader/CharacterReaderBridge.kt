@@ -34,6 +34,7 @@ class CharacterReaderBridge internal constructor(
     private var pendingIsStoryReader = false
     private var pendingPages: List<StoryReaderPage>? = null
     private var pendingInitialPageIndex = 0
+    private var pendingScannedPageMode = false
 
     /**
      * The bundled `<base>.glb` the story reader should load. Only story mode carries a choice;
@@ -99,6 +100,7 @@ class CharacterReaderBridge internal constructor(
                 return
             }
             pendingPages = pages
+            pendingScannedPageMode = arguments?.get("scannedPageMode") == true && pages.size == 1
             pendingInitialPageIndex = StoryReaderPages.clampIndex(
                 (arguments?.get("initialPageIndex") as? Number)?.toInt() ?: 0,
                 pages.size,
@@ -227,7 +229,7 @@ class CharacterReaderBridge internal constructor(
                 finishError("audio_missing")
                 return
             }
-            host.launchStoryReader(pages, pendingInitialPageIndex, pendingModelAssetFileName)
+            host.launchStoryReader(pages, pendingInitialPageIndex, pendingModelAssetFileName, pendingScannedPageMode)
         } else {
             val audioPath = pendingAudioPath ?: run {
                 finishError("audio_missing")
@@ -280,7 +282,8 @@ class CharacterReaderBridge internal constructor(
         pagesRead: List<String>,
     ): Boolean {
         if (code == CharacterReaderResultMapper.COMPLETED ||
-            code == CharacterReaderResultMapper.CANCELLED
+            code == CharacterReaderResultMapper.CANCELLED ||
+            (code == CharacterReaderResultMapper.SCAN_NEXT && pendingScannedPageMode)
         ) {
             finishStory(code, lastPageId, pagesRead)
         } else {
@@ -334,6 +337,7 @@ class CharacterReaderBridge internal constructor(
         pendingIsStoryReader = false
         pendingPages = null
         pendingInitialPageIndex = 0
+        pendingScannedPageMode = false
         pendingModelAssetFileName = CharacterReaderActivity.MODEL_FILENAME
         installAttempts = 0
         awaitingInstallResume = false

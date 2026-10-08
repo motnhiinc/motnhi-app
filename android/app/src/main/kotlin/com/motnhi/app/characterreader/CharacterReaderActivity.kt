@@ -43,6 +43,8 @@ class CharacterReaderActivity : ComponentActivity() {
     /** Insertion-ordered so the player receives pages in the order the child heard them. */
     private val pagesRead = LinkedHashSet<String>()
     private var storyMode = false
+    private var scannedPageMode = false
+    private var pageFinished = false
 
     /**
      * Registered at construction, before the activity is STARTED, as the Activity Result API
@@ -65,6 +67,9 @@ class CharacterReaderActivity : ComponentActivity() {
             return
         }
         pages = resolved
+        scannedPageMode = storyMode && pages.size == 1 &&
+            intent.getBooleanExtra(EXTRA_SCANNED_PAGE_MODE, false)
+        ui.scannedPageMode = scannedPageMode
         modelAssetFileName = resolveModelAssetFileName()
         if (!modelExists()) {
             finishWith("model_missing")
@@ -144,6 +149,7 @@ class CharacterReaderActivity : ComponentActivity() {
                     placed = true
                     ui.guidance = GUIDANCE_READY
                     ui.controlsVisible = true
+                    if (scannedPageMode && !terminal && !startPlayer()) showAudioRetry()
                 },
                 onReadClick = ::togglePlayback,
                 onPreviousClick = { goToPage(-1) },
@@ -151,6 +157,7 @@ class CharacterReaderActivity : ComponentActivity() {
                 onCloseClick = {
                     finishWith(if (playbackStarted) "completed" else "cancelled")
                 },
+                onScanNextClick = { finishWith(CharacterReaderResultMapper.SCAN_NEXT) },
             )
         }
     }
@@ -221,12 +228,13 @@ class CharacterReaderActivity : ComponentActivity() {
         }
 
         mediaPlayer?.seekTo(0)
+        pageFinished = true
         ui.guidance = if (storyMode && pageIndex < pages.size - 1) {
             "Page finished - Tap next"
         } else {
             "Reading complete"
         }
-        ui.readLabel = "Read"
+        ui.readLabel = if (scannedPageMode) scanLabel("Replay", "Đọc lại") else "Read"
         ui.speaking = false
     }
 
@@ -258,7 +266,7 @@ class CharacterReaderActivity : ComponentActivity() {
     }
 
     private fun syncPageUi() {
-        if (!storyMode) return
+        if (!storyMode || scannedPageMode) return
         ui.pageLabel = "Page ${pageIndex + 1} of ${pages.size}"
         ui.canGoPrevious = pageIndex > 0
         ui.canGoNext = pageIndex < pages.size - 1
@@ -289,6 +297,14 @@ class CharacterReaderActivity : ComponentActivity() {
 
     private fun togglePlayback() {
         if (!placed) return
+        if (scannedPageMode && (pageFinished || ui.readLabel == "Retry")) {
+            if (pageFinished) clipIndex = 0
+            if (!preparePlayer()) {
+                showAudioRetry()
+                return
+            }
+            pageFinished = false
+        }
         val player = mediaPlayer ?: return
         if (player.isPlaying) {
             player.pause()
@@ -410,6 +426,7 @@ class CharacterReaderActivity : ComponentActivity() {
     }
 
     companion object {
+        const val EXTRA_SCANNED_PAGE_MODE = "storybook_ar.character_reader.SCANNED_PAGE_MODE"
         const val EXTRA_AUDIO_FILE_PATH = "storybook_ar.character_reader.AUDIO_FILE_PATH"
         const val EXTRA_PAGES_JSON = "storybook_ar.character_reader.PAGES_JSON"
         const val EXTRA_INITIAL_PAGE_INDEX = "storybook_ar.character_reader.INITIAL_PAGE_INDEX"

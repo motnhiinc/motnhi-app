@@ -12,7 +12,9 @@ from app.models import User
 from app.repositories import privacy as privacy_repo, profiles
 from app.schemas import PageAudioRequest, ValidatePageRequest
 from app.services import page_approval, page_validation, privacy as privacy_service
-from app.services.tts import OpenAiTtsService, TtsUpstreamError, get_openai_tts_service
+from app.services.elevenlabs_tts import ElevenLabsTtsService, get_elevenlabs_tts_service
+from app.services.page_narration import normalize_page_narration
+from app.services.tts import TtsUpstreamError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/speakable-page", tags=["speakable-page"])
@@ -36,7 +38,7 @@ def validate_page(
     except page_validation.PageValidationError as error:
         raise HTTPException(status_code=422, detail="invalid page") from error
     # AI text matching and age-suitability validation are temporarily disabled.
-    # Bind the supplied OCR text to this user/profile for OpenAI speech without
+    # Bind the supplied OCR text to this user/profile for cloud speech without
     # requiring a Chat Completions request.
     proof = page_approval.issue_approval(user.id, body.profile_id, [line.text for line in body.lines])
     return Response(
@@ -66,11 +68,11 @@ def generate_page_audio(
     stage = "service_init"
     clip_number = None
     try:
-        service: OpenAiTtsService = get_openai_tts_service()
+        service: ElevenLabsTtsService = get_elevenlabs_tts_service()
         buffer = BytesIO()
         stage = "bundle_open"
         with ZipFile(buffer, "w", compression=ZIP_STORED) as archive:
-            for index, text in enumerate(body.lines):
+            for index, text in enumerate(normalize_page_narration(body.lines)):
                 clip_number = index + 1
                 stage = "speech"
                 audio = service.generate(text)

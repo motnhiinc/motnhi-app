@@ -463,6 +463,35 @@ class CharacterReaderBridgeTest {
     // ---- capability probe ----
 
     @Test
+    fun scannedPageModeIsForwardedAndNextScanReleasesTheReaderGate() {
+        val bridge = bridge()
+        val arguments = storyArguments(storyClip("ar_scan_p1_s0.mp3")) + ("scannedPageMode" to true)
+        bridge.handle(MethodCall("openStoryReader", arguments), result)
+        assertTrue(host.scannedPageMode)
+        bridge.finishStoryTerminal(
+            code = CharacterReaderResultMapper.SCAN_NEXT,
+            lastPageId = "p1",
+            pagesRead = listOf("p1"),
+        )
+        assertEquals("scan_next", (result.successValue as Map<*, *>)["terminalCode"])
+        assertEquals(1, result.replies)
+        val second = RecordingResult()
+        bridge.handle(MethodCall("openCharacterReader", mapOf("audioFilePath" to audioPath)), second)
+        assertEquals(0, second.replies)
+        assertEquals(listOf(launchedPath), host.launches)
+    }
+
+    @Test
+    fun aLibraryStoryCannotReturnNextScan() {
+        val bridge = bridge()
+        bridge.handle(MethodCall("openStoryReader", storyArguments(storyClip("ar_story_p1_s0.mp3"))), result)
+        assertEquals(false, host.scannedPageMode)
+        bridge.finishStoryTerminal("scan_next", null, emptyList())
+        assertNull(result.successValue)
+        assertEquals("scan_next", result.errorCode)
+    }
+
+    @Test
     fun isStoryReaderSupportedAnswersWithoutTakingTheGate() {
         val bridge = bridge()
 
@@ -536,6 +565,7 @@ private class FakeReaderHost : ReaderHost {
     var launchSucceeds = true
     val launches = mutableListOf<String>()
     val storyLaunches = mutableListOf<Triple<List<StoryReaderPage>, Int, String>>()
+    var scannedPageMode = false
 
     override fun isPresentable() = presentable
 
@@ -548,8 +578,10 @@ private class FakeReaderHost : ReaderHost {
         pages: List<StoryReaderPage>,
         initialPageIndex: Int,
         modelAssetFileName: String,
+        scannedPageMode: Boolean,
     ): Boolean {
         storyLaunches += Triple(pages, initialPageIndex, modelAssetFileName)
+        this.scannedPageMode = scannedPageMode
         return launchSucceeds
     }
 }

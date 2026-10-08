@@ -31,6 +31,7 @@ class StoryReaderResult {
   final List<String> pagesRead;
 
   bool get completed => terminalCode == 'completed';
+  bool get scanNextRequested => terminalCode == 'scan_next';
 }
 
 final class StoryReaderFailure implements Exception {
@@ -58,6 +59,7 @@ abstract interface class StoryReader {
     required List<ArNarrationPage> pages,
     required int initialPageIndex,
     required ArCharacter character,
+    bool scannedPageMode = false,
   });
 }
 
@@ -100,6 +102,7 @@ final class NativeStoryReader implements StoryReader {
     required List<ArNarrationPage> pages,
     required int initialPageIndex,
     required ArCharacter character,
+    bool scannedPageMode = false,
   }) async {
     try {
       final raw = await _channel.invokeMapMethod<String, dynamic>(
@@ -109,6 +112,7 @@ final class NativeStoryReader implements StoryReader {
           'initialPageIndex': initialPageIndex,
           'characterId': character.id,
           'modelAssetBaseName': character.assetBaseName,
+          if (scannedPageMode) 'scannedPageMode': true,
         },
       );
       return StoryReaderResult(

@@ -9,7 +9,6 @@ import '../../core/di.dart';
 import '../../core/router/app_router.dart';
 import '../../features/profile/profile_providers.dart';
 import '../../l10n/app_localizations.dart';
-import '../../shared/widgets/storybook/storybook.dart';
 import '../ar/ar_character_providers.dart';
 import '../ar/ar_narration_bundle.dart';
 import '../ar/native_story_reader.dart';
@@ -20,6 +19,7 @@ import 'page_image_view.dart';
 import 'page_validation_client.dart';
 import 'scanned_page.dart';
 import 'scanned_page_ar_audio.dart';
+import 'scanned_page_preprocessor.dart';
 
 enum _PagePhase {
   scanning,
@@ -54,6 +54,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   bool _arSupported = false;
   bool _arBusy = false;
   bool _resourcesDisposed = false;
+  late final Future<void> _arSupportProbe;
 
   @override
   void initState() {
@@ -64,7 +65,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     Future<void>? disposal;
     _disposeResources = () => disposal ??= _releaseResources();
     _liveDisposers.add(_disposeResources);
-    unawaited(_probeArSupport());
+    _arSupportProbe = _probeArSupport();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scan());
   }
 
@@ -118,8 +119,9 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       }
       _profileId = profile.id;
       step = 'capture';
-      final page = await ref.read(scanServiceProvider).scanAndRecognize();
+      final captured = await ref.read(scanServiceProvider).scanAndRecognize();
       if (!mounted || generation != _generation) return;
+      final page = preprocessScannedPage(captured);
       setState(() => _phase = _PagePhase.preparing);
       step = 'validation';
       final result = await _client.validate(page, profile.id);
@@ -140,18 +142,33 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         }
         return;
       }
+      _clips.addAll(clips);
       if (clips.length != page.lines.length ||
           page.lines.any((line) => !line.isValid)) {
         setState(() => _phase = _PagePhase.failed);
         return;
       }
-      _clips.addAll(clips);
       await _player.load(clips);
       if (mounted && generation == _generation) {
         setState(() {
           _page = page;
           _phase = _PagePhase.ready;
         });
+        await _arSupportProbe;
+        if (!mounted || _resourcesDisposed || generation != _generation) return;
+        final currentProfile = ref.read(childProfileProvider).value;
+        if (currentProfile?.id != _profileId) {
+          await _stopAndWipe();
+          if (mounted && generation == _generation) {
+            setState(() => _phase = _PagePhase.setup);
+          }
+          return;
+        }
+        if (_arSupported && currentProfile?.arEnabled == true) {
+          await _openArReader();
+        } else {
+          await _listen();
+        }
       }
     } on ScanCancelled {
       if (mounted && generation == _generation) context.pop();
@@ -200,6 +217,8 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
     final generation = _generation;
     final reader = ref.read(storyReaderProvider);
     final character = ref.read(selectedArCharacterProvider);
+    var scanNext = false;
+    var closed = false;
     setState(() => _arBusy = true);
     try {
       await _player.pause();
@@ -209,13 +228,26 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
       final currentProfile = ref.read(childProfileProvider).value;
       if (currentProfile?.arEnabled != true ||
           currentProfile?.id != _profileId) {
+        if (currentProfile?.id != _profileId) {
+          await _stopAndWipe();
+          if (mounted && generation == _generation) {
+            setState(() => _phase = _PagePhase.setup);
+          }
+        } else {
+          // The setting can change while native-compatible clips are copied.
+          setState(() => _arBusy = false);
+          await _listen();
+        }
         return;
       }
-      await reader.open(
+      final result = await reader.open(
         pages: [page],
         initialPageIndex: 0,
         character: character,
+        scannedPageMode: true,
       );
+      scanNext = result.scanNextRequested;
+      closed = !scanNext;
     } catch (error) {
       if (!mounted || generation != _generation) return;
       final code = error is StoryReaderFailure
@@ -223,7 +255,10 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
           : error is ArNarrationFailure
               ? error.code
               : 'ar_failed';
-      if (code == 'cancelled' || code == 'reader_in_progress') return;
+      if (code == 'cancelled') {
+        if (mounted) context.pop();
+        return;
+      }
       final s = AppLocalizations.of(context)!;
       await showDialog<void>(
         context: context,
@@ -248,6 +283,31 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         setState(() => _arBusy = false);
       }
     }
+    if (!mounted || _resourcesDisposed || generation != _generation) return;
+    if (scanNext) {
+      // Android delivers the activity result before its host resumes. Wait for
+      // Flutter's next visible frame before asking native to open the camera.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || _resourcesDisposed || generation != _generation) return;
+      await _scan();
+    } else if (closed) {
+      context.pop();
+    } else {
+      await _listen();
+    }
+  }
+
+  Future<void> _replay() async {
+    if (!mounted || _resourcesDisposed || _arBusy) return;
+    final generation = _generation;
+    setState(() => _phase = _PagePhase.playing);
+    try {
+      await _player.replay();
+    } catch (_) {
+      if (mounted && generation == _generation) {
+        setState(() => _phase = _PagePhase.failed);
+      }
+    }
   }
 
   Future<void> _stopAndWipe() async {
@@ -268,8 +328,6 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
   Widget build(BuildContext context) {
     final s = AppLocalizations.of(context)!;
     final page = _page;
-    final arAvailable = _arSupported &&
-        ref.watch(childProfileProvider).value?.arEnabled == true;
     if (_phase == _PagePhase.setup) {
       return ScanGrownUpHandoff(
         readyToRetry: false,
@@ -349,43 +407,15 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          if (_phase == _PagePhase.ready)
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: PressablePillButton(
-                                    label: s.speakableListen,
-                                    icon: Icons.volume_up_rounded,
-                                    height: 64,
-                                    onPressed: _arBusy ? null : _listen,
-                                  ),
-                                ),
-                                if (arAvailable) ...[
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: PressablePillButton(
-                                      label: s.seeInAr,
-                                      icon: Icons.view_in_ar_rounded,
-                                      variant: PillVariant.secondary,
-                                      height: 64,
-                                      onPressed: _arBusy ? null : _openArReader,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            )
+                          if (_phase == _PagePhase.ready || _arBusy)
+                            const CircularProgressIndicator()
                           else
                             ValueListenableBuilder<bool>(
                               valueListenable: _player.completed,
                               builder: (context, completed, _) {
                                 if (completed) {
                                   return FilledButton.icon(
-                                    onPressed: () async {
-                                      await _player.replay();
-                                      setState(
-                                        () => _phase = _PagePhase.playing,
-                                      );
-                                    },
+                                    onPressed: _replay,
                                     icon: const Icon(Icons.replay),
                                     label: Text(s.replayPage),
                                   );
@@ -398,14 +428,17 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                                       onPressed: () async {
                                         if (_phase == _PagePhase.playing) {
                                           await _player.pause();
+                                          if (!mounted || _resourcesDisposed) {
+                                            return;
+                                          }
                                           setState(
                                             () => _phase = _PagePhase.paused,
                                           );
                                         } else {
-                                          await _player.resume();
                                           setState(
                                             () => _phase = _PagePhase.playing,
                                           );
+                                          await _player.resume();
                                         }
                                       },
                                       icon: Icon(
@@ -420,12 +453,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                                       ),
                                     ),
                                     OutlinedButton.icon(
-                                      onPressed: () async {
-                                        await _player.replay();
-                                        setState(
-                                          () => _phase = _PagePhase.playing,
-                                        );
-                                      },
+                                      onPressed: _replay,
                                       icon: const Icon(Icons.replay),
                                       label: Text(s.replayPage),
                                     ),

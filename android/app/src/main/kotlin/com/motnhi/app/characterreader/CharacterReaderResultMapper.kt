@@ -13,6 +13,7 @@ object CharacterReaderResultMapper {
 
     const val COMPLETED = "completed"
     const val CANCELLED = "cancelled"
+    const val SCAN_NEXT = "scan_next"
 
     private val failureCodes = setOf(
         CANCELLED,
@@ -32,7 +33,7 @@ object CharacterReaderResultMapper {
      */
     fun terminalCode(resultCode: Int, terminalCodeExtra: String?): String {
         val code = terminalCodeExtra
-        if (code != null && (code == COMPLETED || code in failureCodes)) return code
+        if (code != null && (code == COMPLETED || code == SCAN_NEXT || code in failureCodes)) return code
         if (resultCode == Activity.RESULT_CANCELED) return CANCELLED
         return "ar_failed"
     }

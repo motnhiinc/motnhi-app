@@ -186,13 +186,16 @@ final class CharacterReaderBridge {
       pages: pages,
       initialPageIndex: initialPageIndex,
       storyMode: storyMode,
-      modelAssetBaseName: safeModelBaseName
+      modelAssetBaseName: safeModelBaseName,
+      scannedPageMode: arguments?["scannedPageMode"] as? Bool == true
     ) { [weak self, weak reader] readerResult in
       guard resultGate.claim() else { return }
       let resolve = {
         self?.isReaderInProgress = false
         self?.activeReader = nil
         switch readerResult {
+        case .scanNext(let progress):
+          result(Self.payload("scan_next", progress))
         case .completed(let progress):
           // Story mode replies on the success channel for BOTH terminal outcomes, unlike the
           // single-clip reader: cancel is the normal way to leave AR and it still carries the

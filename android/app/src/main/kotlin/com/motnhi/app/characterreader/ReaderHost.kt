@@ -23,6 +23,7 @@ interface ReaderHost {
         pages: List<StoryReaderPage>,
         initialPageIndex: Int,
         modelAssetFileName: String,
+        scannedPageMode: Boolean = false,
     ): Boolean
 }
 
@@ -50,6 +51,7 @@ class ActivityReaderHost(
         pages: List<StoryReaderPage>,
         initialPageIndex: Int,
         modelAssetFileName: String,
+        scannedPageMode: Boolean,
     ): Boolean =
         try {
             val intent = Intent(activity, CharacterReaderActivity::class.java)
@@ -58,6 +60,7 @@ class ActivityReaderHost(
                     StoryReaderPageCodec.encode(pages),
                 )
                 .putExtra(CharacterReaderActivity.EXTRA_INITIAL_PAGE_INDEX, initialPageIndex)
+                .putExtra(CharacterReaderActivity.EXTRA_SCANNED_PAGE_MODE, scannedPageMode)
                 .putExtra(
                     CharacterReaderActivity.EXTRA_MODEL_ASSET_FILE_NAME,
                     modelAssetFileName,

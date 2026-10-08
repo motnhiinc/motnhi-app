@@ -89,6 +89,22 @@ void main() {
   });
 
   group('open', () {
+    test(
+      'scan mode requests automatic reading and returns explicit next scan',
+      () async {
+        stub((_) async => {'terminalCode': 'scan_next'});
+        final result = await NativeStoryReader().open(
+          pages: [pages.first],
+          initialPageIndex: 0,
+          character: character,
+          scannedPageMode: true,
+        );
+        expect((calls.single.arguments as Map)['scannedPageMode'], isTrue);
+        expect(result.scanNextRequested, isTrue);
+        expect(result.completed, isFalse);
+      },
+    );
+
     test('sends every page and clip in the native wire shape', () async {
       stub((_) async => {
             'terminalCode': 'completed',
@@ -107,6 +123,7 @@ void main() {
       expect(arguments['initialPageIndex'], 1);
       expect(arguments['characterId'], 'cute_doll_v03');
       expect(arguments['modelAssetBaseName'], 'cute_doll_v03');
+      expect(arguments.containsKey('scannedPageMode'), isFalse);
       expect(arguments['pages'], [
         {
           'pageId': 'p1',

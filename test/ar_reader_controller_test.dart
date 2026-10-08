@@ -76,6 +76,7 @@ class _FakeReader implements StoryReader {
     required List<ArNarrationPage> pages,
     required int initialPageIndex,
     required ArCharacter character,
+    bool scannedPageMode = false,
   }) async {
     openCalls++;
     openedWith = pages;

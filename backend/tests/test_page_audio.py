@@ -132,7 +132,7 @@ def test_audio_returns_complete_ordered_bundle_and_never_partial(
     lines = ["First line", "Second line"]
     proof = page_approval.issue_approval(user_id, profile_id, lines)
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
 
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": proof, "lines": lines,
@@ -148,7 +148,7 @@ def test_audio_returns_complete_ordered_bundle_and_never_partial(
         assert bundle.read("001.mp3") == b"MP3:Second line"
 
     failed = FakeTts(fail_on="Second line")
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: failed)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: failed)
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": proof, "lines": lines,
     })
@@ -165,7 +165,7 @@ def test_invalid_proof_makes_no_tts_calls_even_with_old_flags_disabled(
     profile_id = "page-audio-denied-profile"
     _owned_profile(db, user_id, profile_id)
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": "invalid", "lines": ["private text"],
     })
@@ -198,7 +198,7 @@ def test_legacy_flags_off_still_validate_and_generate_audio(client, db, monkeypa
         _forbidden_validator,
     )
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
 
     validation = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id, "image_base64": _image_base64(),
@@ -224,3 +224,22 @@ def test_invalid_request_does_not_echo_ocr_text(client):
     })
     assert response.status_code == 422
     assert private_line not in response.text
+
+
+def test_vietnamese_number_speech_uses_page_context_after_proof_verification(client, db, monkeypatch):
+    headers = _auth(client, "page-vietnamese-numbers")
+    user_id = _user(headers)
+    profile_id = "page-vietnamese-profile"
+    _owned_profile(db, user_id, profile_id)
+    lines = ["Những chú thỏ", "13"]
+    proof = page_approval.issue_approval(user_id, profile_id, lines)
+    service = FakeTts()
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
+    response = client.post("/v1/speakable-page/audio", headers=headers, json={
+        "profile_id": profile_id, "proof": proof, "lines": lines,
+    })
+    assert response.status_code == 200
+    assert service.calls == ["Những chú thỏ", "mười ba"]
+    with ZipFile(BytesIO(response.content)) as bundle:
+        assert bundle.namelist() == ["000.mp3", "001.mp3"]
+        assert bundle.read("001.mp3") == "MP3:mười ba".encode()
