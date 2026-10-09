@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 
 class FakeResponse:
@@ -69,6 +70,41 @@ class ElevenLabsTtsTests(unittest.TestCase):
         with patch.object(self.module, "_open", return_value=FakeResponse(b"\xff\xfb\x10audio")):
             self.assertEqual(self.service.generate("Một câu chuyện."), b"\xff\xfb\x10audio")
 
+    def test_success_logs_header_body_and_total_timings_without_private_data(self):
+        response = FakeResponse()
+        with patch.object(self.module, "_open", return_value=response):
+            with patch.object(self.module, "monotonic", side_effect=[100.0, 102.0, 102.5, 102.75]):
+                with self.assertLogs(self.module.logger, level="INFO") as logs:
+                    audio = self.service.generate("PRIVATE OCR TEXT", request_id="test-request", clip_number=2)
+        self.assertEqual(audio, response.audio)
+        output = "\n".join(logs.output)
+        self.assertIn("request_id=test-request", output)
+        self.assertIn("clip_number=2", output)
+        self.assertIn("chars=16", output)
+        self.assertIn("headers_seconds=2.000", output)
+        self.assertIn("body_seconds=0.500", output)
+        self.assertIn("elapsed_seconds=2.750", output)
+        self.assertIn(f"audio_bytes={len(audio)}", output)
+        self.assertNotIn("PRIVATE OCR TEXT", output)
+        self.assertNotIn("private-test-key", output)
+
+    def test_body_timeout_logs_received_headers_and_request_context(self):
+        response = FakeResponse()
+        with patch.object(response, "read", side_effect=TimeoutError("PRIVATE OCR TEXT")):
+            with patch.object(self.module, "_open", return_value=response):
+                with patch.object(self.module, "monotonic", side_effect=[100.0, 102.0, 105.0]):
+                    with self.assertLogs(self.module.logger, level="WARNING") as logs:
+                        with self.assertRaises(self.module.TtsUpstreamError):
+                            self.service.generate("PRIVATE OCR TEXT", request_id="test-request", clip_number=3)
+        output = "\n".join(logs.output)
+        self.assertIn("request_id=test-request", output)
+        self.assertIn("clip_number=3", output)
+        self.assertIn("headers_seconds=2.0", output)
+        self.assertIn("body_seconds=None", output)
+        self.assertIn("status=200", output)
+        self.assertIn("elapsed_seconds=5.000", output)
+        self.assertNotIn("PRIVATE OCR TEXT", output)
+
     def test_missing_key_and_invalid_voice_fail_before_network(self):
         for key, voice in [(" ", "5yEPTrA0uAhZsBEhHjfi"), ("test", "../other-voice")]:
             self.settings.elevenlabs_api_key = key
@@ -76,6 +112,39 @@ class ElevenLabsTtsTests(unittest.TestCase):
             with self.subTest(key=key, voice=voice):
                 with self.assertRaises(self.module.TtsUpstreamError):
                     self.module.ElevenLabsTtsService()
+
+    def test_configuration_failures_log_setting_and_code_without_values(self):
+        cases = [
+            ("elevenlabs_api_key", " ", "missing_api_key", "ELEVENLABS_API_KEY"),
+            ("elevenlabs_voice_id", "private-invalid-voice", "invalid_voice_id", "ELEVENLABS_VOICE_ID"),
+            ("elevenlabs_model_id", "private-invalid-model", "invalid_model_id", "ELEVENLABS_MODEL_ID"),
+            ("elevenlabs_tts_timeout_seconds", float("nan"), "invalid_timeout", "ELEVENLABS_TTS_TIMEOUT_SECONDS"),
+        ]
+        for attribute, value, code, setting in cases:
+            with self.subTest(setting=setting), patch.object(self.settings, attribute, value):
+                with patch.object(self.module, "_open") as send:
+                    with self.assertLogs(self.module.logger, level="WARNING") as logs:
+                        with self.assertRaises(self.module.TtsUpstreamError):
+                            self.module.ElevenLabsTtsService()
+                    send.assert_not_called()
+                output = "\n".join(logs.output)
+                self.assertIn(f"code={code}", output)
+                self.assertIn(f"setting={setting}", output)
+                self.assertNotIn("private-test-key", output)
+                self.assertNotIn("private-invalid", output)
+                self.assertIsNone(logs.records[0].exc_info)
+
+    def test_urllib_http_error_logs_http_status_without_private_data(self):
+        error = HTTPError("https://private-url", 401, "private-test-key", {}, None)
+        with patch.object(self.module, "_open", side_effect=error):
+            with self.assertLogs(self.module.logger, level="WARNING") as logs:
+                with self.assertRaises(self.module.TtsUpstreamError):
+                    self.service.generate("PRIVATE OCR TEXT")
+        output = "\n".join(logs.output)
+        self.assertIn("status=401", output)
+        self.assertNotIn("private-url", output)
+        self.assertNotIn("private-test-key", output)
+        self.assertNotIn("PRIVATE OCR TEXT", output)
 
     def test_rejects_empty_or_oversized_input_without_network(self):
         with patch.object(self.module, "_open") as send:

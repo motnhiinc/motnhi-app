@@ -4,7 +4,9 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../data/sources/api_client.dart';
 import 'scanned_page.dart';
@@ -71,12 +73,35 @@ class PageValidationClient {
     List<String> lines,
   ) async {
     _checkAccess(profileId);
-    final response = await _api.send(
-      () => _api.dio.post<List<int>>(
-        '/v1/speakable-page/audio',
-        data: {'profile_id': profileId, 'proof': proof, 'lines': lines},
-        options: Options(responseType: ResponseType.bytes),
-      ),
+    final requestId = const Uuid().v4();
+    final timer = Stopwatch()..start();
+    debugPrint(
+      'Page audio request started: request_id=$requestId, clip_count=${lines.length}',
+    );
+    late final Response<List<int>> response;
+    try {
+      response = await _api.send(
+        () => _api.dio.post<List<int>>(
+          '/v1/speakable-page/audio',
+          data: {'profile_id': profileId, 'proof': proof, 'lines': lines},
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: {'X-Request-ID': requestId},
+          ),
+        ),
+      );
+    } catch (error) {
+      debugPrint(
+        'Page audio request failed: request_id=$requestId, '
+        'http_status=${error is DioException ? error.response?.statusCode : null}, '
+        'error_type=${error.runtimeType}, request_ms=${timer.elapsedMilliseconds}',
+      );
+      rethrow;
+    }
+    debugPrint(
+      'Page audio response received: request_id=$requestId, '
+      'http_status=${response.statusCode}, bundle_bytes=${response.data?.length ?? 0}, '
+      'request_ms=${timer.elapsedMilliseconds}',
     );
     _checkAccess(profileId);
     if (!((response.headers.value(Headers.contentTypeHeader) ?? '')
@@ -88,6 +113,7 @@ class PageValidationClient {
     if (bytes == null || bytes.isEmpty) {
       throw const FormatException('empty_bundle');
     }
+    final decodeStarted = timer.elapsedMicroseconds;
     final entries = ZipDecoder().decodeBytes(bytes);
     final expected = [
       for (var i = 0; i < lines.length; i++)
@@ -102,6 +128,11 @@ class PageValidationClient {
         files.any((file) => file.size == 0 || file.size > 2 * 1024 * 1024)) {
       throw const FormatException('invalid_audio_bundle');
     }
+    debugPrint(
+      'Page audio bundle decoded: request_id=$requestId, clip_count=${files.length}, '
+      'decode_ms=${(timer.elapsedMicroseconds - decodeStarted) / 1000}',
+    );
+    final writeStarted = timer.elapsedMicroseconds;
     final directory = await _directory();
     final output = <File>[];
     try {
@@ -114,8 +145,19 @@ class PageValidationClient {
         _ownedFiles.add(file);
         output.add(file);
       }
+      debugPrint(
+        'Page audio files ready: request_id=$requestId, clip_count=${output.length}, '
+        'write_ms=${(timer.elapsedMicroseconds - writeStarted) / 1000}, '
+        'total_ms=${timer.elapsedMilliseconds}',
+      );
       return output;
-    } catch (_) {
+    } catch (error) {
+      debugPrint(
+        'Page audio file write failed: request_id=$requestId, '
+        'error_type=${error.runtimeType}, written_count=${output.length}, '
+        'write_ms=${(timer.elapsedMicroseconds - writeStarted) / 1000}, '
+        'total_ms=${timer.elapsedMilliseconds}',
+      );
       for (final file in output) {
         _ownedFiles.remove(file);
         if (await file.exists()) await file.delete();

@@ -67,7 +67,7 @@ class FakeTts:
     def __post_init__(self):
         self.calls = []
 
-    def generate(self, text):
+    def generate(self, text, **_diagnostics):
         self.calls.append(text)
         if text == self.fail_on:
             raise RuntimeError("upstream detail must not escape")
