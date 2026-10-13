@@ -49,7 +49,7 @@ final keyValueStoreProvider = Provider<KeyValueStore>(
 
 final apiClientProvider = Provider<ApiClient>(
   (ref) => ApiClient(
-    dio: Dio(BaseOptions(baseUrl: resolveApiBaseUrl())),
+    dio: Dio(BaseOptions(baseUrl: resolveApiBaseUrl(), connectTimeout: const Duration(seconds: 10))),
     store: ref.watch(keyValueStoreProvider),
   ),
 );

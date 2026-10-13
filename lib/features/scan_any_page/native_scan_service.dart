@@ -20,10 +20,13 @@ final class NativeScanService implements ScanService {
   final MethodChannel _channel;
 
   @override
-  Future<ScannedPage> scanAndRecognize() async {
+  Future<ScannedPage> scanAndRecognize() => scanWithAttempt(null);
+
+  Future<ScannedPage> scanWithAttempt(String? attemptId) async {
     try {
       final result = await _channel.invokeMapMethod<String, dynamic>(
         'scanAndRecognize',
+        attemptId == null ? null : {'attempt_id': attemptId},
       );
       if (result == null) throw const ScanFailure('no_text');
       try {

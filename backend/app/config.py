@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -17,7 +18,13 @@ class Settings(BaseSettings):
     openai_tts_voice: str = "coral"
     openai_tts_timeout_seconds: float = 30.0
     openai_page_validation_model: str = "gpt-4o-mini"
-    openai_page_validation_timeout_seconds: float = 30.0
+    openai_page_validation_timeout_seconds: float = 15.0
+    page_audio_concurrency: int = Field(default=3, ge=1, le=8)
+    page_audio_process_concurrency: int = Field(default=6, ge=1, le=64)
+    page_audio_queue_seconds: float = Field(default=5.0, gt=0)
+    page_audio_deadline_seconds: float = Field(default=30.0, gt=0)
+    page_audio_transient_retries: int = Field(default=1, ge=0, le=1)
+    page_language_instructions_enabled: bool = True
 
 
 settings = Settings()

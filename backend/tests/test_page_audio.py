@@ -60,7 +60,7 @@ def _line(text="A little fox"):
 class FakeValidator:
     verdict: ValidationVerdict
 
-    def validate(self, image, lines, age_band):
+    def validate(self, image, lines, age_band, content_language=None):
         assert image.startswith(b"\xff\xd8\xff")
         assert age_band == "5-6"
         return self.verdict
@@ -74,7 +74,7 @@ class FakeTts:
     def __post_init__(self):
         self.calls = []
 
-    def generate(self, text):
+    def generate(self, text, content_language=None, **kwargs):
         self.calls.append(text)
         if text == self.fail_on:
             raise RuntimeError("upstream detail must not escape")
@@ -130,7 +130,7 @@ def test_validate_blocks_uncertain_page_without_proof(client, db, monkeypatch):
     })
 
     assert response.status_code == 200
-    assert response.json() == {"status": "blocked"}
+    assert response.json() == {"status": "blocked", "reason": "content_unsuitable"}
     assert response.headers["cache-control"] == "no-store"
 
 
@@ -238,3 +238,33 @@ def test_invalid_request_does_not_echo_ocr_text(client):
     })
     assert response.status_code == 422
     assert private_line not in response.text
+
+
+def test_explicit_language_normalized_proof_and_audio(client, db, monkeypatch):
+    headers = _auth(client, "page-vietnamese")
+    user_id = _user(headers)
+    profile_id = "page-vietnamese-profile"
+    _owned_profile(db, user_id, profile_id)
+    seen = []
+    class Validator:
+        def validate(self, image, lines, age_band, content_language=None):
+            seen.append((lines, content_language))
+            return ValidationVerdict(text_matches=True, age_suitable=True, certain=True,
+                                     text_certain=True, suitability_certain=True)
+    monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
+    service = FakeTts()
+    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    validation = client.post("/v1/speakable-page/validate", headers=headers, json={
+        "profile_id": profile_id, "image_base64": _image_base64(),
+        "content_language": "vi", "lines": [_line("Tiếng Việt")],
+    })
+    assert seen == [(["Tiếng Việt"], "vi")]
+    proof = validation.json()["proof"]
+    body = {"profile_id": profile_id, "proof": proof, "content_language": "vi", "lines": ["Tiếng Việt"]}
+    assert client.post("/v1/speakable-page/audio", headers=headers, json=body).status_code == 200
+    assert service.calls == ["Tiếng Việt"]
+    body["content_language"] = "en"
+    response = client.post("/v1/speakable-page/audio", headers=headers, json=body)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "page_approval_invalid"
+    assert service.calls == ["Tiếng Việt"]

@@ -19,11 +19,17 @@ data class TextLineBox(
 data class RecognizedTextLine(
     val text: String,
     val box: TextLineBox?,
+    val confidence: Float? = null,
+    val recognizedLanguage: String? = null,
 ) {
     companion object {
         fun fromMlKit(line: Text.Line): RecognizedTextLine {
             val rect = line.boundingBox
-            return RecognizedTextLine(line.text, rect?.toTextLineBox())
+            // This app pins the bundled recognizer: confidence is available.
+            // An unbundled/older-GMS recognizer's sentinel 0 must not be reused here.
+            return RecognizedTextLine(line.text, rect?.toTextLineBox(),
+                line.confidence.takeIf { it.isFinite() && it >= 0f && it <= 1f },
+                line.recognizedLanguage.takeIf { it.isNotBlank() && it != "und" })
         }
     }
 }
@@ -47,6 +53,7 @@ object ReadingOrderSorter {
                     box = box,
                     left = box.left,
                     midY = box.midYFraction(imageHeight),
+                    source = line,
                 )
             }
         }.sortedBy { it.midY }
@@ -66,7 +73,7 @@ object ReadingOrderSorter {
         return rows
             .sortedBy { it.firstOrNull()?.midY ?: 0.0 }
             .flatMap { row -> row.sortedBy { it.left } }
-            .map { RecognizedTextLine(it.text, it.box) }
+            .map { it.source.copy(text = it.text, box = it.box) }
     }
 
     fun normalizedLine(line: RecognizedTextLine, width: Int, height: Int): Map<String, Any>? {
@@ -76,13 +83,16 @@ object ReadingOrderSorter {
         val right = box.right.coerceIn(0, width)
         val bottom = box.bottom.coerceIn(0, height)
         if (right <= left || bottom <= top) return null
-        return mapOf(
+        return mutableMapOf<String, Any>(
             "text" to line.text,
             "left" to left.toDouble() / width,
             "top" to top.toDouble() / height,
             "width" to (right - left).toDouble() / width,
             "height" to (bottom - top).toDouble() / height,
-        )
+        ).apply {
+            line.confidence?.let { put("confidence", it.toDouble()) }
+            line.recognizedLanguage?.let { put("recognizedLanguage", it) }
+        }
     }
 
     private data class SortableTextLine(
@@ -90,6 +100,7 @@ object ReadingOrderSorter {
         val box: TextLineBox,
         val left: Int,
         val midY: Double,
+        val source: RecognizedTextLine,
     )
 }
 

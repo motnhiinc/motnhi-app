@@ -26,7 +26,12 @@ class ApiClient {
     Dio? authDio,
   })  : _store = store,
         _uuid = uuid ?? const Uuid(),
-        _authDio = authDio ?? Dio(BaseOptions(baseUrl: dio.options.baseUrl)) {
+        _authDio = authDio ?? Dio(BaseOptions(
+          baseUrl: dio.options.baseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          sendTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
+        )) {
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         try {

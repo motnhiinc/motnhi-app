@@ -19,6 +19,18 @@ class ValidationVerdict(BaseModel):
     text_matches: bool
     age_suitable: bool
     certain: bool
+    text_certain: bool | None = None
+    suitability_certain: bool | None = None
+
+    @property
+    def blocked_reason(self) -> str | None:
+        if not self.certain and self.text_certain is True and self.suitability_certain is True:
+            return "content_unsuitable"
+        if not self.age_suitable or not (self.suitability_certain if self.suitability_certain is not None else self.certain):
+            return "content_unsuitable"
+        if not (self.text_certain if self.text_certain is not None else self.certain):
+            return "recognition_uncertain"
+        return None if self.text_matches else "text_mismatch"
 
 
 class PageValidationError(Exception):
@@ -59,7 +71,7 @@ class OpenAiPageValidator:
             max_retries=0,
         )
 
-    def validate(self, image: bytes, lines: list[str], age_band: str) -> ValidationVerdict:
+    def validate(self, image: bytes, lines: list[str], age_band: str, content_language: str | None = None) -> ValidationVerdict:
         response = self.client.chat.completions.create(
             model=settings.openai_page_validation_model,
             messages=[{
@@ -68,7 +80,8 @@ class OpenAiPageValidator:
                     {"type": "text", "text": (
                         "Determine whether the OCR lines exactly match the visible page text, "
                         "whether the page is suitable for a child in age band " + age_band +
-                        ", and whether you are certain. Return only the required booleans. "
+                        ", and independently whether text matching and suitability are certain. "
+                        "Return only the required booleans. Selected dominant content language: " + (content_language or "unspecified") + ". "
                         "Do not rewrite text. OCR lines: " + json.dumps(lines, ensure_ascii=False)
                     )},
                     {"type": "image_url", "image_url": {
@@ -85,8 +98,10 @@ class OpenAiPageValidator:
                         "text_matches": {"type": "boolean"},
                         "age_suitable": {"type": "boolean"},
                         "certain": {"type": "boolean"},
+                        "text_certain": {"type": "boolean"},
+                        "suitability_certain": {"type": "boolean"},
                     },
-                    "required": ["text_matches", "age_suitable", "certain"],
+                    "required": ["text_matches", "age_suitable", "certain", "text_certain", "suitability_certain"],
                     "additionalProperties": False,
                 },
             }},

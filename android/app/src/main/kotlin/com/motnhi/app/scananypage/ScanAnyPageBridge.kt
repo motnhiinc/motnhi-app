@@ -4,8 +4,14 @@ import android.app.Activity
 import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.os.Build
+import android.util.Log
+import java.util.UUID
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.common.InputImage
@@ -30,6 +36,11 @@ class ScanAnyPageBridge(
     private val inProgressGate = OneAtATimeGate()
     private var pendingResult: MethodChannel.Result? = null
     private var replyGate: OneShotGate? = null
+    private var attemptId = ""
+    private var scannerStarted = 0L
+    private var captureReturned = 0L
+    private var scansStarted = 0
+    private var diagnosticFields: Map<String, Any> = emptyMap()
 
     init {
         channel.setMethodCallHandler(::handle)
@@ -53,11 +64,31 @@ class ScanAnyPageBridge(
 
             pendingResult = result
             replyGate = OneShotGate()
+            attemptId = call.argument<String>("attempt_id") ?: UUID.randomUUID().toString()
+            val appInfo = activity.packageManager.getPackageInfo(activity.packageName, 0)
+            val connectivity = activity.getSystemService(ConnectivityManager::class.java)
+            val network = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+            val category = when {
+                network == null -> "offline"
+                network.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+                network.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "mobile"
+                else -> "other"
+            }
+            diagnosticFields = mapOf("app_version" to (appInfo.versionName ?: "unknown"),
+                "android_sdk" to Build.VERSION.SDK_INT, "device_model" to "${Build.MANUFACTURER}/${Build.MODEL}",
+                "cold_run" to (scansStarted++ == 0), "network_category" to category)
+            Log.d("ScanStages", "attempt=$attemptId stage=session app_version=${appInfo.versionName} android_sdk=${Build.VERSION.SDK_INT} device=${Build.MANUFACTURER}/${Build.MODEL}")
             launchScanner()
         }
     }
 
     private fun launchScanner() {
+        val generation = replyGate
+        val started = SystemClock.elapsedRealtime()
+        val initializationTimeout = Runnable {
+            if (replyGate === generation) finishError("scanner_initialization_timeout")
+        }
+        mainHandler.postDelayed(initializationTimeout, 30_000)
         val options = GmsDocumentScannerOptions.Builder()
             .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
             .setGalleryImportAllowed(false)
@@ -69,6 +100,10 @@ class ScanAnyPageBridge(
             .getStartScanIntent(activity)
             .addOnSuccessListener { intentSender ->
                 runOnMain {
+                    if (replyGate !== generation) return@runOnMain
+                    mainHandler.removeCallbacks(initializationTimeout)
+                    Log.d("ScanStages", "attempt=$attemptId stage=scanner_intent elapsed_ms=${SystemClock.elapsedRealtime() - started}")
+                    scannerStarted = SystemClock.elapsedRealtime()
                     try {
                         activity.startIntentSenderForResult(
                             intentSender,
@@ -87,13 +122,18 @@ class ScanAnyPageBridge(
                 }
             }
             .addOnFailureListener {
-                finishError("camera_unavailable")
+                if (replyGate === generation) {
+                    mainHandler.removeCallbacks(initializationTimeout)
+                    finishError("camera_unavailable")
+                }
             }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != this.requestCode) return false
         if (pendingResult == null) return true
+        captureReturned = SystemClock.elapsedRealtime()
+        Log.d("ScanStages", "attempt=$attemptId stage=managed_scanner_round_trip elapsed_ms=${SystemClock.elapsedRealtime() - scannerStarted}")
 
         val scanResult = data?.let { GmsDocumentScanningResult.fromActivityResultIntent(it) }
         val pages = scanResult?.pages.orEmpty()
@@ -117,9 +157,10 @@ class ScanAnyPageBridge(
         // orientation-corrected bitmap, including on devices with EXIF rotation.
         Thread {
             val page = try {
-                ScanPageImage.fromUri(activity, uri)
-            } catch (_: Exception) {
-                runOnMain { finishError("capture_failed") }
+                ScanPageImage.fromUri(activity, uri, attemptId)
+            } catch (error: Throwable) {
+                val code = if (error is IllegalArgumentException && error.message in setOf("image_decode_failed", "image_encode_failed")) error.message!! else "image_decode_failed"
+                runOnMain { finishError(code) }
                 return@Thread
             }
             runOnMain { recognizePage(page) }
@@ -127,30 +168,57 @@ class ScanAnyPageBridge(
     }
 
     private fun recognizePage(page: ScanPageImage) {
-        val image = InputImage.fromBitmap(page.bitmap, 0)
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        recognizer.process(image)
+        val started = SystemClock.elapsedRealtime()
+        val recognizer = try {
+            TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        } catch (_: Exception) {
+            page.bitmap.recycle()
+            finishError("ocr_failed")
+            return
+        }
+        val task = try {
+            recognizer.process(InputImage.fromBitmap(page.bitmap, 0))
+        } catch (_: Exception) {
+            recognizer.close()
+            page.bitmap.recycle()
+            finishError("ocr_failed")
+            return
+        }
+        task
             .addOnSuccessListener { recognizedText ->
-                val lines = recognizedText.textBlocks
-                    .flatMap { block -> block.lines }
-                    .map(RecognizedTextLine::fromMlKit)
-                val ordered = ReadingOrderSorter.ordered(lines, page.bitmap.height)
-                val geometry = ordered.mapNotNull {
-                    ReadingOrderSorter.normalizedLine(it, page.bitmap.width, page.bitmap.height)
-                }
-                if (geometry.isEmpty() || geometry.size > 40 ||
-                    ordered.sumOf { it.text.codePointCount(0, it.text.length) } > 4000) {
-                    finishError("no_text")
-                } else {
-                    finishSuccess(mapOf(
-                        "imageBytes" to page.jpeg,
-                        "width" to page.bitmap.width,
-                        "height" to page.bitmap.height,
-                        "lines" to geometry,
-                    ))
-                }
-                recognizer.close()
-                page.bitmap.recycle()
+                Thread {
+                    try {
+                        val lines = recognizedText.textBlocks
+                            .flatMap { block -> block.lines }
+                            .map(RecognizedTextLine::fromMlKit)
+                        val ordered = ReadingOrderSorter.ordered(lines, page.bitmap.height)
+                        val geometry = ordered.mapNotNull {
+                            ReadingOrderSorter.normalizedLine(it, page.bitmap.width, page.bitmap.height)
+                        }
+                        Log.d("ScanStages", "attempt=$attemptId stage=ocr elapsed_ms=${SystemClock.elapsedRealtime() - started} lines=${geometry.size}")
+                        val limitFailure = PageLimits.failureCode(lines.map { it.text })
+                        if (limitFailure != null || geometry.isEmpty()) {
+                            finishError(limitFailure ?: "no_text")
+                        } else {
+                            val quality = PageQuality.assess(page.bitmap, ordered)
+                            Log.d("ScanStages", "attempt=$attemptId stage=quality version=1 mode=observational samples=${quality["textRegionSamples"]} sharpness=${quality["sharpness"]} bright_fraction=${quality["brightFraction"]} text_height_fraction=${quality["textHeightFraction"]}")
+                            finishSuccess(mapOf(
+                                "imageBytes" to page.jpeg,
+                                "width" to page.bitmap.width,
+                                "height" to page.bitmap.height,
+                                "lines" to geometry,
+                                "quality" to quality,
+                                "nativeProcessingMs" to (SystemClock.elapsedRealtime() - captureReturned),
+                                "diagnostics" to diagnosticFields,
+                            ))
+                        }
+                    } catch (_: Throwable) {
+                        finishError("ocr_failed")
+                    } finally {
+                        recognizer.close()
+                        page.bitmap.recycle()
+                    }
+                }.start()
             }
             .addOnFailureListener {
                 recognizer.close()
@@ -160,23 +228,28 @@ class ScanAnyPageBridge(
     }
 
     private fun finishSuccess(value: Any?) {
-        val result = pendingResult ?: return
-        val gate = replyGate ?: return
-        if (!gate.claim()) return
-        pendingResult = null
-        replyGate = null
-        inProgressGate.finish()
-        runOnMain { result.success(value) }
+        runOnMain {
+            val result = pendingResult ?: return@runOnMain
+            val gate = replyGate ?: return@runOnMain
+            if (!gate.claim()) return@runOnMain
+            pendingResult = null
+            replyGate = null
+            inProgressGate.finish()
+            result.success(value)
+        }
     }
 
     private fun finishError(code: String) {
-        val result = pendingResult ?: return
-        val gate = replyGate ?: return
-        if (!gate.claim()) return
-        pendingResult = null
-        replyGate = null
-        inProgressGate.finish()
-        runOnMain { result.error(code, null, null) }
+        runOnMain {
+            val result = pendingResult ?: return@runOnMain
+            val gate = replyGate ?: return@runOnMain
+            if (!gate.claim()) return@runOnMain
+            Log.d("ScanStages", "attempt=$attemptId stage=native_failure reason=$code")
+            pendingResult = null
+            replyGate = null
+            inProgressGate.finish()
+            result.error(code, null, null)
+        }
     }
 
     private fun runOnMain(action: () -> Unit) {

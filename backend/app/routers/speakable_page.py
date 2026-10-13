@@ -1,7 +1,10 @@
-from io import BytesIO
-from zipfile import ZIP_STORED, ZipFile
+import json
+import logging
+from time import monotonic
+import unicodedata
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -9,15 +12,26 @@ from app.db import get_db
 from app.models import User
 from app.repositories import privacy as privacy_repo, profiles
 from app.schemas import PageAudioRequest, ValidatePageRequest
-from app.services import page_approval, page_validation, privacy as privacy_service
-from app.services.tts import OpenAiTtsService, TtsUpstreamError, get_openai_tts_service
+from app.services import page_approval, page_validation, page_audio, privacy as privacy_service
+from app.services.tts import TtsUpstreamError, get_openai_tts_service, provider_reason
 
 router = APIRouter(prefix="/v1/speakable-page", tags=["speakable-page"])
+
+
+def correlation(request: Request) -> str:
+    fields = []
+    for header, name in [("X-Scan-Attempt-Id", "attempt"), ("X-Scan-Operation-Id", "operation")]:
+        try:
+            fields.append(f"{name}={UUID(request.headers.get(header, ''))}")
+        except ValueError:
+            pass
+    return " ".join(fields)
 
 
 @router.post("/validate")
 def validate_page(
     body: ValidatePageRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -32,28 +46,32 @@ def validate_page(
         image, _, _ = page_validation.decode_page_image(body.image_base64)
     except page_validation.PageValidationError as error:
         raise HTTPException(status_code=422, detail="invalid page") from error
+    started = monotonic()
+    outcome = "provider_failed"
     try:
         validator = page_validation.OpenAiPageValidator()
-        verdict = validator.validate(image, [line.text for line in body.lines], profile.age_band)
-        approved = (
-            verdict.text_matches is True
-            and verdict.age_suitable is True
-            and verdict.certain is True
-        )
-    except Exception:
+        lines = [unicodedata.normalize("NFC", line.text) if body.content_language else line.text for line in body.lines]
+        verdict = (validator.validate(image, lines, profile.age_band) if body.content_language is None else
+                   validator.validate(image, lines, profile.age_band, body.content_language))
+        reason = verdict.blocked_reason
+        outcome = reason or "approved"
+    except Exception as error:
+        outcome = provider_reason(error)
         return Response(
-            content=b'{"status":"temporary_error"}',
+            content=json.dumps({"status": "temporary_error", "reason": provider_reason(error)}).encode(),
             status_code=503,
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
-    if not approved:
+    finally:
+        logging.getLogger("uvicorn.error.scan").info("scan_stage %s stage=validation_provider reason=%s elapsed_ms=%d", correlation(request), outcome, (monotonic() - started) * 1000)
+    if reason is not None:
         return Response(
-            content=b'{"status":"blocked"}',
+            content=json.dumps({"status": "blocked", "reason": reason}).encode(),
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
-    proof = page_approval.issue_approval(user.id, body.profile_id, [line.text for line in body.lines])
+    proof = page_approval.issue_approval(user.id, body.profile_id, lines, body.content_language)
     return Response(
         content=(
             '{"status":"approved","proof":"' + proof + '"}'
@@ -66,6 +84,7 @@ def validate_page(
 @router.post("/audio")
 def generate_page_audio(
     body: PageAudioRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -75,19 +94,13 @@ def generate_page_audio(
         raise HTTPException(status_code=error.status_code, detail=error.code) from error
     if profiles.get_owned(db, user.id, body.profile_id) is None:
         raise HTTPException(status_code=404, detail="profile not found")
-    if not page_approval.verify_approval(body.proof, user.id, body.profile_id, body.lines):
-        raise HTTPException(status_code=403, detail="page_approval_invalid")
+    reason = page_approval.approval_reason(body.proof, user.id, body.profile_id, body.lines, body.content_language)
+    if reason:
+        raise HTTPException(status_code=403, detail=reason)
     try:
-        service: OpenAiTtsService = get_openai_tts_service()
-        buffer = BytesIO()
-        with ZipFile(buffer, "w", compression=ZIP_STORED) as archive:
-            for index, text in enumerate(body.lines):
-                audio = service.generate(text)
-                if not audio or len(audio) > 2 * 1024 * 1024:
-                    raise TtsUpstreamError("invalid audio")
-                archive.writestr(f"{index:03d}.mp3", audio)
-                if buffer.tell() > 32 * 1024 * 1024:
-                    raise TtsUpstreamError("bundle too large")
+        bundle = page_audio.generate_bundle(get_openai_tts_service(), body.lines, body.content_language, correlation=correlation(request))
+    except TtsUpstreamError as error:
+        raise HTTPException(status_code=503, detail=error.reason) from error
     except Exception as error:
-        raise HTTPException(status_code=502, detail="narration generation failed") from error
-    return Response(buffer.getvalue(), media_type="application/zip", headers={"Cache-Control": "no-store"})
+        raise HTTPException(status_code=502, detail="provider_failed") from error
+    return Response(bundle, media_type="application/zip", headers={"Cache-Control": "no-store"})

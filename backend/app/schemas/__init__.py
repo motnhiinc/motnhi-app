@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -264,6 +264,7 @@ class PageLine(BaseModel):
 
 class ValidatePageRequest(BaseModel):
     profile_id: str
+    content_language: Literal["vi", "en"] | None = None
     image_base64: str
     lines: list[PageLine] = Field(min_length=1, max_length=40)
 
@@ -276,6 +277,7 @@ class ValidatePageRequest(BaseModel):
 
 class PageAudioRequest(BaseModel):
     profile_id: str
+    content_language: Literal["vi", "en"] | None = None
     proof: str
     lines: list[str] = Field(min_length=1, max_length=40)
 
