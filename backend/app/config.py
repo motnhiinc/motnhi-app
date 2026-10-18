@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     openai_page_validation_timeout_seconds: float = 15.0
     google_vision_api_key: str = ""
     google_vision_timeout_seconds: float = Field(default=15.0, gt=0, le=30)
+    scan_ocr_debug_logging: bool = True
     page_audio_concurrency: int = Field(default=3, ge=1, le=8)
     page_audio_process_concurrency: int = Field(default=6, ge=1, le=64)
     page_audio_queue_seconds: float = Field(default=5.0, gt=0)

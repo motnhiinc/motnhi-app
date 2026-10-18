@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 from types import SimpleNamespace
 
 import httpx
@@ -141,3 +142,37 @@ def test_removed_correction_protocol_is_rejected():
     from app.schemas import ValidatePageRequest
     with pytest.raises(ValueError):
         ValidatePageRequest(profile_id="profile", image_base64="jpeg", correct_ocr=True)
+
+
+@pytest.mark.parametrize("enabled,invalid_geometry", [(False, False), (True, False), (True, True)])
+def test_debug_logs_ocr_before_parsing_without_image_or_key(monkeypatch, caplog, enabled, invalid_geometry):
+    monkeypatch.setattr(settings, "google_vision_api_key", "private-api-key")
+    monkeypatch.setattr(settings, "scan_ocr_debug_logging", enabled)
+    document = annotation([word("Vẹt")])
+    document["text"] = "Vẹt\nReading"
+    if invalid_geometry:
+        document["pages"][0]["width"] = 999
+    original = httpx.Client
+    monkeypatch.setattr(page_ocr.httpx, "Client", lambda **kw: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "responses": [{"fullTextAnnotation": document}],
+        })), **kw))
+    with caplog.at_level(logging.INFO, logger="uvicorn.error.scan"):
+        if invalid_geometry:
+            with pytest.raises(ValueError):
+                page_ocr.GoogleVisionOcr().recognize(b"private-image", 100, 200)
+        else:
+            page_ocr.GoogleVisionOcr().recognize(b"private-image", 100, 200)
+    messages = [record.getMessage() for record in caplog.records]
+    raw = [message for message in messages if message.startswith("scan_ocr_raw ")]
+    parsed = [message for message in messages if message.startswith("scan_ocr_lines ")]
+    assert bool(raw) == enabled
+    assert bool(parsed) == (enabled and not invalid_geometry)
+    if enabled:
+        assert json.loads(raw[0].removeprefix("scan_ocr_raw "))["text"] == "Vẹt\nReading"
+        assert "\n" not in raw[0]
+    else:
+        assert "Vẹt" not in caplog.text
+    assert "private-api-key" not in caplog.text
+    assert "private-image" not in caplog.text
+    assert base64.b64encode(b"private-image").decode() not in caplog.text

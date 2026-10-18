@@ -55,6 +55,7 @@ services:
       OPENAI_TTS_TIMEOUT_SECONDS: ${OPENAI_TTS_TIMEOUT_SECONDS:-30}
       GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
       GOOGLE_VISION_TIMEOUT_SECONDS: ${GOOGLE_VISION_TIMEOUT_SECONDS:-15}
+      SCAN_OCR_DEBUG_LOGGING: ${SCAN_OCR_DEBUG_LOGGING:-true}
     volumes:
       # Audio binaries live on the host so `register_assets.py` picks up files
       # you scp in later, and they survive image rebuilds. Maps to backend/storage.

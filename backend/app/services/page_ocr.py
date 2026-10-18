@@ -1,11 +1,15 @@
 """Cloud Vision document OCR. Text and geometry come only from Vision, not an LLM."""
 import base64
+import json
+import logging
 import unicodedata
 
 import httpx
 
 from app.config import settings
 from app.schemas import PageLine
+
+logger = logging.getLogger("uvicorn.error.scan")
 
 
 class GoogleVisionOcr:
@@ -24,8 +28,24 @@ class GoogleVisionOcr:
             response.raise_for_status()
             results = response.json()["responses"]
         if len(results) != 1 or "error" in results[0]:
+            code = results[0].get("error", {}).get("code") if len(results) == 1 else None
+            logger.warning("scan_ocr provider=google_vision outcome=provider_error code=%s", code if isinstance(code, int) else "unknown")
             raise ValueError("Vision OCR failed")
-        return document_lines(results[0].get("fullTextAnnotation", {}), width, height)
+        annotation = results[0].get("fullTextAnnotation", {})
+        if settings.scan_ocr_debug_logging:
+            # Log before parsing: geometry/limit failures must not hide the OCR.
+            # JSON escapes newlines/control characters to keep one log record.
+            text = annotation.get("text", "")
+            logger.info("scan_ocr_raw %s", json.dumps({
+                "provider": "google_vision", "image_width": width, "image_height": height,
+                "pages": [{"width": p.get("width"), "height": p.get("height")}
+                          for p in annotation.get("pages", [])],
+                "text": text[:16000], "truncated": len(text) > 16000,
+            }, ensure_ascii=False))
+        lines = document_lines(annotation, width, height)
+        if settings.scan_ocr_debug_logging:
+            logger.info("scan_ocr_lines %s", json.dumps(lines, ensure_ascii=False))
+        return lines
 
 
 def document_lines(annotation: dict, width: int, height: int) -> list[dict]:

@@ -25,6 +25,20 @@ Compare Vietnamese diacritics, names, mixed-language text, reading order and
 capture-to-ready time on real pages. Tests mock providers; they do not establish
 live OCR accuracy. Audio still waits for the complete ZIP.
 
+### Temporary OCR diagnostics
+
+OCR text logging is enabled by default. An explicit
+`SCAN_OCR_DEBUG_LOGGING=false` disables it. Recreate the API container after
+deploying the updated code or changing this setting. Follow logs with
+`docker compose -f docker-compose.prod.yml logs -f api` from `backend/deploy`.
+`scan_ocr_raw` shows Vision's text (up to 16,000 characters) and page dimensions
+before geometry parsing; `scan_ocr_lines` shows the parsed text/language/boxes
+before OpenAI validation. `scan_failure` identifies the failing stage and
+exception type without logging exception messages, images or credentials.
+These text logs may contain private book/page content, including blocked pages.
+Disable the flag and recreate the container after debugging; existing log
+records remain subject to your deployment's log retention policy.
+
 ## Implementation and rollout
 
 Deploy additive backend support before the client. The active route now uses

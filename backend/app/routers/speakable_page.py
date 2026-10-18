@@ -50,10 +50,16 @@ def validate_page(
     outcome = "provider_failed"
     recognized_lines = None
     segment_languages = None
+    stage = "validation_provider"
     try:
         lines = [unicodedata.normalize("NFC", line.text) if body.content_language else line.text for line in body.lines]
         if body.ocr_provider == "google_vision":
+            stage = "ocr_provider"
             recognized_lines = page_ocr.GoogleVisionOcr().recognize(image, width, height)
+            logging.getLogger("uvicorn.error.scan").info(
+                "scan_stage %s stage=ocr_provider reason=recognized line_count=%d elapsed_ms=%d",
+                correlation(request), len(recognized_lines), (monotonic() - started) * 1000)
+            stage = "validation_provider"
             lines = [line["text"] for line in recognized_lines]
             segment_languages = [line["recognizedLanguage"] for line in recognized_lines]
         if not lines:
@@ -66,6 +72,10 @@ def validate_page(
         outcome = reason or "approved"
     except Exception as error:
         outcome = provider_reason(error)
+        # Exception messages/tracebacks can contain source text or credentials.
+        logging.getLogger("uvicorn.error.scan").warning(
+            "scan_failure %s stage=%s reason=%s error_type=%s",
+            correlation(request), stage, outcome, type(error).__name__)
         return Response(
             content=json.dumps({"status": "temporary_error", "reason": provider_reason(error)}).encode(),
             status_code=503,
@@ -73,7 +83,7 @@ def validate_page(
             headers={"Cache-Control": "no-store"},
         )
     finally:
-        logging.getLogger("uvicorn.error.scan").info("scan_stage %s stage=validation_provider reason=%s elapsed_ms=%d", correlation(request), outcome, (monotonic() - started) * 1000)
+        logging.getLogger("uvicorn.error.scan").info("scan_stage %s stage=%s reason=%s elapsed_ms=%d", correlation(request), stage, outcome, (monotonic() - started) * 1000)
     if reason is not None:
         return Response(
             content=json.dumps({"status": "blocked", "reason": reason}).encode(),
