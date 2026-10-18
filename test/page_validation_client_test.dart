@@ -15,14 +15,9 @@ import 'package:storybook_ar/features/scan_any_page/scanned_page.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  for (final mapping in <List<int>?>[
-    null,
-    [0],
-    [1, 0],
-    [0, 0, 1],
-  ]) {
+  for (final geometry in <double?>[null, -0.1, 1.1, 0.9]) {
     test(
-      'rejects approval with missing or invalid correction $mapping',
+      'rejects approval with missing or invalid Vision geometry $geometry',
       () async {
         SharedPreferences.setMockInitialValues({authTokenKey: 'token'});
         final store = await KeyValueStore.create();
@@ -37,15 +32,14 @@ void main() {
           (s) => s.reply(200, {
             'status': 'approved',
             'proof': 'proof',
-            if (mapping != null)
-              'corrected_lines': [
+            if (geometry != null)
+              'recognized_lines': [
                 {
                   'text': 'Vẹt',
-                  'left': .1,
+                  'left': geometry,
                   'top': .2,
                   'width': .8,
                   'height': .3,
-                  'source_lines': mapping,
                   'recognizedLanguage': 'vi',
                 },
               ],
@@ -85,81 +79,72 @@ void main() {
     await client.dispose();
   });
 
-  test('sends the exact JPEG and ordered OCR geometry', () async {
-    SharedPreferences.setMockInitialValues({});
-    final store = await KeyValueStore.create();
-    final dio = Dio(BaseOptions(baseUrl: 'http://test'));
-    final adapter = DioAdapter(dio: dio, matcher: const UrlRequestMatcher());
-    dio.httpClientAdapter = adapter;
-    Map<String, dynamic>? captured;
-    adapter.onPost(
-      '/v1/auth/device',
-      (s) => s.reply(200, {'token': 'token', 'user_id': 'user-1'}),
-    );
-    adapter.onPost(
-      '/v1/speakable-page/validate',
-      (s) => s.reply(200, {
-        'status': 'approved',
-        'proof': 'proof-1',
-        'corrected_lines': [
-          {
-            'text': 'First line',
-            'left': .1,
-            'top': .2,
-            'width': .8,
-            'height': .1,
-            'source_lines': [0],
-            'recognizedLanguage': 'en',
+  test(
+    'sends the exact JPEG for Google Vision and uses returned geometry',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = await KeyValueStore.create();
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      final adapter = DioAdapter(dio: dio, matcher: const UrlRequestMatcher());
+      dio.httpClientAdapter = adapter;
+      Map<String, dynamic>? captured;
+      adapter.onPost(
+        '/v1/auth/device',
+        (s) => s.reply(200, {'token': 'token', 'user_id': 'user-1'}),
+      );
+      adapter.onPost(
+        '/v1/speakable-page/validate',
+        (s) => s.reply(200, {
+          'status': 'approved',
+          'proof': 'proof-1',
+          'recognized_lines': [
+            {
+              'text': 'First line',
+              'left': .1,
+              'top': .2,
+              'width': .8,
+              'height': .1,
+              'recognizedLanguage': 'en',
+            },
+            {
+              'text': 'Dòng hai.',
+              'left': .1,
+              'top': .4,
+              'width': .8,
+              'height': .1,
+              'recognizedLanguage': 'vi',
+            },
+          ],
+        }),
+      );
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            if (options.path.endsWith('/v1/speakable-page/validate')) {
+              captured = Map<String, dynamic>.from(options.data as Map);
+            }
+            handler.next(options);
           },
-          {
-            'text': 'Dòng hai.',
-            'left': .1,
-            'top': .4,
-            'width': .8,
-            'height': .1,
-            'source_lines': [1],
-            'recognizedLanguage': 'vi',
-          },
-        ],
-      }),
-    );
-    dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          if (options.path.endsWith('/v1/speakable-page/validate')) {
-            captured = Map<String, dynamic>.from(options.data as Map);
-          }
-          handler.next(options);
-        },
-      ),
-    );
-    final client = PageValidationClient(
-      ApiClient(dio: dio, store: store, authDio: dio),
-    );
-    final page = _page();
+        ),
+      );
+      final client = PageValidationClient(
+        ApiClient(dio: dio, store: store, authDio: dio),
+      );
+      final page = _page();
 
-    final result = await client.validate(page, 'profile-1');
+      final result = await client.validate(page, 'profile-1');
 
-    expect(result.proof, 'proof-1');
-    expect(result.correctedPage!.lines.last.text, 'Dòng hai.');
-    expect(result.correctedPage!.lines.first.recognizedLanguage, 'en');
-    expect(captured, {
-      'profile_id': 'profile-1',
-      'correct_ocr': true,
-      'image_base64': 'AAECAw==',
-      'lines': [
-        {
-          'text': 'First line',
-          'left': .1,
-          'top': .2,
-          'width': .8,
-          'height': .1,
-        },
-        {'text': 'Dòng hai', 'left': .1, 'top': .4, 'width': .8, 'height': .1},
-      ],
-    });
-    await client.dispose();
-  });
+      expect(result.proof, 'proof-1');
+      expect(result.recognizedPage!.lines.last.text, 'Dòng hai.');
+      expect(result.recognizedPage!.lines.first.recognizedLanguage, 'en');
+      expect(captured, {
+        'profile_id': 'profile-1',
+        'ocr_provider': 'google_vision',
+        'image_base64': 'AAECAw==',
+      });
+      await client.dispose();
+    },
+  );
 
   test(
     'rejects incomplete audio archives and removes owned clips on dispose',

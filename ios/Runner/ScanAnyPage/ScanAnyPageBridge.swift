@@ -44,6 +44,7 @@ final class ScanAnyPageBridge {
 
     isScanInProgress = true
     let scanner = PageScannerViewController()
+    scanner.captureOnly = (call.arguments as? [String: Any])?["capture_only"] as? Bool == true
     activeScanner = scanner
     scanner.modalPresentationStyle = .fullScreen
     var resultGate = OneShotGate()

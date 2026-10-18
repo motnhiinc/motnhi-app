@@ -53,9 +53,8 @@ services:
       OPENAI_TTS_MODEL: ${OPENAI_TTS_MODEL:-gpt-4o-mini-tts}
       OPENAI_TTS_VOICE: ${OPENAI_TTS_VOICE:-coral}
       OPENAI_TTS_TIMEOUT_SECONDS: ${OPENAI_TTS_TIMEOUT_SECONDS:-30}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_PAGE_MODEL: ${OPENROUTER_PAGE_MODEL:-google/gemini-2.5-flash}
-      OPENROUTER_PAGE_TIMEOUT_SECONDS: ${OPENROUTER_PAGE_TIMEOUT_SECONDS:-25}
+      GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
+      GOOGLE_VISION_TIMEOUT_SECONDS: ${GOOGLE_VISION_TIMEOUT_SECONDS:-15}
     volumes:
       # Audio binaries live on the host so `register_assets.py` picks up files
       # you scp in later, and they survive image rebuilds. Maps to backend/storage.

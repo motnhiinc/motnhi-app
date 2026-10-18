@@ -20,17 +20,21 @@ final class NativeScanService implements ScanService {
   final MethodChannel _channel;
 
   @override
-  Future<ScannedPage> scanAndRecognize() => scanWithAttempt(null);
+  Future<ScannedPage> scanAndRecognize() =>
+      scanWithAttempt(null, captureOnly: false);
 
-  Future<ScannedPage> scanWithAttempt(String? attemptId) async {
+  Future<ScannedPage> scanWithAttempt(
+    String? attemptId, {
+    bool captureOnly = true,
+  }) async {
     try {
       final result = await _channel.invokeMapMethod<String, dynamic>(
         'scanAndRecognize',
-        attemptId == null ? null : {'attempt_id': attemptId},
+        {'capture_only': captureOnly, 'attempt_id': ?attemptId},
       );
       if (result == null) throw const ScanFailure('no_text');
       try {
-        return ScannedPage.fromMap(result);
+        return ScannedPage.fromMap(result, allowEmptyLines: captureOnly);
       } on Object {
         throw const ScanFailure('invalid_result');
       }

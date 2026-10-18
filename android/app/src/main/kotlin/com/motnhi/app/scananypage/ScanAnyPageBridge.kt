@@ -37,6 +37,7 @@ class ScanAnyPageBridge(
     private var pendingResult: MethodChannel.Result? = null
     private var replyGate: OneShotGate? = null
     private var attemptId = ""
+    private var captureOnly = false
     private var scannerStarted = 0L
     private var captureReturned = 0L
     private var scansStarted = 0
@@ -63,6 +64,7 @@ class ScanAnyPageBridge(
             }
 
             pendingResult = result
+            captureOnly = call.argument<Boolean>("capture_only") == true
             replyGate = OneShotGate()
             attemptId = call.argument<String>("attempt_id") ?: UUID.randomUUID().toString()
             val appInfo = activity.packageManager.getPackageInfo(activity.packageName, 0)
@@ -168,6 +170,18 @@ class ScanAnyPageBridge(
     }
 
     private fun recognizePage(page: ScanPageImage) {
+        if (captureOnly) {
+            finishSuccess(mapOf(
+                "imageBytes" to page.jpeg,
+                "width" to page.bitmap.width,
+                "height" to page.bitmap.height,
+                "lines" to emptyList<Any>(),
+                "nativeProcessingMs" to (SystemClock.elapsedRealtime() - captureReturned),
+                "diagnostics" to diagnosticFields,
+            ))
+            page.bitmap.recycle()
+            return
+        }
         val started = SystemClock.elapsedRealtime()
         val recognizer = try {
             TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)

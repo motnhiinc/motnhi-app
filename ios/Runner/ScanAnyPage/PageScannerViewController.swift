@@ -21,6 +21,7 @@ enum PageScannerFailure: String, Error {
 }
 
 final class PageScannerViewController: UIViewController {
+  var captureOnly = false
   var onComplete: ((Result<ScannedPagePayload, PageScannerFailure>) -> Void)?
 
   private let captureSession = AVCaptureSession()
@@ -395,6 +396,16 @@ final class PageScannerViewController: UIViewController {
   }
 
   private func recognizeText(in image: CGImage) {
+    if captureOnly {
+      guard let jpeg = jpegData(for: image), jpeg.data.count <= 8 * 1024 * 1024 else {
+        complete(.failure(.captureFailed))
+        return
+      }
+      complete(.success(ScannedPagePayload(
+        jpeg: jpeg.data, width: jpeg.width, height: jpeg.height, lines: []
+      )))
+      return
+    }
     let request = VNRecognizeTextRequest { [weak self] request, error in
       guard let self else { return }
       guard error == nil, let observations = request.results as? [VNRecognizedTextObservation] else {

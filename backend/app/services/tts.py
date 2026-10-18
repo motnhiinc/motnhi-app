@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+import httpx
 from openai import OpenAI
 from openai import APITimeoutError, RateLimitError, APIConnectionError, InternalServerError
 
@@ -13,10 +14,17 @@ class TtsUpstreamError(RuntimeError):
 
 
 def provider_reason(error: Exception) -> str:
-    if isinstance(error, APITimeoutError):
+    if isinstance(error, (APITimeoutError, httpx.TimeoutException)):
         return "provider_timeout"
     if isinstance(error, RateLimitError):
         return "provider_capacity"
+    if isinstance(error, httpx.HTTPStatusError):
+        if error.response.status_code == 429:
+            return "provider_capacity"
+        if error.response.status_code >= 500:
+            return "provider_unavailable"
+    if isinstance(error, httpx.RequestError):
+        return "provider_unavailable"
     if isinstance(error, (APIConnectionError, InternalServerError)):
         return "provider_unavailable"
     return "provider_failed"

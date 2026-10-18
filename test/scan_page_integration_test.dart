@@ -67,26 +67,12 @@ void main() {
       messenger.setMockMethodCallHandler(channel, (call) async {
         captures++;
         nativeAttempt = (call.arguments as Map)['attempt_id'] as String;
+        expect((call.arguments as Map)['capture_only'], isTrue);
         return {
           'imageBytes': Uint8List.fromList([1, 2, 3]),
           'width': 100,
           'height': 100,
-          'lines': [
-            {
-              'text': 'Tiếng Việt',
-              'left': .1,
-              'top': .1,
-              'width': .8,
-              'height': .1,
-            },
-            {
-              'text': 'Chú Vét nhỏ.',
-              'left': .1,
-              'top': .3,
-              'width': .8,
-              'height': .1,
-            },
-          ],
+          'lines': [],
         };
       });
       final dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -120,7 +106,8 @@ void main() {
               }
             } else {
               validations++;
-              expect((data['lines'] as List).first['text'], 'Tiếng Việt');
+              expect(data['ocr_provider'], 'google_vision');
+              expect(data.containsKey('lines'), isFalse);
               if (validations == 1) {
                 handler.reject(
                   DioException.badResponse(
@@ -147,14 +134,13 @@ void main() {
         server.reply(200, {
           'status': 'approved',
           'proof': 'language-bound-proof',
-          'corrected_lines': [
+          'recognized_lines': [
             {
               'text': 'Tiếng Việt. Chú Vẹt nhỏ.',
               'left': .1,
               'top': .1,
               'width': .8,
               'height': .3,
-              'source_lines': [0, 1],
               'recognizedLanguage': 'vi',
             },
           ],

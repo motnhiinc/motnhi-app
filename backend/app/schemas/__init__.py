@@ -263,14 +263,17 @@ class PageLine(BaseModel):
 
 
 class ValidatePageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     profile_id: str
-    correct_ocr: bool = False
+    ocr_provider: Literal["native", "google_vision"] = "native"
     content_language: Literal["vi", "en"] | None = None
     image_base64: str
-    lines: list[PageLine] = Field(min_length=1, max_length=40)
+    lines: list[PageLine] = Field(default_factory=list, max_length=40)
 
     @model_validator(mode="after")
     def text_limit(self):
+        if self.ocr_provider == "native" and not self.lines:
+            raise ValueError("missing native lines")
         if sum(len(line.text) for line in self.lines) > 4000:
             raise ValueError("page text too long")
         return self

@@ -83,7 +83,10 @@ class ScannedPage {
 
   String get joinedText => lines.map((line) => line.text).join('\n');
 
-  factory ScannedPage.fromMap(Map<Object?, Object?> map) {
+  factory ScannedPage.fromMap(
+    Map<Object?, Object?> map, {
+    bool allowEmptyLines = false,
+  }) {
     final bytes = map['imageBytes'];
     final rawLines = map['lines'];
     if (bytes is! Uint8List ||
@@ -92,7 +95,7 @@ class ScannedPage {
         map['width'] is! int ||
         map['height'] is! int ||
         rawLines is! List ||
-        rawLines.isEmpty ||
+        (!allowEmptyLines && rawLines.isEmpty) ||
         rawLines.length > 40) {
       throw const FormatException('invalid_scanned_page');
     }

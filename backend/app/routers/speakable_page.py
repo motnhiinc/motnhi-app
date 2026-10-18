@@ -12,7 +12,7 @@ from app.db import get_db
 from app.models import User
 from app.repositories import privacy as privacy_repo, profiles
 from app.schemas import PageAudioRequest, ValidatePageRequest
-from app.services import page_approval, page_validation, page_correction, page_audio, privacy as privacy_service
+from app.services import page_approval, page_validation, page_ocr, page_audio, privacy as privacy_service
 from app.services.tts import TtsUpstreamError, get_openai_tts_service, provider_reason
 
 router = APIRouter(prefix="/v1/speakable-page", tags=["speakable-page"])
@@ -43,23 +43,21 @@ def validate_page(
     if profile is None:
         raise HTTPException(status_code=404, detail="profile not found")
     try:
-        image, _, _ = page_validation.decode_page_image(body.image_base64)
+        image, width, height = page_validation.decode_page_image(body.image_base64)
     except page_validation.PageValidationError as error:
         raise HTTPException(status_code=422, detail="invalid page") from error
     started = monotonic()
     outcome = "provider_failed"
-    corrected_lines = None
+    recognized_lines = None
     segment_languages = None
     try:
         lines = [unicodedata.normalize("NFC", line.text) if body.content_language else line.text for line in body.lines]
-        if body.correct_ocr:
-            verdict = page_correction.OpenRouterPageCorrector().validate(
-                image, body.lines, profile.age_band, body.content_language)
-            reason = verdict.blocked_reason
-            if reason is None:
-                corrected_lines = verdict.corrected_lines(body.lines)
-                lines = [line["text"] for line in corrected_lines]
-                segment_languages = [line["recognizedLanguage"] for line in corrected_lines]
+        if body.ocr_provider == "google_vision":
+            recognized_lines = page_ocr.GoogleVisionOcr().recognize(image, width, height)
+            lines = [line["text"] for line in recognized_lines]
+            segment_languages = [line["recognizedLanguage"] for line in recognized_lines]
+        if not lines:
+            reason = "recognition_uncertain"
         else:
             validator = page_validation.OpenAiPageValidator()
             verdict = (validator.validate(image, lines, profile.age_band) if body.content_language is None else
@@ -85,8 +83,8 @@ def validate_page(
     proof = page_approval.issue_approval(user.id, body.profile_id, lines, body.content_language,
                                         segment_languages=segment_languages)
     payload = {"status": "approved", "proof": proof}
-    if corrected_lines is not None:
-        payload["corrected_lines"] = corrected_lines
+    if recognized_lines is not None:
+        payload["recognized_lines"] = recognized_lines
     return Response(
         content=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         media_type="application/json",

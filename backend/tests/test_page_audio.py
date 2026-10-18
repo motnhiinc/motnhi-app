@@ -12,45 +12,55 @@ from app.models import ChildProfile, PrivacySettings
 from app.routers import speakable_page
 from app.services import page_approval
 from app.services.page_validation import ValidationVerdict
-from app.services.page_correction import CorrectionVerdict
 
 POLICY = "2026-10-06"
 
 
-@pytest.mark.parametrize("readable,indices,status,reason", [
-    (False, [0], 200, "recognition_uncertain"),
-    (True, [1], 503, "provider_failed"),
+@pytest.mark.parametrize("fails,status,reason", [
+    (False, 200, "recognition_uncertain"),
+    (True, 503, "provider_failed"),
 ])
-def test_correction_failure_never_approves_raw_ocr(client, db, monkeypatch, readable, indices, status, reason):
-    headers = _auth(client, "correction-failure")
-    _owned_profile(db, _user(headers), "correction-failure-profile")
-    result = CorrectionVerdict.model_validate({
-        "readable": readable, "age_suitable": True, "suitability_certain": True,
-        "segments": [{"text": "Vẹt", "source_lines": indices, "language": "vi"}],
-    })
-    monkeypatch.setattr(speakable_page.page_correction, "OpenRouterPageCorrector", lambda: FakeValidator(result))
+def test_vision_failure_never_approves_native_ocr(client, db, monkeypatch, fails, status, reason):
+    headers = _auth(client, "vision-failure")
+    _owned_profile(db, _user(headers), "vision-failure-profile")
+
+    class Ocr:
+        def recognize(self, *args):
+            if fails:
+                raise ValueError("upstream details")
+            return []
+
+    monkeypatch.setattr(speakable_page.page_ocr, "GoogleVisionOcr", Ocr)
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
-        "profile_id": "correction-failure-profile", "image_base64": _image_base64(),
-        "content_language": "vi", "correct_ocr": True, "lines": [_line("Vét")],
+        "profile_id": "vision-failure-profile", "image_base64": _image_base64(),
+        "content_language": "vi", "ocr_provider": "google_vision", "lines": [_line("Vét")],
     })
     assert response.status_code == status
     assert response.json()["reason"] == reason
     assert "proof" not in response.json()
-    assert "corrected_lines" not in response.json()
+    assert "recognized_lines" not in response.json()
 
 
-def test_corrected_page_proof_and_audio_use_corrected_text_and_segment_languages(client, db, monkeypatch):
+def test_vision_proof_and_audio_use_recognized_text_and_segment_languages(client, db, monkeypatch):
     headers = _auth(client, "corrected-page")
     user_id = _user(headers)
     _owned_profile(db, user_id, "corrected-profile")
-    result = CorrectionVerdict.model_validate({
-        "readable": True, "age_suitable": True, "suitability_certain": True,
-        "segments": [
-            {"text": "Bạn Vẹt xanh đáp xuống.", "source_lines": [0, 1], "language": "vi"},
-            {"text": "University of Reading", "source_lines": [2], "language": "en"},
-        ],
-    })
-    monkeypatch.setattr(speakable_page.page_correction, "OpenRouterPageCorrector", lambda: FakeValidator(result))
+    recognized = [
+        {**_line("Bạn Vẹt xanh đáp xuống."), "recognizedLanguage": "vi"},
+        {**_line("University of Reading"), "recognizedLanguage": "en"},
+    ]
+
+    class Ocr:
+        def recognize(self, *args):
+            return recognized
+
+    class Validator:
+        def validate(self, image, lines, *args):
+            assert lines == [line["text"] for line in recognized]
+            return ValidationVerdict(text_matches=True, age_suitable=True, certain=True)
+
+    monkeypatch.setattr(speakable_page.page_ocr, "GoogleVisionOcr", Ocr)
+    monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
     calls = []
 
     class Speech:
@@ -62,12 +72,12 @@ def test_corrected_page_proof_and_audio_use_corrected_text_and_segment_languages
     raw = ["Bạn Vét xanh", "đáp xuống.", "University of Reading"]
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": "corrected-profile", "image_base64": _image_base64(),
-        "content_language": "vi", "correct_ocr": True, "lines": [_line(t) for t in raw],
+        "content_language": "vi", "ocr_provider": "google_vision",
     })
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "approved"
-    texts = [line["text"] for line in payload["corrected_lines"]]
+    texts = [line["text"] for line in payload["recognized_lines"]]
     body = {"profile_id": "corrected-profile", "proof": payload["proof"], "content_language": "vi", "lines": raw}
     assert client.post("/v1/speakable-page/audio", headers=headers, json=body).status_code == 403
     assert not calls
