@@ -56,6 +56,10 @@ services:
       GOOGLE_VISION_API_KEY: ${GOOGLE_VISION_API_KEY:-}
       GOOGLE_VISION_TIMEOUT_SECONDS: ${GOOGLE_VISION_TIMEOUT_SECONDS:-15}
       SCAN_OCR_DEBUG_LOGGING: ${SCAN_OCR_DEBUG_LOGGING:-true}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:?set ELEVENLABS_API_KEY in .env}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-5yEPTrA0uAhZsBEhHjfi}
+      ELEVENLABS_MODEL_ID: ${ELEVENLABS_MODEL_ID:-eleven_v3}
+      ELEVENLABS_TTS_TIMEOUT_SECONDS: ${ELEVENLABS_TTS_TIMEOUT_SECONDS:-60}
     volumes:
       # Audio binaries live on the host so `register_assets.py` picks up files
       # you scp in later, and they survive image rebuilds. Maps to backend/storage.
