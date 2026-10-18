@@ -6,7 +6,8 @@ Updated scan clients capture the JPEG without native OCR, then send
 `ocr_provider: "google_vision"` to `/v1/speakable-page/validate`.
 The backend uses `DOCUMENT_TEXT_DETECTION`; text, reading order, language and
 highlight boxes come from Vision. There is no LLM correction or rewriting pass.
-OpenAI still validates page suitability/text matching and generates speech.
+No OpenAI validation, age-suitability check, or text-match provider call runs.
+The backend checks the image and OCR limits, then authorizes narration directly.
 Approval binds the Vision text and detected segment languages; clients reject
 approvals without `recognized_lines` rather than falling back to native OCR.
 
@@ -16,7 +17,7 @@ To try it:
 3. Set `GOOGLE_VISION_API_KEY` in `backend/.env` locally or
    `backend/deploy/.env` for Compose. Never put this key in Flutter.
 4. Deploy/restart the backend, then rebuild the app (native capture code changed).
-   Keep `OPENAI_API_KEY` with speech and chat/completions access.
+   Keep `OPENAI_API_KEY` with speech access; chat/completions is not required.
 
 `GOOGLE_VISION_TIMEOUT_SECONDS` defaults to 15. Native OCR remains available to
 other features and legacy validation requests. Deploy backend and client together;
@@ -33,9 +34,9 @@ deploying the updated code or changing this setting. Follow logs with
 `docker compose -f docker-compose.prod.yml logs -f api` from `backend/deploy`.
 `scan_ocr_raw` shows Vision's text (up to 16,000 characters) and page dimensions
 before geometry parsing; `scan_ocr_lines` shows the parsed text/language/boxes
-before OpenAI validation. `scan_failure` identifies the failing stage and
+before narration authorization. `scan_failure` identifies the failing stage and
 exception type without logging exception messages, images or credentials.
-These text logs may contain private book/page content, including blocked pages.
+These text logs may contain private book/page content, including rejected pages.
 Disable the flag and recreate the container after debugging; existing log
 records remain subject to your deployment's log retention policy.
 
@@ -56,7 +57,6 @@ Configuration (environment variable names are uppercase):
 | `PAGE_AUDIO_QUEUE_SECONDS` | 5 |
 | `PAGE_AUDIO_DEADLINE_SECONDS` | 30 |
 | `PAGE_AUDIO_TRANSIENT_RETRIES` | 1 |
-| `OPENAI_PAGE_VALIDATION_TIMEOUT_SECONDS` | 15 |
 | `PAGE_LANGUAGE_INSTRUCTIONS_ENABLED` | true |
 | `OPENAI_TTS_MODEL` / `OPENAI_TTS_VOICE` | gpt-4o-mini-tts / coral |
 

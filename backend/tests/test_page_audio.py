@@ -55,9 +55,8 @@ def test_vision_proof_and_audio_use_recognized_text_and_segment_languages(client
             return recognized
 
     class Validator:
-        def validate(self, image, lines, *args):
-            assert lines == [line["text"] for line in recognized]
-            return ValidationVerdict(text_matches=True, age_suitable=True, certain=True)
+        def __init__(self):
+            raise AssertionError("OpenAI validation must never be called")
 
     monkeypatch.setattr(speakable_page.page_ocr, "GoogleVisionOcr", Ocr)
     monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
@@ -155,7 +154,7 @@ class FakeTts:
         return f"MP3:{text}".encode()
 
 
-def test_validate_returns_proof_only_for_explicitly_approved_result(
+def test_native_text_receives_bound_proof_without_provider_validation(
     client, db, monkeypatch
 ):
     headers = _auth(client, "page-validation-approved")
@@ -184,7 +183,7 @@ def test_validate_returns_proof_only_for_explicitly_approved_result(
     )
 
 
-def test_validate_blocks_uncertain_page_without_proof(client, db, monkeypatch):
+def test_validate_rejects_invalid_image_without_provider_call(client, db, monkeypatch):
     headers = _auth(client, "page-validation-blocked")
     user_id = _user(headers)
     profile_id = "page-validation-blocked-profile"
@@ -199,13 +198,12 @@ def test_validate_blocks_uncertain_page_without_proof(client, db, monkeypatch):
 
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id,
-        "image_base64": _image_base64(),
+        "image_base64": "not-a-jpeg",
         "lines": [_line()],
     })
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "blocked", "reason": "content_unsuitable"}
-    assert response.headers["cache-control"] == "no-store"
+    assert response.status_code == 422
+    assert "proof" not in response.json()
 
 
 def test_audio_returns_complete_ordered_bundle_and_never_partial(
@@ -319,12 +317,9 @@ def test_explicit_language_normalized_proof_and_audio(client, db, monkeypatch):
     user_id = _user(headers)
     profile_id = "page-vietnamese-profile"
     _owned_profile(db, user_id, profile_id)
-    seen = []
     class Validator:
-        def validate(self, image, lines, age_band, content_language=None):
-            seen.append((lines, content_language))
-            return ValidationVerdict(text_matches=True, age_suitable=True, certain=True,
-                                     text_certain=True, suitability_certain=True)
+        def __init__(self):
+            raise AssertionError("OpenAI validation must never be called")
     monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
     service = FakeTts()
     monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
@@ -332,7 +327,7 @@ def test_explicit_language_normalized_proof_and_audio(client, db, monkeypatch):
         "profile_id": profile_id, "image_base64": _image_base64(),
         "content_language": "vi", "lines": [_line("Tiếng Việt")],
     })
-    assert seen == [(["Tiếng Việt"], "vi")]
+    assert validation.status_code == 200
     proof = validation.json()["proof"]
     body = {"profile_id": profile_id, "proof": proof, "content_language": "vi", "lines": ["Tiếng Việt"]}
     assert client.post("/v1/speakable-page/audio", headers=headers, json=body).status_code == 200

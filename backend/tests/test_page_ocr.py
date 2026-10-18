@@ -92,7 +92,7 @@ def test_missing_key_fails_before_upload(monkeypatch):
 
 
 @pytest.mark.parametrize("outcome,expected", [
-    ("approved", "approved"), ("blocked", "blocked"), ("empty", "blocked"),
+    ("approved", "approved"), ("empty", "blocked"),
     ("failed", "temporary_error"),
 ])
 def test_vision_route_uses_only_cloud_text_and_binds_approval(monkeypatch, outcome, expected):
@@ -100,7 +100,6 @@ def test_vision_route_uses_only_cloud_text_and_binds_approval(monkeypatch, outco
     from app.routers import speakable_page
     from app.schemas import ValidatePageRequest
     from app.services import page_approval
-    from app.services.page_validation import ValidationVerdict
 
     recognized = [{**{"text": "Vẹt", "left": .1, "top": .1, "width": .6, "height": .1},
                    "recognizedLanguage": "vi"}]
@@ -117,9 +116,8 @@ def test_vision_route_uses_only_cloud_text_and_binds_approval(monkeypatch, outco
             return [] if outcome == "empty" else recognized
 
     class Validator:
-        def validate(self, image, lines, age, language):
-            assert lines == ["Vẹt"]
-            return ValidationVerdict(text_matches=True, age_suitable=outcome != "blocked", certain=True)
+        def __init__(self):
+            raise AssertionError("OpenAI validation must never be called")
 
     monkeypatch.setattr(speakable_page.page_ocr, "GoogleVisionOcr", Ocr)
     monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)

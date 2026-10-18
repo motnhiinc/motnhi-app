@@ -50,7 +50,7 @@ def validate_page(
     outcome = "provider_failed"
     recognized_lines = None
     segment_languages = None
-    stage = "validation_provider"
+    stage = "page_checks"
     try:
         lines = [unicodedata.normalize("NFC", line.text) if body.content_language else line.text for line in body.lines]
         if body.ocr_provider == "google_vision":
@@ -59,16 +59,12 @@ def validate_page(
             logging.getLogger("uvicorn.error.scan").info(
                 "scan_stage %s stage=ocr_provider reason=recognized line_count=%d elapsed_ms=%d",
                 correlation(request), len(recognized_lines), (monotonic() - started) * 1000)
-            stage = "validation_provider"
+            stage = "page_checks"
             lines = [line["text"] for line in recognized_lines]
             segment_languages = [line["recognizedLanguage"] for line in recognized_lines]
-        if not lines:
-            reason = "recognition_uncertain"
-        else:
-            validator = page_validation.OpenAiPageValidator()
-            verdict = (validator.validate(image, lines, profile.age_band) if body.content_language is None else
-                       validator.validate(image, lines, profile.age_band, body.content_language))
-            reason = verdict.blocked_reason
+        # OCR text is authoritative. No LLM correction, text-match validation,
+        # or age-suitability provider call occurs before narration.
+        reason = "recognition_uncertain" if not lines else None
         outcome = reason or "approved"
     except Exception as error:
         outcome = provider_reason(error)
