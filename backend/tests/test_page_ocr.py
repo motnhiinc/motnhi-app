@@ -179,12 +179,7 @@ def test_vision_route_uses_only_cloud_text_and_binds_approval(monkeypatch, outco
                 raise ValueError("private provider error")
             return [] if outcome == "empty" else recognized
 
-    class Validator:
-        def __init__(self):
-            raise AssertionError("OpenAI validation must never be called")
-
     monkeypatch.setattr(speakable_page.page_ocr, "GoogleVisionOcr", Ocr)
-    monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
     body = ValidatePageRequest(profile_id="profile", image_base64="jpeg",
                                content_language="vi", ocr_provider="google_vision")
     response = speakable_page.validate_page(body, Request({"type": "http", "headers": []}),

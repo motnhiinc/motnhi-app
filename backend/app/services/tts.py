@@ -1,10 +1,12 @@
+"""ElevenLabs speech adapter with a shared, thread-safe connection pool."""
 from functools import lru_cache
+from time import monotonic
 
 import httpx
-from openai import OpenAI
-from openai import APITimeoutError, RateLimitError, APIConnectionError, InternalServerError
 
 from app.config import settings
+
+MAX_AUDIO_BYTES = 2 * 1024 * 1024
 
 
 class TtsUpstreamError(RuntimeError):
@@ -14,10 +16,10 @@ class TtsUpstreamError(RuntimeError):
 
 
 def provider_reason(error: Exception) -> str:
-    if isinstance(error, (APITimeoutError, httpx.TimeoutException)):
+    if isinstance(error, TtsUpstreamError):
+        return error.reason
+    if isinstance(error, httpx.TimeoutException):
         return "provider_timeout"
-    if isinstance(error, RateLimitError):
-        return "provider_capacity"
     if isinstance(error, httpx.HTTPStatusError):
         if error.response.status_code == 429:
             return "provider_capacity"
@@ -25,46 +27,64 @@ def provider_reason(error: Exception) -> str:
             return "provider_unavailable"
     if isinstance(error, httpx.RequestError):
         return "provider_unavailable"
-    if isinstance(error, (APIConnectionError, InternalServerError)):
-        return "provider_unavailable"
     return "provider_failed"
 
 
-class OpenAiTtsService:
+class ElevenLabsTtsService:
     def __init__(self) -> None:
-        if not settings.openai_api_key:
-            raise TtsUpstreamError("OPENAI_API_KEY is not configured")
-        self._client = OpenAI(
-            api_key=settings.openai_api_key,
-            timeout=settings.openai_tts_timeout_seconds,
-            max_retries=0,
+        if not settings.elevenlabs_api_key or not settings.elevenlabs_voice_id:
+            raise TtsUpstreamError("ElevenLabs credentials are not configured", "speech_configuration_invalid")
+        self._voice_id = settings.elevenlabs_voice_id
+        self._model_id = settings.elevenlabs_model_id
+        self._output_format = settings.elevenlabs_output_format
+        # Reuse TCP/TLS connections across lines and pages; never retry implicitly.
+        self._client = httpx.Client(
+            base_url="https://api.elevenlabs.io/v1/",
+            headers={"xi-api-key": settings.elevenlabs_api_key, "Accept": "audio/mpeg"},
+            timeout=settings.elevenlabs_tts_timeout_seconds,
+            limits=httpx.Limits(max_connections=64, max_keepalive_connections=64, keepalive_expiry=60),
         )
 
     def generate(self, text: str, content_language: str | None = None, *, timeout: float | None = None) -> bytes:
-        options = {}
-        if content_language is not None:
-            if not settings.page_language_instructions_enabled or not settings.openai_tts_model.startswith("gpt-4o-mini-tts"):
-                raise TtsUpstreamError("instruction-capable speech configuration required", "speech_configuration_invalid")
-            language = {"vi": "Vietnamese", "en": "English", "mixed": "mixed Vietnamese and English"}[content_language]
-            options["instructions"] = (
-                f"Read the supplied {language} text faithfully with natural {language} pronunciation "
-                "and child-friendly pacing. Preserve all words. Do not translate or add words."
-                " For mixed-language passages, pronounce each passage in its original language."
-            )
+        if content_language not in {None, "vi", "en", "mixed"}:
+            raise TtsUpstreamError("unsupported speech language", "speech_configuration_invalid")
+        payload = {
+            "text": text,
+            "model_id": self._model_id,
+            "voice_settings": {"style": 0, "use_speaker_boost": False},
+        }
+        # Do not force mixed passages into a single language or rewrite input.
+        if content_language in {"vi", "en"}:
+            payload["language_code"] = content_language
+        budget = min(timeout, settings.elevenlabs_tts_timeout_seconds) if timeout is not None else settings.elevenlabs_tts_timeout_seconds
+        deadline = monotonic() + budget
         try:
-            client = self._client if timeout is None else self._client.with_options(timeout=timeout)
-            response = client.audio.speech.create(
-                model=settings.openai_tts_model,
-                voice=settings.openai_tts_voice,
-                input=text,
-                response_format="mp3",
-                **options,
-            )
-            return response.content
+            with self._client.stream(
+                "POST", f"text-to-speech/{self._voice_id}",
+                params={"output_format": self._output_format}, json=payload, timeout=budget,
+            ) as response:
+                response.raise_for_status()
+                if not response.headers.get("content-type", "").lower().startswith("audio/"):
+                    raise TtsUpstreamError("unexpected speech response", "invalid_audio_bundle")
+                audio = bytearray()
+                for chunk in response.iter_bytes():
+                    if monotonic() >= deadline:
+                        raise TtsUpstreamError("speech deadline exceeded", "provider_timeout")
+                    if len(audio) + len(chunk) > MAX_AUDIO_BYTES:
+                        raise TtsUpstreamError("speech response too large", "invalid_audio_bundle")
+                    audio.extend(chunk)
+                if not audio:
+                    raise TtsUpstreamError("empty speech response", "invalid_audio_bundle")
+                return bytes(audio)
+        except TtsUpstreamError:
+            raise
         except Exception as error:
-            raise TtsUpstreamError("OpenAI speech request failed", provider_reason(error)) from error
+            raise TtsUpstreamError("ElevenLabs speech request failed", provider_reason(error)) from error
+
+    def close(self) -> None:
+        self._client.close()
 
 
 @lru_cache
-def get_openai_tts_service() -> OpenAiTtsService:
-    return OpenAiTtsService()
+def get_elevenlabs_tts_service() -> ElevenLabsTtsService:
+    return ElevenLabsTtsService()

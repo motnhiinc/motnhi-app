@@ -11,7 +11,6 @@ from app.auth import decode_token
 from app.models import ChildProfile, PrivacySettings
 from app.routers import speakable_page
 from app.services import page_approval
-from app.services.page_validation import ValidationVerdict
 
 POLICY = "2026-10-06"
 
@@ -54,12 +53,7 @@ def test_vision_proof_and_audio_use_recognized_text_and_segment_languages(client
         def recognize(self, *args):
             return recognized
 
-    class Validator:
-        def __init__(self):
-            raise AssertionError("OpenAI validation must never be called")
-
     monkeypatch.setattr(speakable_page.page_ocr, "GoogleVisionOcr", Ocr)
-    monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
     calls = []
 
     class Speech:
@@ -67,7 +61,7 @@ def test_vision_proof_and_audio_use_recognized_text_and_segment_languages(client
             calls.append((text, language))
             return b"audio"
 
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", Speech)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", Speech)
     raw = ["Bạn Vét xanh", "đáp xuống.", "University of Reading"]
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": "corrected-profile", "image_base64": _image_base64(),
@@ -130,16 +124,6 @@ def _line(text="A little fox"):
 
 
 @dataclass
-class FakeValidator:
-    verdict: ValidationVerdict
-
-    def validate(self, image, lines, age_band, content_language=None):
-        assert image.startswith(b"\xff\xd8\xff")
-        assert age_band == "5-6"
-        return self.verdict
-
-
-@dataclass
 class FakeTts:
     fail_on: str | None = None
     calls: list[str] | None = None
@@ -161,13 +145,6 @@ def test_native_text_receives_bound_proof_without_provider_validation(
     user_id = _user(headers)
     profile_id = "page-validation-profile"
     _owned_profile(db, user_id, profile_id)
-    monkeypatch.setattr(
-        speakable_page.page_validation,
-        "OpenAiPageValidator",
-        lambda: FakeValidator(ValidationVerdict(
-            text_matches=True, age_suitable=True, certain=True,
-        )),
-    )
 
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id,
@@ -188,13 +165,6 @@ def test_validate_rejects_invalid_image_without_provider_call(client, db, monkey
     user_id = _user(headers)
     profile_id = "page-validation-blocked-profile"
     _owned_profile(db, user_id, profile_id)
-    monkeypatch.setattr(
-        speakable_page.page_validation,
-        "OpenAiPageValidator",
-        lambda: FakeValidator(ValidationVerdict(
-            text_matches=True, age_suitable=True, certain=False,
-        )),
-    )
 
     response = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id,
@@ -216,7 +186,7 @@ def test_audio_returns_complete_ordered_bundle_and_never_partial(
     lines = ["First line", "Second line"]
     proof = page_approval.issue_approval(user_id, profile_id, lines)
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
 
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": proof, "lines": lines,
@@ -232,7 +202,7 @@ def test_audio_returns_complete_ordered_bundle_and_never_partial(
         assert bundle.read("001.mp3") == b"MP3:Second line"
 
     failed = FakeTts(fail_on="Second line")
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: failed)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: failed)
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": proof, "lines": lines,
     })
@@ -249,7 +219,7 @@ def test_invalid_proof_makes_no_tts_calls_even_with_old_flags_disabled(
     profile_id = "page-audio-denied-profile"
     _owned_profile(db, user_id, profile_id)
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
     response = client.post("/v1/speakable-page/audio", headers=headers, json={
         "profile_id": profile_id, "proof": "invalid", "lines": ["private text"],
     })
@@ -277,14 +247,8 @@ def test_legacy_flags_off_still_validate_and_generate_audio(client, db, monkeypa
     settings.cloud_tts_enabled = False
     settings.page_image_validation_enabled = False
     db.flush()
-    monkeypatch.setattr(
-        speakable_page.page_validation, "OpenAiPageValidator",
-        lambda: FakeValidator(ValidationVerdict(
-            text_matches=True, age_suitable=True, certain=True,
-        )),
-    )
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
 
     validation = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id, "image_base64": _image_base64(),
@@ -317,12 +281,8 @@ def test_explicit_language_normalized_proof_and_audio(client, db, monkeypatch):
     user_id = _user(headers)
     profile_id = "page-vietnamese-profile"
     _owned_profile(db, user_id, profile_id)
-    class Validator:
-        def __init__(self):
-            raise AssertionError("OpenAI validation must never be called")
-    monkeypatch.setattr(speakable_page.page_validation, "OpenAiPageValidator", Validator)
     service = FakeTts()
-    monkeypatch.setattr(speakable_page, "get_openai_tts_service", lambda: service)
+    monkeypatch.setattr(speakable_page, "get_elevenlabs_tts_service", lambda: service)
     validation = client.post("/v1/speakable-page/validate", headers=headers, json={
         "profile_id": profile_id, "image_base64": _image_base64(),
         "content_language": "vi", "lines": [_line("Tiếng Việt")],

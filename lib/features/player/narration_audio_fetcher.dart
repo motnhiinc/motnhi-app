@@ -12,7 +12,7 @@ abstract interface class NarrationAudioFetcher {
   Future<void> dispose();
 }
 
-/// Backed by the authenticated OpenAI proxy (`POST /v1/tts`).
+/// Backed by the authenticated ElevenLabs proxy (`POST /v1/tts`).
 ///
 /// Caches the in-flight [Future], not the finished path: two requests for the
 /// same segment — a page-back before the first resolves — must not both write

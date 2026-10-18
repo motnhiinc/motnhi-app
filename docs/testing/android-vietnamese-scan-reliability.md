@@ -6,7 +6,7 @@ Updated scan clients capture the JPEG without native OCR, then send
 `ocr_provider: "google_vision"` to `/v1/speakable-page/validate`.
 The backend uses `DOCUMENT_TEXT_DETECTION`; text, reading order, language and
 highlight boxes come from Vision. There is no LLM correction or rewriting pass.
-No OpenAI validation, age-suitability check, or text-match provider call runs.
+No LLM validation, age-suitability check, or text-match provider call runs.
 The backend checks the image and OCR limits, then authorizes narration directly.
 Approval binds the Vision text and detected segment languages; clients reject
 approvals without `recognized_lines` rather than falling back to native OCR.
@@ -17,7 +17,7 @@ To try it:
 3. Set `GOOGLE_VISION_API_KEY` in `backend/.env` locally or
    `backend/deploy/.env` for Compose. Never put this key in Flutter.
 4. Deploy/restart the backend, then rebuild the app (native capture code changed).
-   Keep `OPENAI_API_KEY` with speech access; chat/completions is not required.
+   Set `ELEVENLABS_API_KEY` with speech access and the desired `ELEVENLABS_VOICE_ID`.
 
 `GOOGLE_VISION_TIMEOUT_SECONDS` defaults to 15. Native OCR remains available to
 other features and legacy validation requests. Deploy backend and client together;
@@ -57,13 +57,15 @@ Configuration (environment variable names are uppercase):
 | `PAGE_AUDIO_QUEUE_SECONDS` | 5 |
 | `PAGE_AUDIO_DEADLINE_SECONDS` | 30 |
 | `PAGE_AUDIO_TRANSIENT_RETRIES` | 1 |
-| `PAGE_LANGUAGE_INSTRUCTIONS_ENABLED` | true |
-| `OPENAI_TTS_MODEL` / `OPENAI_TTS_VOICE` | gpt-4o-mini-tts / coral |
+| `ELEVENLABS_MODEL_ID` | eleven_flash_v2_5 |
+| `ELEVENLABS_VOICE_ID` | 5yEPTrA0uAhZsBEhHjfi |
+| `ELEVENLABS_OUTPUT_FORMAT` | mp3_44100_64 |
+| `ELEVENLABS_TTS_TIMEOUT_SECONDS` | 15 |
 
 Run `uv run python verify_scan_configuration.py` in `backend` before deployment.
-Optionally add `--provider-smoke-test` to verify live instruction support (incurs
-two speech requests; it does not save clips). Disabling instructions fails explicit
-language requests visibly; it never silently ignores their intent. Concurrency 1
+Optionally add `--provider-smoke-test` to verify live Vietnamese/English synthesis (incurs
+two speech requests; it does not save clips). Vietnamese/English segments set the
+provider language; mixed segments use automatic language detection. Concurrency 1
 provides the serial comparison. Process capacity is **not** a deployment-global
 rate limiter: choose worker/replica counts with the provider's actual budget.
 Per-page parallelism is capped at 8, regardless of a page's line count.

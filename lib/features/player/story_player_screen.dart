@@ -106,7 +106,7 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     // Curated stories play registered clips or the device-TTS fallback; only
     // authored stories generate narration per read. Without this gate, an
     // environment where register_assets.py never ran would silently turn
-    // every curated page into an OpenAI call.
+    // every curated page into an ElevenLabs call.
     _fetcher = _story.isAuthored
         ? ref.read(narrationAudioFetcherProvider(_story.id))
         : null;

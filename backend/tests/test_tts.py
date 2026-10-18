@@ -74,7 +74,7 @@ def test_tts_without_current_policy_never_constructs_service(
     constructions = []
     fake = FakeTtsService()
     monkeypatch.setattr(
-        tts_router, "get_openai_tts_service", _counting_factory(constructions, fake)
+        tts_router, "get_elevenlabs_tts_service", _counting_factory(constructions, fake)
     )
     headers = _auth(client, device_id)
     if consent_kwargs is not None:
@@ -95,7 +95,7 @@ def test_tts_with_current_policy_constructs_service_once_and_generates(
     constructions = []
     fake = FakeTtsService()
     monkeypatch.setattr(
-        tts_router, "get_openai_tts_service", _counting_factory(constructions, fake)
+        tts_router, "get_elevenlabs_tts_service", _counting_factory(constructions, fake)
     )
     headers = _auth(client, "tts-enabled-device")
     _write_consent(db, _uid(headers), cloud_tts_enabled=cloud_tts_enabled)
@@ -151,7 +151,7 @@ def test_tts_maps_service_construction_failure_without_leaking_details(client, d
     def fail_to_construct():
         raise TtsUpstreamError("secret configuration detail")
 
-    monkeypatch.setattr(tts_router, "get_openai_tts_service", fail_to_construct)
+    monkeypatch.setattr(tts_router, "get_elevenlabs_tts_service", fail_to_construct)
 
     headers = _auth(client)
     _write_consent(db, _uid(headers), cloud_tts_enabled=True)

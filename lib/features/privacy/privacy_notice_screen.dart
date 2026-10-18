@@ -5,7 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 
 /// Read-only, scrollable full privacy notice (§14). Localized sections cover
-/// stored data, the optional progress choice, cloud narration/OpenAI,
+/// stored data, the optional progress choice, cloud narration/ElevenLabs,
 /// camera/scan handling, retention, deletion, and the retained anonymous
 /// device identity.
 class PrivacyNoticeScreen extends ConsumerWidget {

@@ -10,7 +10,7 @@ from app.db import get_db
 from app.models import User
 from app.repositories import privacy as privacy_repo
 from app.services import privacy as privacy_service
-from app.services.tts import OpenAiTtsService, TtsUpstreamError, get_openai_tts_service
+from app.services.tts import ElevenLabsTtsService, TtsUpstreamError, get_elevenlabs_tts_service
 
 router = APIRouter(prefix="/v1/tts", tags=["tts"])
 ConfirmedText = Annotated[
@@ -22,9 +22,9 @@ class TtsRequest(BaseModel):
     text: ConfirmedText
 
 
-def get_tts_service() -> OpenAiTtsService:
+def get_tts_service() -> ElevenLabsTtsService:
     try:
-        return get_openai_tts_service()
+        return get_elevenlabs_tts_service()
     except TtsUpstreamError as error:
         raise HTTPException(status_code=502, detail="narration generation failed") from error
 

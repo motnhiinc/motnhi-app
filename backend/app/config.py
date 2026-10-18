@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -13,12 +15,11 @@ class Settings(BaseSettings):
     asset_url_ttl_seconds: int = 3600
     storage_dir: str = "storage"
     default_target_physical_width_mm: int = 210
-    openai_api_key: str = ""
-    openai_tts_model: str = "gpt-4o-mini-tts"
-    openai_tts_voice: str = "coral"
-    openai_tts_timeout_seconds: float = 30.0
-    openai_page_validation_model: str = "gpt-4o-mini"
-    openai_page_validation_timeout_seconds: float = 15.0
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "5yEPTrA0uAhZsBEhHjfi"
+    elevenlabs_model_id: str = Field(default="eleven_flash_v2_5", min_length=1)
+    elevenlabs_output_format: Literal["mp3_22050_32", "mp3_24000_48", "mp3_44100_32", "mp3_44100_64", "mp3_44100_96", "mp3_44100_128", "mp3_44100_192"] = "mp3_44100_64"
+    elevenlabs_tts_timeout_seconds: float = Field(default=15.0, gt=0, le=60)
     google_vision_api_key: str = ""
     google_vision_timeout_seconds: float = Field(default=15.0, gt=0, le=30)
     scan_ocr_debug_logging: bool = True
@@ -27,7 +28,6 @@ class Settings(BaseSettings):
     page_audio_queue_seconds: float = Field(default=5.0, gt=0)
     page_audio_deadline_seconds: float = Field(default=30.0, gt=0)
     page_audio_transient_retries: int = Field(default=1, ge=0, le=1)
-    page_language_instructions_enabled: bool = True
 
 
 settings = Settings()

@@ -78,7 +78,7 @@ if [ ! -f "$ENV_FILE" ]; then
   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$(gen)|" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   log "Secrets generated into $ENV_FILE."
-  die "Now edit $ENV_FILE — set DOMAIN, ACME_EMAIL and OPENAI_API_KEY — then re-run ./deploy.sh <action>"
+  die "Now edit $ENV_FILE — set DOMAIN, ACME_EMAIL and ELEVENLABS_API_KEY — then re-run ./deploy.sh <action>"
 fi
 
 # --- 4. Validate secrets/config (every action) --------------------------------
@@ -93,7 +93,7 @@ set -a; . "./$ENV_FILE"; set +a
 [ -n "${POSTGRES_PASSWORD:-}" ] && [ "$POSTGRES_PASSWORD" != "CHANGE_ME" ] || die "POSTGRES_PASSWORD is unset or CHANGE_ME. Generate: openssl rand -hex 32"
 # Unlike the secrets above this one cannot be generated — it is an external
 # credential. Checked here so a bad deploy fails now, not silently at /v1/tts.
-[ -n "${OPENAI_API_KEY:-}" ]    && [ "$OPENAI_API_KEY" != "CHANGE_ME" ] || die "OPENAI_API_KEY is unset or CHANGE_ME. Required by POST /v1/tts (scan-any-page narration); there is no default. Get one at https://platform.openai.com/api-keys"
+[ -n "${ELEVENLABS_API_KEY:-}" ] && [ "$ELEVENLABS_API_KEY" != "CHANGE_ME" ] || die "ELEVENLABS_API_KEY is unset or CHANGE_ME. Required for server narration. Get one at https://elevenlabs.io"
 
 log "Config looks good. Running action: $ACTION"
 

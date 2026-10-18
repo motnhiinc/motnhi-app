@@ -1,17 +1,15 @@
 """Deployment check: uv run python verify_scan_configuration.py [--provider-smoke-test]."""
 import argparse
-import inspect
-from openai.resources.audio.speech import Speech
 
 from app.config import settings
-from app.services.tts import get_openai_tts_service
+from app.services.tts import get_elevenlabs_tts_service
 
 
 def verify() -> None:
-    if settings.page_language_instructions_enabled and not settings.openai_tts_model.startswith("gpt-4o-mini-tts"):
-        raise SystemExit("Scan deployment rejected: explicit-language narration requires gpt-4o-mini-tts (including dated versions).")
-    if settings.page_language_instructions_enabled and "instructions" not in inspect.signature(Speech.create).parameters:
-        raise SystemExit("Scan deployment rejected: installed OpenAI SDK does not support speech instructions.")
+    if not settings.elevenlabs_api_key or settings.elevenlabs_api_key == "CHANGE_ME":
+        raise SystemExit("Scan deployment rejected: ELEVENLABS_API_KEY is required.")
+    if not settings.elevenlabs_voice_id or settings.elevenlabs_voice_id == "CHANGE_ME":
+        raise SystemExit("Scan deployment rejected: ELEVENLABS_VOICE_ID is required.")
     if settings.page_audio_queue_seconds >= settings.page_audio_deadline_seconds:
         raise SystemExit("Scan deployment rejected: queue budget must be shorter than the page deadline.")
 
@@ -22,8 +20,11 @@ if __name__ == "__main__":
     arguments = parser.parse_args()
     verify()
     if arguments.provider_smoke_test:
-        service = get_openai_tts_service()
-        for language, text in [("vi", "Chú thỏ ngắm những chiếc lá xanh."), ("en", "The little rabbit looks at green leaves.")]:
-            if not service.generate(text, language):
-                raise SystemExit("Scan deployment rejected: empty speech response.")
+        service = get_elevenlabs_tts_service()
+        try:
+            for language, text in [("vi", "Chú thỏ ngắm những chiếc lá xanh."), ("en", "The little rabbit looks at green leaves.")]:
+                if not service.generate(text, language):
+                    raise SystemExit("Scan deployment rejected: empty speech response.")
+        finally:
+            service.close()
     print("Scan configuration verified. Physical Vietnamese listening acceptance remains required.")

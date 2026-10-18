@@ -103,7 +103,7 @@ def create_authored(db: Session, user_id: str, payload) -> Story:
         db.add(NarrationSegment(
             id=str(uuid.uuid4()), story_id=story_id, page_id=page_id,
             speaker_key="narrator", text=page.page_text,
-            voice_id=settings.openai_tts_voice, emotion=None, speed=1.0,
+            voice_id=settings.elevenlabs_voice_id, emotion=None, speed=1.0,
             audio_asset_id=None, start_ms=0, end_ms=0, sort_order=0,
         ))
     db.flush()

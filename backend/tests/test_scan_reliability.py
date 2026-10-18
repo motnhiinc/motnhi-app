@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from io import BytesIO
 from threading import Barrier, Lock
 from time import sleep, monotonic
-from types import SimpleNamespace
 from zipfile import ZipFile
 
 import jwt
@@ -11,8 +10,7 @@ import pytest
 
 from app.config import settings
 from app.services import page_approval, page_audio
-from app.services.page_validation import ValidationVerdict
-from app.services.tts import OpenAiTtsService, TtsUpstreamError
+from app.services.tts import TtsUpstreamError
 
 
 def test_language_binding_legacy_and_verified_expiry():
@@ -30,41 +28,6 @@ def test_language_binding_legacy_and_verified_expiry():
     assert page_approval.approval_reason(expired, "u", "p", lines, "vi") == "page_approval_expired"
     assert page_approval.approval_reason(expired, "other", "p", lines, "vi") == "page_approval_invalid"
     assert not page_approval.verify_approval(expired, "u", "p", lines, "vi")
-
-
-@pytest.mark.parametrize("text,suitable,text_certain,suitability_certain,reason", [
-    (False, True, True, True, "text_mismatch"),
-    (False, True, False, True, "recognition_uncertain"),
-    (False, True, True, False, "content_unsuitable"),
-    (False, False, True, True, "content_unsuitable"),
-    (True, True, True, True, None),
-])
-def test_suitability_uncertainty_is_never_correctable_text(text, suitable, text_certain, suitability_certain, reason):
-    verdict = ValidationVerdict(text_matches=text, age_suitable=suitable, certain=True,
-                                text_certain=text_certain, suitability_certain=suitability_certain)
-    assert verdict.blocked_reason == reason
-
-
-def test_speech_instructions_preserve_exact_input(monkeypatch):
-    monkeypatch.setattr(settings, "openai_tts_model", "gpt-4o-mini-tts")
-    monkeypatch.setattr(settings, "page_language_instructions_enabled", True)
-    captured = {}
-    def create(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace(content=b"mp3")
-    service = OpenAiTtsService.__new__(OpenAiTtsService)
-    service._client = SimpleNamespace(audio=SimpleNamespace(speech=SimpleNamespace(create=create)))
-    text = "Chú thỏ, tiếng Việt!"
-    assert service.generate(text, "vi") == b"mp3"
-    assert captured["input"] == text
-    assert "Vietnamese" in captured["instructions"]
-    assert "Do not translate" in captured["instructions"]
-    captured.clear()
-    service.generate(text)
-    assert "instructions" not in captured
-    monkeypatch.setattr(settings, "openai_tts_model", "tts-1")
-    with pytest.raises(TtsUpstreamError, match="instruction-capable"):
-        service.generate(text, "vi")
 
 
 def test_parallel_order_and_process_ceiling(monkeypatch):
@@ -112,6 +75,23 @@ def test_six_parallel_clips_preserve_bundle_order(monkeypatch):
             assert [archive.read(name) for name in archive.namelist()] == [line.encode() for line in lines]
     finally:
         page_audio.process_slots.cache_clear()
+
+
+def test_duplicate_clips_are_reused_only_within_request_and_language():
+    calls = []
+
+    class Service:
+        def generate(self, text, language, **kwargs):
+            calls.append((text, language))
+            return f"{text}:{language}".encode()
+
+    lines = ["Reading", "Reading", "Reading"]
+    languages = ["en", "en", "vi"]
+    for _ in range(2):
+        audio = page_audio.generate_bundle(Service(), lines, segment_languages=languages)
+        with ZipFile(BytesIO(audio)) as archive:
+            assert [archive.read(name) for name in archive.namelist()] == [b"Reading:en", b"Reading:en", b"Reading:vi"]
+    assert sorted(calls) == [("Reading", "en"), ("Reading", "en"), ("Reading", "vi"), ("Reading", "vi")]
 
 
 def test_deadline_queue_retry_and_byte_limits(monkeypatch):

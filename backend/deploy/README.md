@@ -19,11 +19,51 @@ API restart cannot bypass the coordinated sequence below.
    ```bash
    sudo ufw allow 80,443/tcp   # if ufw is enabled
    ```
-4. An **OpenAI API key**. `POST /v1/tts` proxies to OpenAI to narrate a scanned
+4. An **ElevenLabs API key**. `POST /v1/tts` proxies to ElevenLabs to narrate a scanned
    page; there is no default and no local fallback. Without a valid key that
    endpoint returns **502 on every request** while `/health`, the story list and
    TLS all stay green — so the break is invisible until someone scans a page on
-   a device. Use a restricted project key scoped to `/v1/audio/speech`.
+   a device. Give the key text-to-speech access to the configured voice.
+
+## Low-latency narration
+
+ElevenLabs is the only speech provider. The default is `eleven_flash_v2_5`
+(Vietnamese supported), with pooled HTTPS connections, style exaggeration and
+speaker boost disabled, and 64-kbps MP3 output. Listen to Vietnamese, mixed-language
+and numeric passages before rollout; Flash can sound different from v3 and number
+normalization varies. Audio remains ephemeral and the ordered ZIP contract is unchanged.
+
+Existing `.env` values override defaults. To activate the low-latency configuration,
+set these explicitly in `backend/deploy/.env` before rebuilding/recreating the API:
+
+```dotenv
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+ELEVENLABS_OUTPUT_FORMAT=mp3_44100_64
+ELEVENLABS_TTS_TIMEOUT_SECONDS=15
+PAGE_AUDIO_CONCURRENCY=6
+PAGE_AUDIO_PROCESS_CONCURRENCY=6
+```
+
+Keep your existing ElevenLabs key and voice ID. Concurrency is per process, not
+deployment-wide; check the account's Flash limit before increasing it. A faster
+model is not a one-second full-page guarantee. Measure `stage=audio_total`, which
+includes queueing, all complete clips, and ZIP assembly (not OCR or client transfer).
+Repeated text/language pairs are synthesized once per request, with no cross-request
+cache. Historical specifications under `docs/superpowers` describe older providers;
+use this guide and the current environment examples for deployment.
+
+For an opt-in, paid benchmark of complete synthesis (13 distinct synthetic
+Vietnamese lines, no saved text/audio), run from `backend`:
+
+```bash
+uv run python benchmark_page_audio.py --live --runs 3
+```
+
+This reports first and subsequent runs separately plus best/median/worst wall
+time. It does not measure first-byte latency or claim that inference latency is
+the time required to generate an entire page. In Docker, use
+`docker compose -f docker-compose.prod.yml exec api python benchmark_page_audio.py --live --runs 3`
+from `backend/deploy` to use the actual production settings and network location.
 
 ## Actions
 
@@ -43,7 +83,7 @@ First run (with any action) creates `.env` with **generated secrets** and stops
 so you can set the three values only you know:
 
 ```bash
-nano .env        # DOMAIN=api.yourdomain.com, ACME_EMAIL=you@..., OPENAI_API_KEY=sk-...
+nano .env        # DOMAIN=api.yourdomain.com, ACME_EMAIL=you@..., ELEVENLABS_API_KEY=...
 ./deploy.sh <action>   # run again — secrets are validated before every action
 ```
 

@@ -29,7 +29,7 @@ void main() {
       'privacyStorageRequiredBody',
     ],
     'optional tracking': ['privacyTrackingTitle', 'privacyTrackingBody'],
-    'OpenAI/cloud narration': ['privacyCloudTitle', 'privacyCloudBody'],
+    'ElevenLabs/cloud narration': ['privacyCloudTitle', 'privacyCloudBody'],
     'retention': ['privacyRetentionTitle', 'privacyRetentionBody'],
     'deletion': ['privacyDeletionTitle', 'privacyDeletionBody'],
     'retry': ['privacySaveError', 'profileSaveError', 'privacyDeleteFailed'],
@@ -204,14 +204,14 @@ void main() {
       }
     });
 
-    test('cloud narration copy describes the approved-page OpenAI path', () {
+    test('cloud narration copy describes the approved-page ElevenLabs path', () {
       final enBody = en['privacyCloudBody']!;
-      expect(enBody, contains('OpenAI'));
+      expect(enBody, contains('ElevenLabs'));
       expect(enBody.toLowerCase(), contains('app backend'));
       expect(enBody.toLowerCase(), contains('approved scanned-page text'));
 
       final viBody = vi['privacyCloudBody']!;
-      expect(viBody, contains('OpenAI'));
+      expect(viBody, contains('ElevenLabs'));
       expect(viBody, contains('máy chủ ứng dụng'));
       expect(viBody, contains('đã được duyệt'));
       expect(viBody, contains('trang đã được duyệt'));

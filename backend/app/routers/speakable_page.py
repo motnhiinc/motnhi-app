@@ -13,7 +13,7 @@ from app.models import User
 from app.repositories import privacy as privacy_repo, profiles
 from app.schemas import PageAudioRequest, ValidatePageRequest
 from app.services import page_approval, page_validation, page_ocr, page_audio, privacy as privacy_service
-from app.services.tts import TtsUpstreamError, get_openai_tts_service, provider_reason
+from app.services.tts import TtsUpstreamError, get_elevenlabs_tts_service, provider_reason
 
 router = APIRouter(prefix="/v1/speakable-page", tags=["speakable-page"])
 
@@ -116,7 +116,7 @@ def generate_page_audio(
         raise HTTPException(status_code=403, detail=reason)
     try:
         languages = page_approval.approved_segment_languages(body.proof, len(body.lines))
-        bundle = page_audio.generate_bundle(get_openai_tts_service(), body.lines, body.content_language,
+        bundle = page_audio.generate_bundle(get_elevenlabs_tts_service(), body.lines, body.content_language,
                                             correlation=correlation(request), segment_languages=languages)
     except TtsUpstreamError as error:
         raise HTTPException(status_code=503, detail=error.reason) from error
