@@ -50,6 +50,70 @@ def test_empty_page_is_not_fabricated():
     assert page_ocr.document_lines({}, 100, 200) == []
 
 
+def narration_line(text, top=.1, language="vi"):
+    return {"text": text, "left": .1, "top": top, "width": .6, "height": .04,
+            "recognizedLanguage": language}
+
+
+def test_narration_joins_vietnamese_wraps_including_commas_and_preserves_geometry():
+    lines = [narration_line(text, top=.1 + index * .05) for index, text in enumerate([
+        "18",
+        "Cam ngồi một mình trên cành cây. Chẳng bao lâu sau, một",
+        "bạn Vẹt xanh đáp xuống cạnh cậu ấy.",
+        '*Có chuyện gì vậy Cam?" Ban Vẹt hỏi.',
+        '“Tớ muốn chơi với ai đó giống như tớ." Cam đáp. "Nhưng',
+        'chẳng có ai cả."',
+        '“Dĩ nhiên là không có rồi." Vẹt nói. "Chúng ta đều khác',
+        'nhau, và chúng ta đều đặc biệt"',
+        "Cam bắt đầu nghĩ về", "những điều khiến", "cho cậu ấy trở", "nên đặc biệt...",
+    ])]
+    segments = page_ocr.narration_segments(lines)
+    assert [segment["text"] for segment in segments] == [
+        "18",
+        "Cam ngồi một mình trên cành cây. Chẳng bao lâu sau, một bạn Vẹt xanh đáp xuống cạnh cậu ấy.",
+        '*Có chuyện gì vậy Cam?" Ban Vẹt hỏi.',
+        '“Tớ muốn chơi với ai đó giống như tớ." Cam đáp. "Nhưng chẳng có ai cả."',
+        '“Dĩ nhiên là không có rồi." Vẹt nói. "Chúng ta đều khác nhau, và chúng ta đều đặc biệt" '
+        "Cam bắt đầu nghĩ về những điều khiến cho cậu ấy trở nên đặc biệt...",
+    ]
+    assert segments[1]["top"] == pytest.approx(.15)
+    assert segments[1]["height"] == pytest.approx(.09)
+    assert segments[1]["recognizedLanguage"] == "vi"
+    assert lines[1]["text"].endswith("một")  # Do not mutate source OCR lines.
+
+
+@pytest.mark.parametrize("ending", [".", "?", "!", "…", "...", '."', '?”', "!’", ".)"])
+def test_narration_keeps_sentence_endings_separate(ending):
+    lines = [narration_line("Done" + ending), narration_line("Next")]
+    assert page_ocr.narration_segments(lines) == lines
+
+
+def test_narration_keeps_numbers_and_language_changes_separate():
+    lines = [narration_line("Hello", language="en"), narration_line("Xin chào"),
+             narration_line("18"), narration_line("Tiếp theo")]
+    assert page_ocr.narration_segments(lines) == lines
+    assert page_ocr.narration_segments([]) == []
+
+
+def test_narration_limits_include_joining_spaces():
+    with pytest.raises(ValueError, match="OCR page too long"):
+        page_ocr.narration_segments([narration_line("a" * 2000), narration_line("b" * 2000)])
+
+
+def test_vision_returns_joined_narration_segments(monkeypatch):
+    monkeypatch.setattr(settings, "google_vision_api_key", "test-key")
+    document = annotation([word("Cam bắt đầu", y=20), word("nghĩ về.", y=40)])
+    original = httpx.Client
+    monkeypatch.setattr(page_ocr.httpx, "Client", lambda **kw: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "responses": [{"fullTextAnnotation": document}],
+        })), **kw))
+    segments = page_ocr.GoogleVisionOcr().recognize(b"jpeg", 100, 200)
+    assert len(segments) == 1
+    assert segments[0]["text"] == "Cam bắt đầu nghĩ về."
+    assert segments[0]["height"] == pytest.approx(.15)
+
+
 def test_invalid_dimensions_and_page_limits():
     with pytest.raises(ValueError):
         page_ocr.document_lines(annotation([word("Vẹt")]), 200, 100)

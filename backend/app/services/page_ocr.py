@@ -45,7 +45,38 @@ class GoogleVisionOcr:
         lines = document_lines(annotation, width, height)
         if settings.scan_ocr_debug_logging:
             logger.info("scan_ocr_lines %s", json.dumps(lines, ensure_ascii=False))
-        return lines
+        segments = narration_segments(lines)
+        if settings.scan_ocr_debug_logging:
+            logger.info("scan_ocr_segments %s", json.dumps(segments, ensure_ascii=False))
+        return segments
+
+
+def narration_segments(lines: list[dict]) -> list[dict]:
+    """Join visual wraps without rewriting OCR text or changing reading order.
+
+    Quotes/brackets after terminal punctuation still end a segment. A comma
+    does not: the next visual line belongs to the same narration clip.
+    Keep standalone numbers (such as page numbers) and languages separate.
+    """
+    segments = []
+    for line in lines:
+        previous = segments[-1] if segments else None
+        if (previous is None
+                or previous["text"].rstrip().rstrip('\"\'”’»)]}').rstrip().endswith((".", "?", "!", "…"))
+                or previous["text"].strip().isdecimal()
+                or line["text"].strip().isdecimal()
+                or previous["recognizedLanguage"] != line["recognizedLanguage"]):
+            segments.append(dict(line))
+            continue
+        left = min(previous["left"], line["left"])
+        top = min(previous["top"], line["top"])
+        right = max(previous["left"] + previous["width"], line["left"] + line["width"])
+        bottom = max(previous["top"] + previous["height"], line["top"] + line["height"])
+        previous.update(text=previous["text"].rstrip() + " " + line["text"].lstrip(),
+                        left=left, top=top, width=right-left, height=bottom-top)
+    if sum(len(segment["text"]) for segment in segments) > 4000:
+        raise ValueError("OCR page too long")
+    return segments
 
 
 def document_lines(annotation: dict, width: int, height: int) -> list[dict]:
