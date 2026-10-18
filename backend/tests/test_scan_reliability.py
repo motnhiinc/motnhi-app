@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from io import BytesIO
-from threading import Lock
+from threading import Barrier, Lock
 from time import sleep, monotonic
 from types import SimpleNamespace
 from zipfile import ZipFile
@@ -91,6 +91,27 @@ def test_parallel_order_and_process_ceiling(monkeypatch):
                     assert [archive.read(name) for name in archive.namelist()] == [b"0", b"1", b"2", b"3"]
         assert peak == 2
     finally: page_audio.process_slots.cache_clear()
+
+
+def test_six_parallel_clips_preserve_bundle_order(monkeypatch):
+    monkeypatch.setattr(settings, "page_audio_concurrency", 6)
+    monkeypatch.setattr(settings, "page_audio_process_concurrency", 6)
+    page_audio.process_slots.cache_clear()
+    wave = Barrier(6, timeout=5)
+    lines = [str(index) for index in range(12)]
+
+    class Service:
+        def generate(self, text):
+            # Every wave must have six active requests before any can finish.
+            wave.wait()
+            return text.encode()
+
+    try:
+        with ZipFile(BytesIO(page_audio.generate_bundle(Service(), lines))) as archive:
+            assert archive.namelist() == [f"{i:03d}.mp3" for i in range(12)]
+            assert [archive.read(name) for name in archive.namelist()] == [line.encode() for line in lines]
+    finally:
+        page_audio.process_slots.cache_clear()
 
 
 def test_deadline_queue_retry_and_byte_limits(monkeypatch):

@@ -52,7 +52,7 @@ Configuration (environment variable names are uppercase):
 
 | Setting | Initial value |
 | --- | --- |
-| `PAGE_AUDIO_CONCURRENCY` | 3 |
+| `PAGE_AUDIO_CONCURRENCY` | 6 |
 | `PAGE_AUDIO_PROCESS_CONCURRENCY` | 6 |
 | `PAGE_AUDIO_QUEUE_SECONDS` | 5 |
 | `PAGE_AUDIO_DEADLINE_SECONDS` | 30 |
