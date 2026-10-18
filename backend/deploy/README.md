@@ -70,6 +70,7 @@ from `backend/deploy` to use the actual production settings and network location
 ```bash
 cd app-book/backend/deploy
 
+./deploy.sh deploy           # run the full release sequence below
 ./deploy.sh build            # build the API image only
 ./deploy.sh maintenance-up   # stop Caddy + API, keep the DB running
 ./deploy.sh migrate          # alembic upgrade head in a one-off API container
@@ -91,6 +92,19 @@ nano .env        # DOMAIN=api.yourdomain.com, ACME_EMAIL=you@..., ELEVENLABS_API
 a dev default. A missing or unknown action prints usage and exits nonzero.
 
 ## Roll-forward release sequence
+
+After updating the code (for example, with `git pull`), run the entire server
+release with one command from `backend/deploy`:
+
+```bash
+./deploy.sh deploy
+```
+
+This runs `maintenance-up`, `build`, `migrate`, `api-up`, `reconcile`,
+`verify-internal`, and `traffic-up` in order, stopping immediately if any step
+fails. Public traffic is only resumed after verification succeeds.
+
+Alternatively, run each action manually as shown below.
 
 Run the actions **in this exact order**. Each step must succeed before the
 next; if one fails, the server stays in maintenance mode until it is resolved.

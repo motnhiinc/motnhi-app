@@ -6,6 +6,7 @@
 #     cd app-book/backend/deploy && ./deploy.sh <action>
 #
 # Actions:
+#   deploy          Run the full maintenance-to-traffic release sequence.
 #   build           Build the API image only (no containers started).
 #   maintenance-up  Stop Caddy + API while keeping the DB running.
 #   migrate         Run `alembic upgrade head` in a one-off API container.
@@ -38,6 +39,7 @@ usage() {
 Usage: ./deploy.sh <action>
 
 Actions:
+  deploy          Run maintenance, build, migrate, API, reconcile, verify, traffic
   build           Build the API image only
   maintenance-up  Stop Caddy + API, keep the DB running
   migrate         Run 'alembic upgrade head' in a one-off API container
@@ -99,6 +101,14 @@ log "Config looks good. Running action: $ACTION"
 
 # --- 5. Actions ---------------------------------------------------------------
 case "$ACTION" in
+  deploy)
+    for step in maintenance-up build migrate api-up reconcile verify-internal traffic-up; do
+      log "Deploy step: $step"
+      bash ./deploy.sh "$step"
+    done
+    log "Deployment complete."
+    ;;
+
   build)
     log "Building the API image (no containers started)..."
     compose build
