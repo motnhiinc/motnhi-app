@@ -80,7 +80,7 @@ void main() {
               'height': .1,
             },
             {
-              'text': 'Chú thỏ nhỏ.',
+              'text': 'Chú Vét nhỏ.',
               'left': .1,
               'top': .3,
               'width': .8,
@@ -103,7 +103,7 @@ void main() {
             if (options.path.endsWith('/audio')) {
               audioCalls++;
               expect(data['proof'], 'language-bound-proof');
-              expect(data['lines'], ['Tiếng Việt', 'Chú thỏ nhỏ.']);
+              expect(data['lines'], ['Tiếng Việt. Chú Vẹt nhỏ.']);
               if (audioCalls == 1) {
                 handler.reject(
                   DioException.badResponse(
@@ -147,12 +147,21 @@ void main() {
         server.reply(200, {
           'status': 'approved',
           'proof': 'language-bound-proof',
+          'corrected_lines': [
+            {
+              'text': 'Tiếng Việt. Chú Vẹt nhỏ.',
+              'left': .1,
+              'top': .1,
+              'width': .8,
+              'height': .3,
+              'source_lines': [0, 1],
+              'recognizedLanguage': 'vi',
+            },
+          ],
         });
       });
       final zip = ZipEncoder().encode(
-        Archive()
-          ..addFile(ArchiveFile('000.mp3', 2, [1, 2]))
-          ..addFile(ArchiveFile('001.mp3', 2, [3, 4])),
+        Archive()..addFile(ArchiveFile('000.mp3', 2, [1, 2])),
       );
       adapter.onPost('/v1/speakable-page/audio', (server) {
         server.reply(
@@ -185,7 +194,8 @@ void main() {
         expect(audioCalls, 2);
         expect(operations, hasLength(4));
         expect(await player.clips.first.readAsBytes(), [1, 2]);
-        expect(await player.clips.last.readAsBytes(), [3, 4]);
+        expect(player.clips, hasLength(1));
+        expect(session.page!.lines.single.text, 'Tiếng Việt. Chú Vẹt nhỏ.');
         await session.listen();
         expect(session.phase, ScanPagePhase.playing);
       } finally {

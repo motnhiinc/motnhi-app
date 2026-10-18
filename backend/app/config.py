@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     openai_tts_timeout_seconds: float = 30.0
     openai_page_validation_model: str = "gpt-4o-mini"
     openai_page_validation_timeout_seconds: float = 15.0
+    openrouter_api_key: str = ""
+    openrouter_page_model: str = "google/gemini-2.5-flash"
+    openrouter_page_timeout_seconds: float = Field(default=25.0, gt=0, le=30)
     page_audio_concurrency: int = Field(default=3, ge=1, le=8)
     page_audio_process_concurrency: int = Field(default=6, ge=1, le=64)
     page_audio_queue_seconds: float = Field(default=5.0, gt=0)

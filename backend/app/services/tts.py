@@ -37,10 +37,11 @@ class OpenAiTtsService:
         if content_language is not None:
             if not settings.page_language_instructions_enabled or not settings.openai_tts_model.startswith("gpt-4o-mini-tts"):
                 raise TtsUpstreamError("instruction-capable speech configuration required", "speech_configuration_invalid")
-            language = {"vi": "Vietnamese", "en": "English"}[content_language]
+            language = {"vi": "Vietnamese", "en": "English", "mixed": "mixed Vietnamese and English"}[content_language]
             options["instructions"] = (
                 f"Read the supplied {language} text faithfully with natural {language} pronunciation "
                 "and child-friendly pacing. Preserve all words. Do not translate or add words."
+                " For mixed-language passages, pronounce each passage in its original language."
             )
         try:
             client = self._client if timeout is None else self._client.with_options(timeout=timeout)

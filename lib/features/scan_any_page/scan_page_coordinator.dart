@@ -185,6 +185,7 @@ class ScanPageCoordinator extends ChangeNotifier {
         return;
       }
       _proof = result.proof;
+      _page = result.correctedPage ?? _page;
       await _audio(generation);
     } catch (error) {
       _fail(error, ScanRecovery.validation, generation);

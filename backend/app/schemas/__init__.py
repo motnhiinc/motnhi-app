@@ -264,6 +264,7 @@ class PageLine(BaseModel):
 
 class ValidatePageRequest(BaseModel):
     profile_id: str
+    correct_ocr: bool = False
     content_language: Literal["vi", "en"] | None = None
     image_base64: str
     lines: list[PageLine] = Field(min_length=1, max_length=40)

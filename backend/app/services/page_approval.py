@@ -13,7 +13,7 @@ def line_digest(lines: list[str]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def issue_approval(user_id: str, profile_id: str, lines: list[str], content_language: str | None = None) -> str:
+def issue_approval(user_id: str, profile_id: str, lines: list[str], content_language: str | None = None, *, segment_languages: list[str] | None = None) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode(
         {
@@ -23,6 +23,7 @@ def issue_approval(user_id: str, profile_id: str, lines: list[str], content_lang
             "scope": "page_audio",
             "version": 2,
             "content_language": content_language,
+            "segment_languages": segment_languages,
             "iat": now,
             "exp": now + timedelta(minutes=10),
         },
@@ -56,3 +57,13 @@ def approval_reason(proof: str, user_id: str, profile_id: str, lines: list[str],
 
 def verify_approval(proof: str, user_id: str, profile_id: str, lines: list[str], content_language: str | None = None) -> bool:
     return approval_reason(proof, user_id, profile_id, lines, content_language) is None
+
+
+def approved_segment_languages(proof: str, count: int) -> list[str] | None:
+    """Read signed metadata only after the caller has checked all approval bindings."""
+    claims = jwt.decode(proof, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    languages = claims.get("segment_languages")
+    if languages is not None and (not isinstance(languages, list) or len(languages) != count or
+                                  any(language not in ("vi", "en", "mixed") for language in languages)):
+        raise ValueError("invalid segment languages")
+    return languages

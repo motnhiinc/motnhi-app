@@ -10,16 +10,18 @@ import '../../data/sources/api_client.dart';
 import 'scanned_page.dart';
 
 class PageValidationResult {
-  const PageValidationResult.approved(this.proof)
+  const PageValidationResult.approved(this.proof, {this.correctedPage})
     : blocked = false,
       reason = null;
   const PageValidationResult.blocked([this.reason])
     : proof = null,
+      correctedPage = null,
       blocked = true;
 
   final String? proof;
   final bool blocked;
   final String? reason;
+  final ScannedPage? correctedPage;
 }
 
 abstract interface class PageReadingClient {
@@ -77,6 +79,7 @@ class PageValidationClient implements PageReadingClient {
         '/v1/speakable-page/validate',
         data: {
           'profile_id': profileId,
+          'correct_ocr': true,
           'content_language': ?contentLanguage,
           'image_base64': base64Encode(page.jpegBytes),
           'lines': [
@@ -103,7 +106,41 @@ class PageValidationClient implements PageReadingClient {
     if (data?['status'] != 'approved' || data?['proof'] is! String) {
       throw const FormatException('validation_unavailable');
     }
-    return PageValidationResult.approved(data!['proof'] as String);
+    // Correction-capable requests must never silently narrate the raw OCR.
+    final corrected = data!['corrected_lines'];
+    if (corrected is! List || corrected.isEmpty) {
+      throw const FormatException('missing_corrected_text');
+    }
+    final sourceIndices = <int>[];
+    for (final raw in corrected) {
+      if (raw is! Map || raw['source_lines'] is! List) {
+        throw const FormatException('invalid_correction_mapping');
+      }
+      for (final index in raw['source_lines'] as List) {
+        if (index is! int) {
+          throw const FormatException('invalid_correction_mapping');
+        }
+        sourceIndices.add(index);
+      }
+    }
+    if (sourceIndices.length != page.lines.length ||
+        List.generate(sourceIndices.length, (i) => i).toString() !=
+            sourceIndices.toString()) {
+      throw const FormatException('invalid_correction_mapping');
+    }
+    final correctedPage = ScannedPage.fromMap({
+      'imageBytes': page.jpegBytes,
+      'width': page.width,
+      'height': page.height,
+      'lines': corrected,
+      'quality': page.quality,
+      'nativeProcessingMs': page.nativeProcessingMs,
+      'diagnostics': page.diagnostics,
+    });
+    return PageValidationResult.approved(
+      data['proof'] as String,
+      correctedPage: correctedPage,
+    );
   }
 
   @override

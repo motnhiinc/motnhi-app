@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from zipfile import ZipFile
 
+import pytest
 from PIL import Image
 
 from app.auth import decode_token
@@ -11,8 +12,71 @@ from app.models import ChildProfile, PrivacySettings
 from app.routers import speakable_page
 from app.services import page_approval
 from app.services.page_validation import ValidationVerdict
+from app.services.page_correction import CorrectionVerdict
 
 POLICY = "2026-10-06"
+
+
+@pytest.mark.parametrize("readable,indices,status,reason", [
+    (False, [0], 200, "recognition_uncertain"),
+    (True, [1], 503, "provider_failed"),
+])
+def test_correction_failure_never_approves_raw_ocr(client, db, monkeypatch, readable, indices, status, reason):
+    headers = _auth(client, "correction-failure")
+    _owned_profile(db, _user(headers), "correction-failure-profile")
+    result = CorrectionVerdict.model_validate({
+        "readable": readable, "age_suitable": True, "suitability_certain": True,
+        "segments": [{"text": "Vẹt", "source_lines": indices, "language": "vi"}],
+    })
+    monkeypatch.setattr(speakable_page.page_correction, "OpenRouterPageCorrector", lambda: FakeValidator(result))
+    response = client.post("/v1/speakable-page/validate", headers=headers, json={
+        "profile_id": "correction-failure-profile", "image_base64": _image_base64(),
+        "content_language": "vi", "correct_ocr": True, "lines": [_line("Vét")],
+    })
+    assert response.status_code == status
+    assert response.json()["reason"] == reason
+    assert "proof" not in response.json()
+    assert "corrected_lines" not in response.json()
+
+
+def test_corrected_page_proof_and_audio_use_corrected_text_and_segment_languages(client, db, monkeypatch):
+    headers = _auth(client, "corrected-page")
+    user_id = _user(headers)
+    _owned_profile(db, user_id, "corrected-profile")
+    result = CorrectionVerdict.model_validate({
+        "readable": True, "age_suitable": True, "suitability_certain": True,
+        "segments": [
+            {"text": "Bạn Vẹt xanh đáp xuống.", "source_lines": [0, 1], "language": "vi"},
+            {"text": "University of Reading", "source_lines": [2], "language": "en"},
+        ],
+    })
+    monkeypatch.setattr(speakable_page.page_correction, "OpenRouterPageCorrector", lambda: FakeValidator(result))
+    calls = []
+
+    class Speech:
+        def generate(self, text, language, **kwargs):
+            calls.append((text, language))
+            return b"audio"
+
+    monkeypatch.setattr(speakable_page, "get_openai_tts_service", Speech)
+    raw = ["Bạn Vét xanh", "đáp xuống.", "University of Reading"]
+    response = client.post("/v1/speakable-page/validate", headers=headers, json={
+        "profile_id": "corrected-profile", "image_base64": _image_base64(),
+        "content_language": "vi", "correct_ocr": True, "lines": [_line(t) for t in raw],
+    })
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "approved"
+    texts = [line["text"] for line in payload["corrected_lines"]]
+    body = {"profile_id": "corrected-profile", "proof": payload["proof"], "content_language": "vi", "lines": raw}
+    assert client.post("/v1/speakable-page/audio", headers=headers, json=body).status_code == 403
+    assert not calls
+    body["lines"] = texts
+    audio = client.post("/v1/speakable-page/audio", headers=headers, json=body)
+    assert audio.status_code == 200
+    assert sorted(calls) == sorted([(texts[0], "vi"), (texts[1], "en")])
+    with ZipFile(BytesIO(audio.content)) as bundle:
+        assert bundle.namelist() == ["000.mp3", "001.mp3"]
 
 
 def _auth(client, device):

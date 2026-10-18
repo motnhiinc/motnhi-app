@@ -20,7 +20,9 @@ def process_slots() -> BoundedSemaphore:
     return BoundedSemaphore(max(1, settings.page_audio_process_concurrency))
 
 
-def generate_bundle(service, lines: list[str], language: str | None = None, *, correlation: str = "") -> bytes:
+def generate_bundle(service, lines: list[str], language: str | None = None, *, correlation: str = "", segment_languages: list[str] | None = None) -> bytes:
+    if segment_languages is not None and len(segment_languages) != len(lines):
+        raise ValueError("invalid segment languages")
     deadline = monotonic() + settings.page_audio_deadline_seconds
     stopped = Event()
     slots = process_slots()
@@ -43,8 +45,9 @@ def generate_bundle(service, lines: list[str], language: str | None = None, *, c
                 started = monotonic()
                 try:
                     # Keep the legacy service contract for old requests/providers.
-                    audio = (service.generate(lines[index]) if language is None and not isinstance(service, OpenAiTtsService) else
-                             service.generate(lines[index], language, timeout=min(remaining, settings.openai_tts_timeout_seconds)))
+                    clip_language = segment_languages[index] if segment_languages is not None else language
+                    audio = (service.generate(lines[index]) if clip_language is None and not isinstance(service, OpenAiTtsService) else
+                             service.generate(lines[index], clip_language, timeout=min(remaining, settings.openai_tts_timeout_seconds)))
                     if stopped.is_set() or monotonic() >= deadline:
                         raise TtsUpstreamError("page generation abandoned", "provider_timeout")
                     if not audio or len(audio) > MAX_CLIP:

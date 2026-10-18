@@ -12,7 +12,7 @@ from app.db import get_db
 from app.models import User
 from app.repositories import privacy as privacy_repo, profiles
 from app.schemas import PageAudioRequest, ValidatePageRequest
-from app.services import page_approval, page_validation, page_audio, privacy as privacy_service
+from app.services import page_approval, page_validation, page_correction, page_audio, privacy as privacy_service
 from app.services.tts import TtsUpstreamError, get_openai_tts_service, provider_reason
 
 router = APIRouter(prefix="/v1/speakable-page", tags=["speakable-page"])
@@ -48,12 +48,23 @@ def validate_page(
         raise HTTPException(status_code=422, detail="invalid page") from error
     started = monotonic()
     outcome = "provider_failed"
+    corrected_lines = None
+    segment_languages = None
     try:
-        validator = page_validation.OpenAiPageValidator()
         lines = [unicodedata.normalize("NFC", line.text) if body.content_language else line.text for line in body.lines]
-        verdict = (validator.validate(image, lines, profile.age_band) if body.content_language is None else
-                   validator.validate(image, lines, profile.age_band, body.content_language))
-        reason = verdict.blocked_reason
+        if body.correct_ocr:
+            verdict = page_correction.OpenRouterPageCorrector().validate(
+                image, body.lines, profile.age_band, body.content_language)
+            reason = verdict.blocked_reason
+            if reason is None:
+                corrected_lines = verdict.corrected_lines(body.lines)
+                lines = [line["text"] for line in corrected_lines]
+                segment_languages = [line["recognizedLanguage"] for line in corrected_lines]
+        else:
+            validator = page_validation.OpenAiPageValidator()
+            verdict = (validator.validate(image, lines, profile.age_band) if body.content_language is None else
+                       validator.validate(image, lines, profile.age_band, body.content_language))
+            reason = verdict.blocked_reason
         outcome = reason or "approved"
     except Exception as error:
         outcome = provider_reason(error)
@@ -71,11 +82,13 @@ def validate_page(
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
-    proof = page_approval.issue_approval(user.id, body.profile_id, lines, body.content_language)
+    proof = page_approval.issue_approval(user.id, body.profile_id, lines, body.content_language,
+                                        segment_languages=segment_languages)
+    payload = {"status": "approved", "proof": proof}
+    if corrected_lines is not None:
+        payload["corrected_lines"] = corrected_lines
     return Response(
-        content=(
-            '{"status":"approved","proof":"' + proof + '"}'
-        ).encode("utf-8"),
+        content=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         media_type="application/json",
         headers={"Cache-Control": "no-store"},
     )
@@ -98,7 +111,9 @@ def generate_page_audio(
     if reason:
         raise HTTPException(status_code=403, detail=reason)
     try:
-        bundle = page_audio.generate_bundle(get_openai_tts_service(), body.lines, body.content_language, correlation=correlation(request))
+        languages = page_approval.approved_segment_languages(body.proof, len(body.lines))
+        bundle = page_audio.generate_bundle(get_openai_tts_service(), body.lines, body.content_language,
+                                            correlation=correlation(request), segment_languages=languages)
     except TtsUpstreamError as error:
         raise HTTPException(status_code=503, detail=error.reason) from error
     except Exception as error:
