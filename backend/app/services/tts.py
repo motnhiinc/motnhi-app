@@ -1,12 +1,16 @@
 """ElevenLabs speech adapter with a shared, thread-safe connection pool."""
 from functools import lru_cache
+import json
+import logging
 from time import monotonic
+from uuid import uuid4
 
 import httpx
 
 from app.config import settings
 
 MAX_AUDIO_BYTES = 2 * 1024 * 1024
+logger = logging.getLogger("uvicorn.error.tts")
 
 
 class TtsUpstreamError(RuntimeError):
@@ -33,6 +37,8 @@ def provider_reason(error: Exception) -> str:
 class ElevenLabsTtsService:
     def __init__(self) -> None:
         if not settings.elevenlabs_api_key or not settings.elevenlabs_voice_id:
+            logger.error("tts_configuration_invalid provider=elevenlabs missing_api_key=%s missing_voice_id=%s",
+                         not bool(settings.elevenlabs_api_key), not bool(settings.elevenlabs_voice_id))
             raise TtsUpstreamError("ElevenLabs credentials are not configured", "speech_configuration_invalid")
         self._voice_id = settings.elevenlabs_voice_id
         self._model_id = settings.elevenlabs_model_id
@@ -58,11 +64,37 @@ class ElevenLabsTtsService:
             payload["language_code"] = content_language
         budget = min(timeout, settings.elevenlabs_tts_timeout_seconds) if timeout is not None else settings.elevenlabs_tts_timeout_seconds
         deadline = monotonic() + budget
+        started = monotonic()
+        request_id = uuid4().hex
+        debug = settings.elevenlabs_tts_debug_logging
+        logger.info("tts_request %s", json.dumps({
+            "request_id": request_id, "provider": "elevenlabs", "method": "POST",
+            "path": f"/v1/text-to-speech/{self._voice_id}",
+            "params": {"output_format": self._output_format}, "timeout_seconds": budget,
+            "payload": payload if debug else {key: value for key, value in payload.items() if key != "text"},
+            "text_length": len(text), "text_logged": debug,
+        }, ensure_ascii=False))
+        status_code = None
+        provider_request_id = None
         try:
             with self._client.stream(
                 "POST", f"text-to-speech/{self._voice_id}",
                 params={"output_format": self._output_format}, json=payload, timeout=budget,
             ) as response:
+                status_code = response.status_code
+                provider_request_id = response.headers.get("request-id") or response.headers.get("x-request-id")
+                if response.is_error and debug:
+                    # Bound diagnostic output and never dump request headers (API key).
+                    body = bytearray()
+                    for chunk in response.iter_bytes(chunk_size=4096):
+                        body.extend(chunk[:4096 - len(body)])
+                        if len(body) >= 4096:
+                            break
+                    logger.warning("tts_provider_error %s", json.dumps({
+                        "request_id": request_id, "status_code": status_code,
+                        "body_preview": body.decode("utf-8", errors="replace"),
+                        "preview_limit_bytes": 4096,
+                    }, ensure_ascii=False))
                 response.raise_for_status()
                 if not response.headers.get("content-type", "").lower().startswith("audio/"):
                     raise TtsUpstreamError("unexpected speech response", "invalid_audio_bundle")
@@ -76,9 +108,15 @@ class ElevenLabsTtsService:
                 if not audio:
                     raise TtsUpstreamError("empty speech response", "invalid_audio_bundle")
                 return bytes(audio)
-        except TtsUpstreamError:
-            raise
         except Exception as error:
+            logger.warning("tts_failed %s", json.dumps({
+                "request_id": request_id, "provider": "elevenlabs",
+                "status_code": status_code, "provider_request_id": provider_request_id,
+                "reason": provider_reason(error), "error_type": type(error).__name__,
+                "elapsed_ms": int((monotonic() - started) * 1000),
+            }))
+            if isinstance(error, TtsUpstreamError):
+                raise
             raise TtsUpstreamError("ElevenLabs speech request failed", provider_reason(error)) from error
 
     def close(self) -> None:

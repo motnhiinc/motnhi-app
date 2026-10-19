@@ -9,6 +9,7 @@ from app.services import tts
 
 @pytest.fixture
 def speech(monkeypatch):
+    monkeypatch.setattr(settings, "elevenlabs_tts_debug_logging", False)
     monkeypatch.setattr(settings, "elevenlabs_api_key", "private-key")
     monkeypatch.setattr(settings, "elevenlabs_voice_id", "test-voice")
     monkeypatch.setattr(settings, "elevenlabs_model_id", "eleven_flash_v2_5")
@@ -90,3 +91,40 @@ def test_missing_key_fails_before_network(monkeypatch):
     with pytest.raises(tts.TtsUpstreamError) as caught:
         tts.ElevenLabsTtsService()
     assert caught.value.reason == "speech_configuration_invalid"
+
+
+@pytest.mark.parametrize("debug", [False, True])
+def test_request_and_provider_error_logging(speech, monkeypatch, caplog, debug):
+    monkeypatch.setattr(settings, "elevenlabs_tts_debug_logging", debug)
+    transport(speech, lambda request: httpx.Response(
+        503, json={"detail": "provider diagnostic"}, headers={"request-id": "upstream-123"},
+    ))
+    with caplog.at_level("INFO", logger="uvicorn.error.tts"):
+        with pytest.raises(tts.TtsUpstreamError):
+            speech.generate("Private narration\nTiếng Việt", "vi", timeout=.5)
+    request = next(json.loads(record.message.split(" ", 1)[1]) for record in caplog.records
+                   if record.message.startswith("tts_request "))
+    failure = next(json.loads(record.message.split(" ", 1)[1]) for record in caplog.records
+                   if record.message.startswith("tts_failed "))
+    assert request["payload"]["model_id"] == "eleven_flash_v2_5"
+    assert request["payload"]["language_code"] == "vi"
+    assert request["params"] == {"output_format": "mp3_44100_64"}
+    assert request["timeout_seconds"] == .5
+    assert ("text" in request["payload"]) is debug
+    assert ("provider diagnostic" in caplog.text) is debug
+    assert "private-key" not in caplog.text
+    assert failure["status_code"] == 503
+    assert failure["reason"] == "provider_unavailable"
+    assert failure["provider_request_id"] == "upstream-123"
+    assert failure["request_id"] == request["request_id"]
+
+
+def test_debug_error_body_is_bounded(speech, monkeypatch, caplog):
+    monkeypatch.setattr(settings, "elevenlabs_tts_debug_logging", True)
+    transport(speech, lambda request: httpx.Response(503, content=b"x" * 10000))
+    with caplog.at_level("INFO", logger="uvicorn.error.tts"):
+        with pytest.raises(tts.TtsUpstreamError):
+            speech.generate("text")
+    diagnostic = next(json.loads(record.message.split(" ", 1)[1]) for record in caplog.records
+                      if record.message.startswith("tts_provider_error "))
+    assert len(diagnostic["body_preview"]) == 4096

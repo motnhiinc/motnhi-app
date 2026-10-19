@@ -59,6 +59,7 @@ services:
       ELEVENLABS_MODEL_ID: ${ELEVENLABS_MODEL_ID:-eleven_flash_v2_5}
       ELEVENLABS_OUTPUT_FORMAT: ${ELEVENLABS_OUTPUT_FORMAT:-mp3_44100_64}
       ELEVENLABS_TTS_TIMEOUT_SECONDS: ${ELEVENLABS_TTS_TIMEOUT_SECONDS:-15}
+      ELEVENLABS_TTS_DEBUG_LOGGING: ${ELEVENLABS_TTS_DEBUG_LOGGING:-false}
     volumes:
       # Audio binaries live on the host so `register_assets.py` picks up files
       # you scp in later, and they survive image rebuilds. Maps to backend/storage.

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     elevenlabs_model_id: str = Field(default="eleven_flash_v2_5", min_length=1)
     elevenlabs_output_format: Literal["mp3_22050_32", "mp3_24000_48", "mp3_44100_32", "mp3_44100_64", "mp3_44100_96", "mp3_44100_128", "mp3_44100_192"] = "mp3_44100_64"
     elevenlabs_tts_timeout_seconds: float = Field(default=15.0, gt=0, le=60)
+    elevenlabs_tts_debug_logging: bool = False
     google_vision_api_key: str = ""
     google_vision_timeout_seconds: float = Field(default=15.0, gt=0, le=30)
     scan_ocr_debug_logging: bool = True
