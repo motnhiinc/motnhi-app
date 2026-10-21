@@ -6,13 +6,11 @@ import '../../core/router/app_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/async_views.dart';
 import '../../shared/widgets/storybook/storybook.dart';
-import '../library/story_cover.dart';
 import '../parental_gate/parental_gate_providers.dart';
-import 'authored_stories_section.dart';
 import 'dashboard_providers.dart';
 
 /// Private parent dashboard (§7.2.2): a gentle weekly summary, the most
-/// recently read story, and links into Settings and My Books. Reached only
+/// retained reading history and a link into Settings. Reached only
 /// through the parental gate.
 class ParentDashboardScreen extends ConsumerWidget {
   const ParentDashboardScreen({super.key});
@@ -50,18 +48,16 @@ class _Body extends ConsumerWidget {
     // saved) show the same gentle empty card instead of zero stats (§14).
     final showStats =
         state.status == DashboardTrackingStatus.trackingOnWithHistory ||
-            state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
+        state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
     // The two no-history states get their own copy: tracking off (nothing is
     // being saved) vs tracking on but nothing read yet.
     final emptyMessage =
         state.status == DashboardTrackingStatus.trackingOffNoHistory
-            ? s.dashboardTrackingOffEmpty
-            : s.nothingYet;
+        ? s.dashboardTrackingOffEmpty
+        : s.nothingYet;
     final retainedHistory =
         state.status == DashboardTrackingStatus.trackingOffRetainedHistory;
     final accuracy = (summary.questionAccuracy * 100).round();
-    final recent =
-        summary.recentStories.isEmpty ? null : summary.recentStories.first;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
@@ -128,13 +124,13 @@ class _Body extends ConsumerWidget {
                     children: [
                       Text(
                         '${summary.storiesCompleted}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
+                        style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(color: t.coralDeep),
                       ),
-                      Text(s.statStoriesCompleted,
-                          style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        s.statStoriesCompleted,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
@@ -144,13 +140,13 @@ class _Body extends ConsumerWidget {
                     children: [
                       Text(
                         s.minutesShort(summary.totalReadingTime.inMinutes),
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
+                        style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(color: t.coralDeep, fontSize: 22),
                       ),
-                      Text(s.statReadingTime,
-                          style: Theme.of(context).textTheme.bodySmall),
+                      Text(
+                        s.statReadingTime,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),
@@ -163,10 +159,9 @@ class _Body extends ConsumerWidget {
           if (retainedHistory) ...[
             Text(
               s.dashboardRetainedNote,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: t.inkMuted),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: t.inkMuted),
             ),
             const SizedBox(height: 8),
           ],
@@ -185,49 +180,6 @@ class _Body extends ConsumerWidget {
               ),
             ],
           ),
-          if (recent != null) ...[
-            const SizedBox(height: 24),
-            PaperCard(
-              onTap: () => context.go(AppRoutes.storyDetail(recent.id)),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 48,
-                    height: 62,
-                    child: BookCoverFrame(child: StoryCover(story: recent)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        EyebrowLabel(s.recentlyRead,
-                            color: Theme.of(context).colorScheme.onSurface),
-                        const SizedBox(height: 3),
-                        Text(
-                          recent.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: t.coral,
-                    ),
-                    child: const Icon(Icons.play_arrow_rounded,
-                        size: 20, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
         const SizedBox(height: 14),
         _LinkRow(
@@ -236,47 +188,6 @@ class _Body extends ConsumerWidget {
           label: s.settingsRow,
           onTap: () => context.go(AppRoutes.settings),
         ),
-        _LinkRow(
-          icon: Icons.menu_book_rounded,
-          iconColor: t.lavender,
-          label: s.navMyBooks,
-          onTap: () => context.go(AppRoutes.myBooks),
-        ),
-        if (summary.recommended.isNotEmpty) ...[
-          const SizedBox(height: 28),
-          Text(s.suggestedNext, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 150,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: summary.recommended.length.clamp(0, 6),
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (_, i) {
-                final story = summary.recommended[i];
-                return SizedBox(
-                  width: 104,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: BookCoverFrame(child: StoryCover(story: story)),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        story.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-        const AuthoredStoriesSection(),
       ],
     );
   }
@@ -298,10 +209,9 @@ class _StatTile extends StatelessWidget {
           children: [
             Text(
               value,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(color: t.coralDeep),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(color: t.coralDeep),
             ),
             const SizedBox(height: 2),
             Text(
@@ -309,8 +219,9 @@ class _StatTile extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style:
-                  Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 11),
             ),
           ],
         ),
@@ -346,8 +257,11 @@ class _LinkRow extends StatelessWidget {
             Expanded(
               child: Text(label, style: Theme.of(context).textTheme.titleSmall),
             ),
-            Icon(Icons.chevron_right_rounded,
-                size: 22, color: context.stitch.inkMuted),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 22,
+              color: context.stitch.inkMuted,
+            ),
           ],
         ),
       ),

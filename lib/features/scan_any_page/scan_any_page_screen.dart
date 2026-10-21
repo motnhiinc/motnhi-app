@@ -125,7 +125,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
         onBack: () =>
             context.canPop() ? context.pop() : context.go(AppRoutes.home),
         onPrimary: () => context.go(AppRoutes.onboarding),
-        onPickStory: () => context.go(AppRoutes.home),
+        onHome: () => context.go(AppRoutes.home),
       );
     }
     return Scaffold(
@@ -181,7 +181,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                   : s.scanTryAnotherBody,
               primaryLabel: s.scanAnotherPage,
               onPrimary: _scan,
-              secondaryLabel: s.scanPickStoryInstead,
+              secondaryLabel: s.scanBackHome,
               onSecondary: () => context.go(AppRoutes.home),
             ),
             ScanPagePhase.failed => ScanChildState(
@@ -191,7 +191,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
               title: cameraFailure ? s.scanCameraHelpTitle : s.scanFailedTitle,
               body: cameraFailure ? s.scanCameraHelpBody : failureBody,
               primaryLabel: cameraFailure
-                  ? s.scanPickStoryInstead
+                  ? s.scanBackHome
                   : retryStage
                   ? s.scanRetryStage
                   : s.tryScannerAgain,
@@ -202,7 +202,7 @@ class _ScanAnyPageScreenState extends ConsumerState<ScanAnyPageScreen> {
                   : _scan,
               secondaryLabel: cameraFailure
                   ? s.tryScannerAgain
-                  : s.scanPickStoryInstead,
+                  : s.scanBackHome,
               onSecondary: cameraFailure
                   ? _scan
                   : () => context.go(AppRoutes.home),

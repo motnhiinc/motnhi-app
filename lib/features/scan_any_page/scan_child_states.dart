@@ -10,13 +10,13 @@ class ScanGrownUpHandoff extends StatelessWidget {
     required this.readyToRetry,
     required this.onBack,
     required this.onPrimary,
-    required this.onPickStory,
+    required this.onHome,
   });
 
   final bool readyToRetry;
   final VoidCallback onBack;
   final VoidCallback onPrimary;
-  final VoidCallback onPickStory;
+  final VoidCallback onHome;
 
   @override
   Widget build(BuildContext context) {
@@ -50,13 +50,19 @@ class ScanGrownUpHandoff extends StatelessWidget {
                     Icon(Icons.auto_stories_rounded, size: 135, color: t.sage),
                     Positioned(
                       top: 32,
-                      child:
-                          Icon(Icons.shield_rounded, size: 80, color: t.coral),
+                      child: Icon(
+                        Icons.shield_rounded,
+                        size: 80,
+                        color: t.coral,
+                      ),
                     ),
                     const Positioned(
                       top: 58,
-                      child: Icon(Icons.lock_outline_rounded,
-                          size: 26, color: Colors.white),
+                      child: Icon(
+                        Icons.lock_outline_rounded,
+                        size: 26,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -85,10 +91,7 @@ class ScanGrownUpHandoff extends StatelessWidget {
                 onPressed: onPrimary,
               ),
               const SizedBox(height: 12),
-              TextButton(
-                onPressed: onPickStory,
-                child: Text(s.scanPickStoryInstead),
-              ),
+              TextButton(onPressed: onHome, child: Text(s.scanBackHome)),
             ],
           ),
         ),
@@ -152,13 +155,18 @@ class ScanChildState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(body,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge),
+          Text(
+            body,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
           const SizedBox(height: 70),
           if (primaryLabel != null)
             PressablePillButton(
-                label: primaryLabel!, height: 62, onPressed: onPrimary),
+              label: primaryLabel!,
+              height: 62,
+              onPressed: onPrimary,
+            ),
           if (secondaryLabel != null) ...[
             const SizedBox(height: 10),
             TextButton(onPressed: onSecondary, child: Text(secondaryLabel!)),

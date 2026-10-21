@@ -4,20 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/dashboard/parent_dashboard_screen.dart';
 import '../../features/library/child_home_screen.dart';
-import '../../features/library/browse_stories_screen.dart';
-import '../../features/library/my_books_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/parental_gate/parental_gate_providers.dart';
 import '../../features/parental_gate/parental_gate_screen.dart';
-import '../../features/player/story_player_screen.dart';
 import '../../features/privacy/privacy_notice_screen.dart';
 import '../../features/privacy/privacy_providers.dart';
 import '../../features/privacy/privacy_review_screen.dart';
 import '../../features/privacy/privacy_screen.dart';
 import '../../features/scan_any_page/scan_any_page_screen.dart';
 import '../../features/settings/settings_screen.dart';
-import '../../features/story_composer/story_composer_screen.dart';
-import '../../features/story_detail/story_detail_screen.dart';
 
 /// Route paths. `/gate` is deliberately NOT under `/parent` so guarding
 /// `/parent*` never traps the gate itself in a redirect loop.
@@ -63,6 +58,17 @@ String? appAccessRedirect(AppAccessState access, String loc) {
   return null;
 }
 
+/// Retired story-library links return to the scan-first MVP home.
+String? mvpRouteRedirect(String loc) {
+  if (loc == AppRoutes.browseStories ||
+      loc == AppRoutes.myBooks ||
+      loc == AppRoutes.createStory ||
+      loc.startsWith('/story/')) {
+    return AppRoutes.home;
+  }
+  return null;
+}
+
 final goRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
@@ -78,6 +84,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final accessRedirect = appAccessRedirect(access, loc);
       if (accessRedirect != null) return accessRedirect;
 
+      final mvpRedirect = mvpRouteRedirect(loc);
+      if (mvpRedirect != null) return mvpRedirect;
+
       // Parental gate (§7.2.3): guard parent-only surfaces.
       if (loc.startsWith(AppRoutes.parent)) {
         final unlocked = ref.read(parentalGateUnlockedProvider);
@@ -92,37 +101,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.onboarding,
         builder: (_, _) => const OnboardingScreen(),
       ),
-      GoRoute(
-        path: AppRoutes.home,
-        builder: (_, _) => const ChildHomeScreen(),
-      ),
+      GoRoute(path: AppRoutes.home, builder: (_, _) => const ChildHomeScreen()),
       GoRoute(
         path: AppRoutes.browseStories,
-        builder: (_, _) => const BrowseStoriesScreen(),
+        redirect: (_, _) => AppRoutes.home,
       ),
-      GoRoute(
-        path: AppRoutes.myBooks,
-        builder: (_, _) => const MyBooksScreen(),
-      ),
+      GoRoute(path: AppRoutes.myBooks, redirect: (_, _) => AppRoutes.home),
       GoRoute(
         path: AppRoutes.scanAnyPage,
         builder: (_, _) => const ScanAnyPageScreen(),
       ),
-      // Not kDebugMode-gated: capture-to-story ships in release builds.
-      GoRoute(
-        path: AppRoutes.createStory,
-        builder: (_, _) => const StoryComposerScreen(),
-      ),
+      GoRoute(path: AppRoutes.createStory, redirect: (_, _) => AppRoutes.home),
       GoRoute(
         path: '/story/:storyId/detail',
-        builder: (_, state) =>
-            StoryDetailScreen(storyId: state.pathParameters['storyId']!),
+        redirect: (_, _) => AppRoutes.home,
       ),
-      GoRoute(
-        path: '/story/:storyId/read',
-        builder: (_, state) =>
-            StoryPlayerScreen(storyId: state.pathParameters['storyId']!),
-      ),
+      GoRoute(path: '/story/:storyId/read', redirect: (_, _) => AppRoutes.home),
       GoRoute(
         path: AppRoutes.gate,
         builder: (_, state) => ParentalGateScreen(
