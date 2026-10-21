@@ -100,6 +100,60 @@ def test_narration_limits_include_joining_spaces():
         page_ocr.narration_segments([narration_line("a" * 2000), narration_line("b" * 2000)])
 
 
+@pytest.mark.parametrize("top", [.02, .9643623872906827])
+def test_page_number_filter_excludes_small_isolated_margin_numbers(top):
+    number = {**narration_line("18", top=top, language="mixed"),
+              "left": .040051679586563305, "width": .021533161068044794,
+              "height": .012451696006869906}
+    body = [narration_line("Cam bắt đầu nghĩ về", top=.42),
+            narration_line("những điều khiến cậu ấy đặc biệt...", top=.57)]
+    lines = [number, *body]  # Vision can return a footer before the story.
+    kept, excluded = page_ocr.filter_page_numbers(lines)
+    assert kept == body
+    assert excluded == [number]
+    assert lines == [number, *body]
+    assert page_ocr.narration_segments(kept)[0]["text"].startswith("Cam")
+
+
+@pytest.mark.parametrize("number,body", [
+    (narration_line("18", top=.5), narration_line("Story", top=.3)),
+    (narration_line("18", top=.95), narration_line("Story", top=.3)),
+    ({**narration_line("18", top=.95), "height": .01}, narration_line("Story", top=.89)),
+    ({**narration_line("18 apples", top=.95), "height": .01}, narration_line("Story", top=.3)),
+    ({**narration_line("IV", top=.95), "height": .01}, narration_line("Story", top=.3)),
+    ({**narration_line("18", top=.08), "height": .01}, narration_line("Story", top=.3)),
+])
+def test_page_number_filter_preserves_ambiguous_or_story_numbers(number, body):
+    lines = [number, body]
+    assert page_ocr.filter_page_numbers(lines) == (lines, [])
+
+
+def test_page_number_filter_preserves_number_only_pages_and_empty_pages():
+    lines = [{**narration_line("18", top=.95), "height": .01}]
+    assert page_ocr.filter_page_numbers(lines) == (lines, [])
+    assert page_ocr.filter_page_numbers([]) == ([], [])
+
+
+def test_vision_filters_page_number_before_returning_narration(monkeypatch, caplog):
+    monkeypatch.setattr(settings, "google_vision_api_key", "test-key")
+    monkeypatch.setattr(settings, "scan_ocr_debug_logging", True)
+    number = word("18", y=193, language="mixed")
+    number["boundingBox"]["vertices"] = [{"x": 4, "y": 193}, {"x": 6, "y": 195}]
+    document = annotation([number, word("Cam bắt đầu", y=20), word("nghĩ về.", y=40)])
+    original = httpx.Client
+    monkeypatch.setattr(page_ocr.httpx, "Client", lambda **kw: original(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+            "responses": [{"fullTextAnnotation": document}],
+        })), **kw))
+    with caplog.at_level(logging.INFO, logger="uvicorn.error.scan"):
+        segments = page_ocr.GoogleVisionOcr().recognize(b"jpeg", 100, 200)
+    assert [segment["text"] for segment in segments] == ["Cam bắt đầu nghĩ về."]
+    messages = [record.getMessage() for record in caplog.records]
+    for prefix in ["scan_ocr_lines ", "scan_ocr_excluded_page_numbers "]:
+        payload = next(message.removeprefix(prefix) for message in messages if message.startswith(prefix))
+        assert json.loads(payload)[0]["text"] == "18"
+
+
 def test_vision_returns_joined_narration_segments(monkeypatch):
     monkeypatch.setattr(settings, "google_vision_api_key", "test-key")
     document = annotation([word("Cam bắt đầu", y=20), word("nghĩ về.", y=40)])

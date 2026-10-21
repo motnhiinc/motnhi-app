@@ -2,6 +2,7 @@
 import base64
 import json
 import logging
+from statistics import median
 import unicodedata
 
 import httpx
@@ -45,10 +46,41 @@ class GoogleVisionOcr:
         lines = document_lines(annotation, width, height)
         if settings.scan_ocr_debug_logging:
             logger.info("scan_ocr_lines %s", json.dumps(lines, ensure_ascii=False))
-        segments = narration_segments(lines)
+        narration_lines, excluded = filter_page_numbers(lines)
+        if settings.scan_ocr_debug_logging:
+            logger.info("scan_ocr_excluded_page_numbers %s", json.dumps(excluded, ensure_ascii=False))
+        segments = narration_segments(narration_lines)
         if settings.scan_ocr_debug_logging:
             logger.info("scan_ocr_segments %s", json.dumps(segments, ensure_ascii=False))
         return segments
+
+
+def filter_page_numbers(lines: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Exclude small, isolated decimal lines wholly inside image margin bands.
+
+    Geometry is relative to the photo, not the printed page. Prefer retaining
+    ambiguous numbers (including cropped footers) over removing story content.
+    Keep the original OCR lines intact for diagnostics.
+    """
+    body_heights = [line["height"] for line in lines
+                    if not line["text"].strip().isdecimal() and line["height"] > 0]
+    if not body_heights:
+        return list(lines), []
+    body_height = median(body_heights)
+    kept, excluded = [], []
+    for index, line in enumerate(lines):
+        top = line["top"]
+        bottom = top + line["height"]
+        candidate = (line["text"].strip().isdecimal()
+                     and (bottom <= .08 or top >= .92)
+                     and line["height"] <= body_height * .65)
+        isolated = candidate and all(
+            max(top - (other["top"] + other["height"]), other["top"] - bottom)
+            >= max(.06, body_height)
+            for other_index, other in enumerate(lines) if other_index != index
+        )
+        (excluded if isolated else kept).append(line)
+    return kept, excluded
 
 
 def narration_segments(lines: list[dict]) -> list[dict]:
