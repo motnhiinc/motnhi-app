@@ -1,0 +1,124 @@
+name: Android Device Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lib/**'
+      - 'assets/**'
+      - 'android/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - '.github/workflows/android-device-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Finish publishing/notifying before starting another build of the same branch.
+concurrency:
+  group: android-device-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  distribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate configuration and restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing configuration: $name. See docs/android-device-builds.md."
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/android-release.jks" >> "$GITHUB_ENV"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.38.0
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Build signed APK
+        id: build
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # A separate range from the existing manual releases. Reruns use the
+          # same versionCode; each new workflow run increases it.
+          number=$((10000 + GITHUB_RUN_NUMBER))
+          flutter build apk --release --build-number="$number"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "tag=device-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub prerelease
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.build.outputs.tag }}
+          BUILD_NUMBER: ${{ steps.build.outputs.number }}
+        run: |
+          set -euo pipefail
+          cp build/app/outputs/flutter-apk/app-release.apk motnhi-android.apk
+          gh release create "$TAG" motnhi-android.apk \
+            --target "$GITHUB_SHA" \
+            --title "Android device build $BUILD_NUMBER" \
+            --notes "Internal device build from commit $GITHUB_SHA. Download the APK on Android and tap to install." \
+            --prerelease --latest=false
+          url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/$TAG"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Android device build $BUILD_NUMBER" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Download APK]($url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          BUILD_NUMBER: ${{ steps.build.outputs.number }}
+        run: |
+          set -euo pipefail
+          text="Mọt Nhí Android build $BUILD_NUMBER is ready.
+          $RELEASE_URL
+          Open the release on your phone, download motnhi-android.apk, and tap to install.
+          Private repository? Sign in to GitHub in your browser first."
+          curl --silent --show-error --fail-with-body \
+            --request POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" \
+            --data-urlencode "text=$text" \
+            --data-urlencode 'link_preview_options={"is_disabled":true}' \
+            --output "$RUNNER_TEMP/telegram-response.json"
+          python3 -c 'import json, sys; r=json.load(open(sys.argv[1])); sys.exit(0 if r.get("ok") else "Telegram rejected the notification")' \
+            "$RUNNER_TEMP/telegram-response.json"
+
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/android-release.jks"

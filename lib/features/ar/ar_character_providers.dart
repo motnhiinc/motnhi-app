@@ -5,23 +5,23 @@ import '../../data/sources/persistence_keys.dart';
 import 'ar_character.dart';
 
 /// Currently selected AR character. Seeded from the store on startup; null,
-/// missing, or unknown stored ids sanitize back to the default fox via
+/// missing, retired, or unknown stored ids sanitize back to the dinosaur via
 /// [arCharacterById].
 final selectedArCharacterProvider =
     NotifierProvider<SelectedArCharacterNotifier, ArCharacter>(
-  SelectedArCharacterNotifier.new,
-);
+      SelectedArCharacterNotifier.new,
+    );
 
 class SelectedArCharacterNotifier extends Notifier<ArCharacter> {
   @override
   ArCharacter build() => arCharacterById(
-        ref.watch(keyValueStoreProvider).getString(arSelectedCharacterIdKey),
-      );
+    ref.watch(keyValueStoreProvider).getString(arSelectedCharacterIdKey),
+  );
 
   Future<void> select(ArCharacter character) async {
-    state = character;
+    state = arCharacterById(character.id);
     await ref
         .read(keyValueStoreProvider)
-        .setString(arSelectedCharacterIdKey, character.id);
+        .setString(arSelectedCharacterIdKey, state.id);
   }
 }

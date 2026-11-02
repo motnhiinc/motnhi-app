@@ -61,18 +61,73 @@ abstract interface class StoryReader {
   });
 }
 
-final class NativeStoryReader implements StoryReader {
+/// Scan-only two-phase entry. Placement can run before approved audio exists.
+/// Session IDs fence delayed messages from a closed or replaced scan.
+abstract interface class PreparingStoryReader {
+  Future<StoryReaderResult> openPreparing({
+    required String sessionId,
+    required ArCharacter character,
+  });
+  Future<void> attachNarration({
+    required String sessionId,
+    required List<ArNarrationPage> pages,
+  });
+  Future<void> closePreparing(String sessionId);
+}
+
+final class NativeStoryReader implements StoryReader, PreparingStoryReader {
   NativeStoryReader({MethodChannel? channel})
-      : _channel =
-            channel ?? const MethodChannel('storybook_ar/character_reader');
+    : _channel =
+          channel ?? const MethodChannel('storybook_ar/character_reader');
 
   final MethodChannel _channel;
 
   @override
+  Future<StoryReaderResult> openPreparing({
+    required String sessionId,
+    required ArCharacter character,
+  }) async {
+    try {
+      final raw = await _channel
+          .invokeMapMethod<String, dynamic>('openPreparingStoryReader', {
+            'sessionId': sessionId,
+            'modelAssetBaseName': character.assetBaseName,
+            'characterId': character.id,
+          });
+      return StoryReaderResult(
+        terminalCode: raw?['terminalCode'] as String? ?? 'cancelled',
+        lastPageId: raw?['lastPageId'] as String?,
+        pagesRead: (raw?['pagesRead'] as List?)?.cast<String>() ?? const [],
+      );
+    } on PlatformException catch (error) {
+      throw StoryReaderFailure(
+        error.code,
+        diagnostic: ArReaderDiagnostic.fromWire(error.details),
+      );
+    }
+  }
+
+  @override
+  Future<void> attachNarration({
+    required String sessionId,
+    required List<ArNarrationPage> pages,
+  }) => _channel.invokeMethod<void>('attachStoryNarration', {
+    'sessionId': sessionId,
+    'pages': [for (final page in pages) page.toJson()],
+  });
+
+  @override
+  Future<void> closePreparing(String sessionId) => _channel.invokeMethod<void>(
+    'closePreparingStoryReader',
+    {'sessionId': sessionId},
+  );
+
+  @override
   Future<StoryReaderSupport> isSupported() async {
     try {
-      final response =
-          await _channel.invokeMethod<Object?>('isStoryReaderSupported');
+      final response = await _channel.invokeMethod<Object?>(
+        'isStoryReaderSupported',
+      );
       if (response is bool) {
         return StoryReaderSupport(supported: response);
       }

@@ -101,6 +101,7 @@ struct RectangleStabilityTracker {
 
   private var previousQuad: NormalizedQuad?
   private var stableFrameCount = 0
+  var progress: Float { min(1, Float(stableFrameCount) / Float(max(1, requiredStableFrames))) }
 
   init(requiredStableFrames: Int, tolerance: CGFloat, minimumArea: CGFloat) {
     self.requiredStableFrames = requiredStableFrames
@@ -118,8 +119,8 @@ struct RectangleStabilityTracker {
       stableFrameCount += 1
     } else {
       stableFrameCount = 1
+      self.previousQuad = quad
     }
-    self.previousQuad = quad
     return stableFrameCount >= requiredStableFrames
   }
 

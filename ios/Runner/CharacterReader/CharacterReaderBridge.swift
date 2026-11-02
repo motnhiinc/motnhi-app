@@ -94,6 +94,7 @@ final class CharacterReaderBridge {
   )
   private var isReaderInProgress = false
   private var activeReader: CharacterReaderViewController?
+  private var preparingSessionId: String?
 
   init(flutterViewController: FlutterViewController, messenger: FlutterBinaryMessenger) {
     self.flutterViewController = flutterViewController
@@ -123,6 +124,25 @@ final class CharacterReaderBridge {
       open(call, result: result, storyMode: false)
     case "openStoryReader":
       open(call, result: result, storyMode: true)
+    case "openPreparingStoryReader":
+      open(call, result: result, storyMode: true, preparing: true)
+    case "attachStoryNarration":
+      let arguments = call.arguments as? [String: Any]
+      guard let id = arguments?["sessionId"] as? String,
+            id == preparingSessionId, let reader = activeReader else {
+        result(FlutterError(code: "stale_session", message: nil, details: nil))
+        return
+      }
+      guard let pages = StoryReaderPage.parseAll(arguments?["pages"], validator: audioPathValidator),
+            reader.attachNarration(pages) else {
+        result(FlutterError(code: "audio_missing", message: nil, details: nil))
+        return
+      }
+      result(nil)
+    case "closePreparingStoryReader":
+      let id = (call.arguments as? [String: Any])?["sessionId"] as? String
+      if let id, id == preparingSessionId { activeReader?.cancelPreparation() }
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -134,7 +154,8 @@ final class CharacterReaderBridge {
   private func open(
     _ call: FlutterMethodCall,
     result: @escaping FlutterResult,
-    storyMode: Bool
+    storyMode: Bool,
+    preparing: Bool = false
   ) {
     guard !isReaderInProgress else {
       result(FlutterError(code: "reader_in_progress", message: nil, details: nil))
@@ -150,7 +171,13 @@ final class CharacterReaderBridge {
     let baseName = storyMode ? arguments?["modelAssetBaseName"] as? String : nil
     let safeModelBaseName = Self.safeModelAssetBaseName(baseName)
 
-    if storyMode {
+    if preparing {
+      guard let id = arguments?["sessionId"] as? String, UUID(uuidString: id) != nil else {
+        result(FlutterError(code: "invalid_session", message: nil, details: nil))
+        return
+      }
+      pages = []
+    } else if storyMode {
       guard
         let parsed = StoryReaderPage.parseAll(arguments?["pages"], validator: audioPathValidator)
       else {
@@ -180,18 +207,21 @@ final class CharacterReaderBridge {
     }
 
     isReaderInProgress = true
+    preparingSessionId = preparing ? arguments?["sessionId"] as? String : nil
     var resultGate = OneShotGate()
     var reader: CharacterReaderViewController!
     reader = CharacterReaderViewController(
       pages: pages,
       initialPageIndex: initialPageIndex,
       storyMode: storyMode,
-      modelAssetBaseName: safeModelBaseName
+      modelAssetBaseName: safeModelBaseName,
+      automaticScanFlow: preparing
     ) { [weak self, weak reader] readerResult in
       guard resultGate.claim() else { return }
       let resolve = {
         self?.isReaderInProgress = false
         self?.activeReader = nil
+        self?.preparingSessionId = nil
         switch readerResult {
         case .completed(let progress):
           // Story mode replies on the success channel for BOTH terminal outcomes, unlike the
@@ -206,6 +236,10 @@ final class CharacterReaderBridge {
           }
         case .failure(let failure):
           result(FlutterError(code: failure.rawValue, message: nil, details: nil))
+        case .listenWithoutAr(let progress):
+          result(Self.payload("listen_without_ar", progress))
+        case .scanNextPage(let progress):
+          result(Self.payload("scan_next_page", progress))
         }
       }
       if let reader, reader.presentingViewController != nil {
@@ -233,7 +267,7 @@ final class CharacterReaderBridge {
   private static func safeModelAssetBaseName(_ value: String?) -> String {
     guard let value,
           value.range(of: "^[a-z0-9_]+$", options: .regularExpression) != nil
-    else { return "scan_any_page_character" }
+    else { return "little_buddy" }
     return value
   }
 

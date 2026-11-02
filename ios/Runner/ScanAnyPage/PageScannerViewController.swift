@@ -34,11 +34,14 @@ final class PageScannerViewController: UIViewController {
   private let guidanceLabel = UILabel()
   private let statusLabel = UILabel()
   private let cancelButton = UIButton(type: .system)
+  private let captureButton = UIButton(type: .system)
+  private let captureProgress = UIProgressView(progressViewStyle: .default)
+  private var manualCapture = false
 
   private var previewLayer: AVCaptureVideoPreviewLayer!
   private var cameraDevice: AVCaptureDevice?
   private var stabilityTracker = RectangleStabilityTracker(
-    requiredStableFrames: 5,
+    requiredStableFrames: 9,
     tolerance: 0.02,
     minimumArea: 0.35
   )
@@ -141,6 +144,17 @@ final class PageScannerViewController: UIViewController {
     cancelButton.layer.cornerRadius = 12
     cancelButton.addTarget(self, action: #selector(cancel), for: .touchUpInside)
     view.addSubview(cancelButton)
+    captureButton.translatesAutoresizingMaskIntoConstraints = false
+    captureButton.setTitle(localized("Capture page", "Chụp trang sách"), for: .normal)
+    captureButton.setTitleColor(.white, for: .normal)
+    captureButton.backgroundColor = UIColor.black.withAlphaComponent(0.65)
+    captureButton.layer.cornerRadius = 12
+    captureButton.addTarget(self, action: #selector(captureManually), for: .touchUpInside)
+    captureButton.accessibilityIdentifier = "scanner.capture"
+    view.addSubview(captureButton)
+    captureProgress.translatesAutoresizingMaskIntoConstraints = false
+    captureProgress.progressTintColor = .systemGreen
+    view.addSubview(captureProgress)
 
     NSLayoutConstraint.activate([
       cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
@@ -153,7 +167,14 @@ final class PageScannerViewController: UIViewController {
       guidanceLabel.trailingAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
       guidanceLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520),
       guidanceLabel.heightAnchor.constraint(equalToConstant: 48),
-      statusLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20),
+      captureButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+      captureButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      captureButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
+      captureButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
+      captureProgress.bottomAnchor.constraint(equalTo: captureButton.topAnchor, constant: -12),
+      captureProgress.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 36),
+      captureProgress.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -36),
+      statusLabel.bottomAnchor.constraint(equalTo: captureProgress.topAnchor, constant: -12),
       statusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
       statusLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 420),
       statusLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 250),
@@ -298,7 +319,10 @@ final class PageScannerViewController: UIViewController {
       let qualityAcceptable = self.cameraDevice.map {
         !$0.isAdjustingFocus && !$0.isAdjustingExposure
       } ?? false
-      guard self.stabilityTracker.observe(quad, qualityAcceptable: qualityAcceptable) else {
+      let ready = self.stabilityTracker.observe(quad, qualityAcceptable: qualityAcceptable)
+      let progress = self.stabilityTracker.progress
+      DispatchQueue.main.async { [weak self] in self?.captureProgress.setProgress(progress, animated: true) }
+      guard ready else {
         return
       }
       self.captureStablePage()
@@ -325,6 +349,9 @@ final class PageScannerViewController: UIViewController {
 
     DispatchQueue.main.async { [weak self] in
       self?.showCue(.holdStill)
+      self?.captureButton.isEnabled = false
+      self?.statusLabel.text = self?.localized("Got it!", "Chụp được rồi!")
+      UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     let settings = AVCapturePhotoSettings()
@@ -363,6 +390,7 @@ final class PageScannerViewController: UIViewController {
         return
       }
       guard let observation = rectangleRequest.results?.first as? VNRectangleObservation else {
+        if manualCapture { recognizeText(in: normalizedCGImage); return }
         complete(.failure(.correctionFailed))
         return
       }
@@ -468,6 +496,7 @@ final class PageScannerViewController: UIViewController {
       self.showCue(ScanGuidance.forPage(quad, minimumArea: self.stabilityTracker.minimumArea))
       guard let quad else {
         self.rectangleLayer.path = nil
+        self.captureProgress.progress = 0
         return
       }
 
@@ -524,6 +553,14 @@ final class PageScannerViewController: UIViewController {
 
   @objc private func cancel() {
     complete(.failure(.cancelled))
+  }
+
+  @objc private func captureManually() {
+    scannerQueue.async { [weak self] in
+      guard let self, self.captureSession.isRunning, !self.lifecycle.isTerminal else { return }
+      self.manualCapture = true
+      self.captureStablePage()
+    }
   }
 
   @objc private func captureSessionRuntimeError(_ notification: Notification) {

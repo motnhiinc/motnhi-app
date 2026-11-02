@@ -29,6 +29,8 @@ class CharacterReaderBridge internal constructor(
     private var pendingAudioPath: String? = null
     private var installAttempts = 0
     private var awaitingInstallResume = false
+    private var preparingSession: PreparingReaderSession? = null
+    private var readerLaunched = false
 
     /** True while the pending call came from `openStoryReader` rather than `openCharacterReader`. */
     private var pendingIsStoryReader = false
@@ -69,6 +71,25 @@ class CharacterReaderBridge internal constructor(
 
                 "openCharacterReader" -> start(call, result, storyMode = false)
                 "openStoryReader" -> start(call, result, storyMode = true)
+                "openPreparingStoryReader" -> start(call, result, storyMode = true, preparing = true)
+                "attachStoryNarration" -> {
+                    val id = call.argument<String>("sessionId")
+                    val session = preparingSession?.takeIf { it.id == id }
+                    val pages = StoryReaderPages.parse(call.argument<Any>("pages"))?.let(::validatePages)
+                    when {
+                        session == null -> result.error("stale_session", null, null)
+                        pages == null || !session.attach(pages) -> result.error("audio_missing", null, null)
+                        else -> result.success(null)
+                    }
+                }
+                "closePreparingStoryReader" -> {
+                    val id = call.argument<String>("sessionId")
+                    if (preparingSession?.id == id && id != null) {
+                        preparingSession?.close()
+                        if (!readerLaunched) finishStory("cancelled", null, emptyList())
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -78,14 +99,24 @@ class CharacterReaderBridge internal constructor(
      * Shared entry for both readers. They share [inProgressGate] on purpose: they are the same
      * channel and the same activity, so two readers must never be presentable at once.
      */
-    private fun start(call: MethodCall, result: MethodChannel.Result, storyMode: Boolean) {
+    private fun start(call: MethodCall, result: MethodChannel.Result, storyMode: Boolean,
+                      preparing: Boolean = false) {
         if (!inProgressGate.tryStart()) {
             result.error("reader_in_progress", null, null)
             return
         }
 
         val arguments = call.arguments as? Map<*, *>
-        if (storyMode) {
+        if (preparing) {
+            val id = arguments?.get("sessionId") as? String
+            if (id == null || !Regex("^[a-fA-F0-9-]{36}$").matches(id)) {
+                inProgressGate.finish()
+                result.error("ar_failed", null, null)
+                return
+            }
+            preparingSession = PreparingReaderSession(id).also { PreparingReaderSessions.active = it }
+            pendingModelAssetFileName = modelAssetFileName(arguments)
+        } else if (storyMode) {
             val pages = StoryReaderPages.parse(arguments?.get("pages"))
                 ?.let(::validatePages)
             if (pages == null) {
@@ -127,7 +158,24 @@ class CharacterReaderBridge internal constructor(
         replyGate = OneShotGate()
         installAttempts = 0
         awaitingInstallResume = false
-        checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
+        if (preparing) awaitPreparingHost(remainingPolls = 10)
+        else checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
+    }
+
+    /** A scanner result can reach Dart just before MainActivity.onResume. Wait
+     * briefly for that handoff, but never launch a camera from the background. */
+    private fun awaitPreparingHost(remainingPolls: Int) {
+        if (pendingResult == null) return
+        if (host.isPresentable()) {
+            checkArAvailability(remainingTransientPolls = MAX_TRANSIENT_POLLS)
+        } else if (remainingPolls == 0) {
+            finishError("ar_failed")
+        } else {
+            val generation = replyGate
+            scheduler.postDelayed(50L) {
+                if (replyGate === generation) awaitPreparingHost(remainingPolls - 1)
+            }
+        }
     }
 
     /**
@@ -140,7 +188,7 @@ class CharacterReaderBridge internal constructor(
         val baseName = arguments?.get("modelAssetBaseName") as? String
         val safeBaseName = baseName
             ?.takeIf { Regex("^[a-z0-9_]+$").matches(it) }
-            ?: "scan_any_page_character"
+            ?: "little_buddy"
         return "$safeBaseName.glb"
     }
 
@@ -157,6 +205,7 @@ class CharacterReaderBridge internal constructor(
         }
 
     private fun checkArAvailability(remainingTransientPolls: Int) {
+        if (pendingResult == null) return
         val diagnostic = arCore.checkAvailabilityDiagnostic()
         latestArDiagnostic = diagnostic
         when (diagnostic.decision) {
@@ -168,8 +217,9 @@ class CharacterReaderBridge internal constructor(
                 if (remainingTransientPolls <= 0) {
                     finishError("ar_failed")
                 } else {
+                    val generation = replyGate
                     scheduler.postDelayed(TRANSIENT_POLL_INTERVAL_MS) {
-                        checkArAvailability(remainingTransientPolls - 1)
+                        if (replyGate === generation) checkArAvailability(remainingTransientPolls - 1)
                     }
                 }
             }
@@ -214,6 +264,7 @@ class CharacterReaderBridge internal constructor(
     }
 
     private fun launchReader() {
+        if (pendingResult == null || readerLaunched) return
         // A transient-availability poll or an install resume can land after the app has left
         // the foreground. startActivityForResult is silently dropped from the background on
         // Android 10+ without throwing, so re-check here rather than leave the call pending.
@@ -222,7 +273,10 @@ class CharacterReaderBridge internal constructor(
             return
         }
 
-        val launched = if (pendingIsStoryReader) {
+        val session = preparingSession
+        val launched = if (session != null) {
+            host.launchPreparingReader(session.id, pendingModelAssetFileName)
+        } else if (pendingIsStoryReader) {
             val pages = pendingPages ?: run {
                 finishError("audio_missing")
                 return
@@ -236,6 +290,7 @@ class CharacterReaderBridge internal constructor(
             host.launchReader(audioPath)
         }
 
+        readerLaunched = launched
         if (!launched) finishError("ar_failed")
     }
 
@@ -280,7 +335,7 @@ class CharacterReaderBridge internal constructor(
         pagesRead: List<String>,
     ): Boolean {
         if (code == CharacterReaderResultMapper.COMPLETED ||
-            code == CharacterReaderResultMapper.CANCELLED
+            code == CharacterReaderResultMapper.CANCELLED || code == "listen_without_ar" || code == "scan_next_page"
         ) {
             finishStory(code, lastPageId, pagesRead)
         } else {
@@ -328,6 +383,10 @@ class CharacterReaderBridge internal constructor(
     }
 
     private fun clearPending() {
+        preparingSession?.onChanged = null
+        if (PreparingReaderSessions.active === preparingSession) PreparingReaderSessions.active = null
+        preparingSession = null
+        readerLaunched = false
         pendingResult = null
         replyGate = null
         pendingAudioPath = null

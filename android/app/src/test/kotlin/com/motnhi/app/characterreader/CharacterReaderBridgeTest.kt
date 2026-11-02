@@ -266,6 +266,54 @@ class CharacterReaderBridgeTest {
     private fun storyClip(name: String): String =
         File(cacheDir, name).apply { writeBytes(byteArrayOf(1)) }.path
 
+    @Test fun preparingEntryOpensWithoutAudioAndRejectsStaleAndDuplicateAttachments() {
+        val bridge = bridge()
+        val id = "12345678-1234-1234-1234-123456789012"
+        bridge.handle(MethodCall("openPreparingStoryReader", mapOf("sessionId" to id)), result)
+        assertEquals(listOf(id), host.preparingLaunches)
+        assertEquals(0, result.replies)
+        val clip = storyClip("ar_story1_p1_s0.mp3")
+        val stale = RecordingResult()
+        bridge.handle(MethodCall("attachStoryNarration", storyArguments(clip) + ("sessionId" to "old")), stale)
+        assertEquals("stale_session", stale.errorCode)
+        val attached = RecordingResult()
+        bridge.handle(MethodCall("attachStoryNarration", storyArguments(clip) + ("sessionId" to id)), attached)
+        assertNull(attached.errorCode)
+        assertEquals(1, PreparingReaderSessions.active?.pages?.size)
+        val duplicate = RecordingResult()
+        bridge.handle(MethodCall("attachStoryNarration", storyArguments(clip) + ("sessionId" to id)), duplicate)
+        assertEquals("audio_missing", duplicate.errorCode)
+        bridge.finishStoryTerminal("cancelled", null, emptyList())
+        assertNull(PreparingReaderSessions.active)
+    }
+
+    @Test fun closingDuringAvailabilityProbeCannotLaunchAnOrphanedReader() {
+        arCore.availability = ArCoreAvailabilityDecision.Retry
+        val bridge = bridge()
+        val id = "12345678-1234-1234-1234-123456789012"
+        bridge.handle(MethodCall("openPreparingStoryReader", mapOf("sessionId" to id)), result)
+        bridge.handle(MethodCall("closePreparingStoryReader", mapOf("sessionId" to id)), RecordingResult())
+        arCore.availability = ArCoreAvailabilityDecision.Supported
+        scheduler.runNextDelayed()
+        assertTrue(host.preparingLaunches.isEmpty())
+        assertEquals(1, result.replies)
+        assertEquals("cancelled", (result.successValue as Map<*, *>)["terminalCode"])
+        assertNull(PreparingReaderSessions.active)
+    }
+
+    @Test fun preparingEntryWaitsForTheScannerHostToResume() {
+        host.presentable = false
+        val bridge = bridge()
+        val id = "12345678-1234-1234-1234-123456789012"
+        bridge.handle(MethodCall("openPreparingStoryReader", mapOf("sessionId" to id)), result)
+        assertEquals(0, result.replies)
+        assertTrue(host.preparingLaunches.isEmpty())
+        host.presentable = true
+        scheduler.runNextDelayed()
+        assertEquals(listOf(id), host.preparingLaunches)
+        bridge.finishStoryTerminal("cancelled", null, emptyList())
+    }
+
     @Test
     fun openStoryReaderLaunchesWithEveryValidatedClip() {
         val first = storyClip("ar_story1_p1_s0.mp3")
@@ -532,6 +580,11 @@ private class FakeArCoreGateway : ArCoreGateway {
 }
 
 private class FakeReaderHost : ReaderHost {
+    val preparingLaunches = mutableListOf<String>()
+    override fun launchPreparingReader(sessionId: String, modelAssetFileName: String): Boolean {
+        preparingLaunches += sessionId
+        return launchSucceeds
+    }
     var presentable = true
     var launchSucceeds = true
     val launches = mutableListOf<String>()

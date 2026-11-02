@@ -14,6 +14,7 @@ import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import com.motnhi.app.R
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -23,8 +24,24 @@ class CharacterReaderActivity : ComponentActivity() {
     private var audioFocusRequest: AudioFocusRequest? = null
     private var legacyFocusHeld = false
     private var playbackStarted = false
+    private var playbackActive = false
     private var placed = false
     private var terminal = false
+    private var resumed = false
+    private var preparingSession: PreparingReaderSession? = null
+    private var automaticStartPending = false
+    private var placedAt = 0L
+    private var pendingVoice = false
+    private val voice by lazy { ReaderVoiceInput(this, ui, ::handleVoiceCommand) }
+    private val microphonePermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!terminal && pendingVoice && ui.panel == ReaderPanel.VOICE) {
+            pendingVoice = granted
+            if (granted && resumed) beginListening()
+            else if (!granted) ui.voiceStatus = R.string.reader_voice_permission
+        }
+    }
 
     /**
      * Both entry points normalise onto this list, so there is exactly one playback path. The
@@ -36,7 +53,7 @@ class CharacterReaderActivity : ComponentActivity() {
 
     /**
      * Which bundled `<base>.glb` the scene loads, resolved once in onCreate. The single-clip
-     * scan-any-page flow never receives an extra and keeps the fox.
+     * legacy single-clip flow defaults to the same dinosaur as scan and story entry.
      */
     private var modelAssetFileName: String = MODEL_FILENAME
 
@@ -59,7 +76,17 @@ class CharacterReaderActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val resolved = resolvePages()
+        val sessionId = intent.getStringExtra(EXTRA_PREPARING_SESSION_ID)
+        if (sessionId != null) {
+            preparingSession = PreparingReaderSessions.active?.takeIf { it.id == sessionId && !it.closed }
+            if (preparingSession == null) { finishWith("cancelled"); return }
+            storyMode = true
+            automaticStartPending = true
+            ui.automaticScan = true
+            ui.preparingNarration = true
+        }
+
+        val resolved = if (preparingSession != null) emptyList() else resolvePages()
         if (resolved == null) {
             finishWith("audio_missing")
             return
@@ -73,11 +100,16 @@ class CharacterReaderActivity : ComponentActivity() {
 
         // Only a failure preparing the very first clip is terminal. Once the scene is up, a
         // later clip failing is surfaced in-scene so the child keeps their placed character.
-        if (!preparePlayer()) {
+        if (preparingSession == null && !preparePlayer()) {
             finishWith("audio_failed")
             return
         }
         syncPageUi()
+        preparingSession?.let { session ->
+            session.onChanged = { receivePreparedNarration(session) }
+            receivePreparedNarration(session)
+            if (terminal) return
+        }
 
         onBackPressedDispatcher.addCallback(this) {
             finishWith(if (playbackStarted) "completed" else "cancelled")
@@ -88,6 +120,31 @@ class CharacterReaderActivity : ComponentActivity() {
         } else {
             cameraPermission.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    private fun receivePreparedNarration(session: PreparingReaderSession) {
+        if (terminal) return
+        if (session.closed) { finishWith("cancelled"); return }
+        val narration = session.pages ?: return
+        if (pages.isNotEmpty()) return
+        // Revalidate inside the activity, just as for intent-based narration.
+        val validator = AudioPathValidator(cacheDir)
+        if (narration.any { page -> page.audioFilePaths.any { validator.validate(it) == null } }) {
+            finishWith("audio_missing"); return
+        }
+        pages = narration
+        if (!preparePlayer()) { finishWith("audio_failed"); return }
+        ui.preparingNarration = false
+        syncPageUi()
+        maybeAutoStart()
+    }
+
+    private fun maybeAutoStart() {
+        if (!automaticStartPending || !resumed || terminal || pages.isEmpty() ||
+            !canStartPlayback() || android.os.SystemClock.elapsedRealtime() - placedAt < 350) return
+        automaticStartPending = false
+        android.util.Log.i("ReaderAR", "automatic_narration_start")
+        if (!startPlayer()) showAudioRetry()
     }
 
     /**
@@ -126,7 +183,7 @@ class CharacterReaderActivity : ComponentActivity() {
      * Re-validates the model name even though the bridge already did: intent extras are a trust
      * boundary of their own, since any component can start this activity with crafted values.
      * The strict allowlist keeps a name like `../evil.glb` from pointing outside the bundled
-     * doll variants; anything malformed falls back to the fox rather than failing the open.
+     * bundle resources; anything malformed falls back to the dinosaur rather than failing the open.
      */
     private fun resolveModelAssetFileName(): String =
         intent.getStringExtra(EXTRA_MODEL_ASSET_FILE_NAME)
@@ -139,15 +196,23 @@ class CharacterReaderActivity : ComponentActivity() {
             CharacterReaderScreen(
                 state = ui,
                 modelAssetFileName = modelAssetFileName,
+                experimentalDepth = com.motnhi.app.BuildConfig.DEBUG &&
+                    intent.getBooleanExtra(EXTRA_EXPERIMENTAL_DEPTH, false),
                 onFailure = ::finishWith,
                 onPlaced = {
                     placed = true
-                    ui.guidance = GUIDANCE_READY
+                    placedAt = android.os.SystemClock.elapsedRealtime()
+                    ui.guidance = R.string.reader_ready
                     ui.controlsVisible = true
                 },
+                onFrameReady = ::maybeAutoStart,
+                onListenWithoutAr = if (preparingSession != null) ({ finishWith("listen_without_ar") }) else null,
+                onScanNextPage = if (preparingSession != null) ({ finishWith("scan_next_page") }) else null,
                 onReadClick = ::togglePlayback,
+                onVoiceClick = ::toggleListening,
                 onPreviousClick = { goToPage(-1) },
                 onNextClick = { goToPage(1) },
+                onPausePlayback = ::interruptPlayback,
                 onCloseClick = {
                     finishWith(if (playbackStarted) "completed" else "cancelled")
                 },
@@ -161,20 +226,84 @@ class CharacterReaderActivity : ComponentActivity() {
      * it in applicationWillResignActive.
      */
     override fun onPause() {
+        resumed = false
+        automaticStartPending = false
+        voice.cancel()
+        if (!pendingVoice && ui.panel == ReaderPanel.VOICE) ui.dismissPanel()
         super.onPause()
         if (terminal) return
-        val player = mediaPlayer ?: return
-        if (!player.isPlaying) return
-        player.pause()
-        abandonAudioFocus()
-        ui.guidance = "Reading paused"
-        ui.readLabel = "Resume"
-        ui.speaking = false
+        pausePlayback()
     }
 
     override fun onDestroy() {
+        preparingSession?.onChanged = null
+        voice.cancel()
         releaseAudio()
         super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+        if (pendingVoice && !terminal &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) beginListening()
+    }
+
+    private fun toggleListening() {
+        if (terminal || !resumed || ui.preparingNarration) return
+        if (ui.listening) { voice.cancel(); ui.dismissPanel(); return }
+        ui.openPanel(ReaderPanel.VOICE, ::interruptPlayback)
+        ui.voiceStatus = R.string.reader_voice_permission_wait
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            beginListening()
+        } else {
+            pendingVoice = true
+            microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun beginListening() {
+        pendingVoice = false
+        pausePlayback() // Do not recognize the character's own narration as a command.
+        voice.listen()
+    }
+
+    private fun handleVoiceCommand(command: ReaderVoiceCommand) {
+        if (terminal || !resumed) return
+        ui.dismissPanel()
+        when (command) {
+            ReaderVoiceCommand.PAUSE -> pausePlayback()
+            ReaderVoiceCommand.READ -> {
+                if (!canStartPlayback()) { ui.voiceStatus = R.string.reader_voice_place_first; return }
+                if (!playbackActive) togglePlayback()
+            }
+            ReaderVoiceCommand.REPLAY -> {
+                if (!canStartPlayback()) { ui.voiceStatus = R.string.reader_voice_place_first; return }
+                pausePlayback()
+                clipIndex = 0
+                if (preparePlayer()) startPreparedPlayerOrPause() else showAudioRetry()
+            }
+            ReaderVoiceCommand.NEXT, ReaderVoiceCommand.PREVIOUS -> {
+                val delta = if (command == ReaderVoiceCommand.NEXT) 1 else -1
+                if (!canStartPlayback() || !storyMode || pageIndex + delta !in pages.indices) {
+                    ui.voiceStatus = R.string.reader_voice_no_page
+                    return
+                }
+                goToPage(delta)
+                if (ui.readLabel != R.string.reader_retry) startPreparedPlayerOrPause()
+            }
+            ReaderVoiceCommand.PLACE -> {
+                if ((!placed || ui.moving) && ui.canPlace) ui.placeRequested = true
+                else ui.voiceStatus = R.string.reader_voice_aim
+            }
+            ReaderVoiceCommand.MOVE -> {
+                if (!placed) { ui.voiceStatus = R.string.reader_voice_place_first; return }
+                ui.beginMove(::interruptPlayback)
+            }
+            ReaderVoiceCommand.CANCEL_MOVE -> {
+                ui.cancelMove()
+            }
+        }
     }
 
     private fun currentClipPath(): String? =
@@ -191,10 +320,13 @@ class CharacterReaderActivity : ComponentActivity() {
             player.apply {
                 setAudioAttributes(speechAttributes())
                 setDataSource(File(path).path)
-                setOnCompletionListener { onClipCompleted() }
-                setOnErrorListener { _, _, _ ->
-                    abandonAudioFocus()
-                    showAudioRetry()
+                setOnCompletionListener { completedPlayer -> onClipCompleted(completedPlayer) }
+                setOnErrorListener { failedPlayer, _, _ ->
+                    if (acceptsPlaybackCallback(failedPlayer)) {
+                        playbackActive = false
+                        abandonAudioFocus()
+                        showAudioRetry()
+                    }
                     true
                 }
                 prepare()
@@ -205,28 +337,44 @@ class CharacterReaderActivity : ComponentActivity() {
         }
     }
 
+    private fun acceptsPlaybackCallback(player: MediaPlayer): Boolean =
+        ReaderPlaybackPolicy.acceptsCallback(terminal, player === mediaPlayer, playbackActive)
+
     /**
      * A page's clips play back to back. Only when the last one ends is the page finished — this
      * is what keeps multi-segment curated pages from being cut off after their first sentence.
      */
-    private fun onClipCompleted() {
+    private fun onClipCompleted(player: MediaPlayer) {
+        if (!ReaderPlaybackPolicy.acceptsCompletion(terminal, player === mediaPlayer)) return
+        // Pause/Move/lifecycle may win delivery ordering after a successful completion was
+        // queued. Consume that completion, but never turn it into renewed playback intent.
+        val autoplay = playbackActive
+        playbackActive = false
         abandonAudioFocus()
         val page = pages.getOrNull(pageIndex) ?: return
 
         if (clipIndex + 1 < page.audioFilePaths.size) {
             clipIndex++
-            if (preparePlayer() && startPlayer()) return
-            showAudioRetry()
+            if (!preparePlayer()) showAudioRetry()
+            else if (autoplay) startPreparedPlayerOrPause()
+            else showPlaybackPaused()
             return
         }
 
         mediaPlayer?.seekTo(0)
-        ui.guidance = if (storyMode && pageIndex < pages.size - 1) {
-            "Page finished - Tap next"
+        ui.playbackStatus = if (storyMode && pageIndex < pages.size - 1) {
+            R.string.reader_page_finished
         } else {
-            "Reading complete"
+            R.string.reader_complete
         }
-        ui.readLabel = "Read"
+        // A replay must start at the first segment, not replay only the final clip.
+        clipIndex = 0
+        if (!preparePlayer()) {
+            showAudioRetry()
+            return
+        }
+        ui.readLabel = R.string.reader_read
+        ui.readingComplete = true
         ui.speaking = false
     }
 
@@ -235,13 +383,14 @@ class CharacterReaderActivity : ComponentActivity() {
      * data source changes, which is what lets the character stay exactly where the child put it.
      */
     private fun goToPage(delta: Int) {
-        if (!placed || !storyMode) return
+        if (terminal || !placed || !storyMode || ui.moving) return
         val target = pageIndex + delta
         if (target < 0 || target >= pages.size) return
 
-        val wasSpeaking = ui.speaking
+        val wasSpeaking = playbackActive
         pageIndex = target
         clipIndex = 0
+        ui.readingComplete = false
         syncPageUi()
 
         if (!preparePlayer()) {
@@ -249,30 +398,33 @@ class CharacterReaderActivity : ComponentActivity() {
             return
         }
         if (wasSpeaking) {
-            if (!startPlayer()) showAudioRetry()
+            startPreparedPlayerOrPause()
         } else {
-            ui.guidance = GUIDANCE_READY
-            ui.readLabel = "Read"
+            ui.playbackStatus = R.string.reader_ready
+            ui.readLabel = R.string.reader_read
             ui.speaking = false
         }
     }
 
     private fun syncPageUi() {
-        if (!storyMode) return
-        ui.pageLabel = "Page ${pageIndex + 1} of ${pages.size}"
+        if (!storyMode || preparingSession != null) return
+        ui.pageLabel = getString(R.string.reader_page, pageIndex + 1, pages.size)
         ui.canGoPrevious = pageIndex > 0
         ui.canGoNext = pageIndex < pages.size - 1
     }
 
     private fun startPlayer(): Boolean {
+        if (!canStartPlayback()) return false
         val player = mediaPlayer ?: return false
         if (!requestAudioFocus()) return false
         return try {
             player.start()
+            ui.readingComplete = false
+            playbackActive = true
             playbackStarted = true
             pages.getOrNull(pageIndex)?.pageId?.takeIf { it.isNotEmpty() }?.let(pagesRead::add)
-            ui.guidance = "Reading aloud"
-            ui.readLabel = "Pause"
+            ui.playbackStatus = R.string.reader_speaking
+            ui.readLabel = R.string.reader_pause
             ui.speaking = true
             true
         } catch (_: IllegalStateException) {
@@ -282,34 +434,75 @@ class CharacterReaderActivity : ComponentActivity() {
     }
 
     private fun showAudioRetry() {
-        ui.guidance = "Audio couldn't play - Tap Retry"
-        ui.readLabel = "Retry"
+        playbackActive = false
+        ui.playbackStatus = R.string.reader_audio_retry
+        ui.readLabel = R.string.reader_retry
         ui.speaking = false
     }
 
     private fun togglePlayback() {
-        if (!placed) return
-        val player = mediaPlayer ?: return
-        if (player.isPlaying) {
-            player.pause()
-            abandonAudioFocus()
-            ui.guidance = "Reading paused"
-            ui.readLabel = "Resume"
-            ui.speaking = false
+        if (terminal) return
+        automaticStartPending = false
+        // Completion may already be queued and isPlaying false: pausing intent still takes
+        // precedence over autoplay, while a valid success can still advance/preload silently.
+        if (playbackActive || ui.speaking) {
+            pausePlayback()
             return
         }
-
+        if (!canStartPlayback()) return
+        if (ui.readLabel == R.string.reader_retry && !preparePlayer()) {
+            showAudioRetry()
+            return
+        }
         if (!startPlayer()) showAudioRetry()
+    }
+
+    private fun canStartPlayback(): Boolean =
+        resumed && !ui.preparingNarration && !ui.listening && ui.panel == ReaderPanel.NONE &&
+            ReaderPlaybackPolicy.canStart(terminal, placed, ui.moving, ui.trackingReady)
+
+    /** A spatial gate closing between clips is a pause, not an audio failure. */
+    private fun startPreparedPlayerOrPause() {
+        if (terminal) return
+        if (!canStartPlayback()) {
+            showPlaybackPaused()
+        } else if (!startPlayer()) {
+            showAudioRetry()
+        }
+    }
+
+    private fun showPlaybackPaused() {
+        playbackActive = false
+        ui.playbackStatus = R.string.reader_paused
+        ui.readLabel = R.string.reader_resume
+        ui.speaking = false
+    }
+
+    /** Does not seek or recreate the player: moving/tracking/lifecycle preserve clip position. */
+    private fun pausePlayback() {
+        automaticStartPending = false
+        if (!playbackActive && !ui.speaking) return
+        // Invalidate autoplay/error intent before any player/focus operation. A queued success
+        // from this same player is still consumed without resuming narration.
+        showPlaybackPaused()
+        runCatching { mediaPlayer?.pause() }
+        abandonAudioFocus()
+    }
+
+    /** An explicit UI interruption also invalidates delayed permission and automatic-start intent. */
+    private fun interruptPlayback() {
+        pendingVoice = false
+        voice.cancel()
+        if (ui.panel == ReaderPanel.VOICE) ui.dismissPanel()
+        pausePlayback()
     }
 
     private val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
             focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
         ) {
-            mediaPlayer?.pause()
-            ui.guidance = "Reading paused"
-            ui.readLabel = "Resume"
-            ui.speaking = false
+            automaticStartPending = false
+            pausePlayback()
         }
     }
 
@@ -369,9 +562,11 @@ class CharacterReaderActivity : ComponentActivity() {
     }
 
     private fun releaseAudio() {
-        abandonAudioFocus()
-        mediaPlayer?.release()
+        playbackActive = false
+        val previousPlayer = mediaPlayer
         mediaPlayer = null
+        abandonAudioFocus()
+        previousPlayer?.release()
     }
 
     private fun modelExists(): Boolean {
@@ -386,6 +581,9 @@ class CharacterReaderActivity : ComponentActivity() {
     private fun finishWith(code: String) {
         if (terminal) return
         terminal = true
+        preparingSession?.onChanged = null
+        pendingVoice = false
+        voice.cancel()
         releaseAudio()
         val resultCode = if (code == CharacterReaderResultMapper.COMPLETED) {
             RESULT_OK
@@ -410,12 +608,14 @@ class CharacterReaderActivity : ComponentActivity() {
     }
 
     companion object {
+        const val EXTRA_PREPARING_SESSION_ID = "storybook_ar.character_reader.PREPARING_SESSION_ID"
+        const val EXTRA_EXPERIMENTAL_DEPTH = "storybook_ar.character_reader.EXPERIMENTAL_DEPTH"
         const val EXTRA_AUDIO_FILE_PATH = "storybook_ar.character_reader.AUDIO_FILE_PATH"
         const val EXTRA_PAGES_JSON = "storybook_ar.character_reader.PAGES_JSON"
         const val EXTRA_INITIAL_PAGE_INDEX = "storybook_ar.character_reader.INITIAL_PAGE_INDEX"
         const val EXTRA_MODEL_ASSET_FILE_NAME = "storybook_ar.character_reader.MODEL_ASSET_FILE_NAME"
 
         /** Default fallback whenever no (valid) model name arrives on the intent. */
-        const val MODEL_FILENAME = "scan_any_page_character.glb"
+        const val MODEL_FILENAME = "little_buddy.glb"
     }
 }

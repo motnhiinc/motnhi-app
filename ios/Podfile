@@ -1,5 +1,6 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+platform :ios, '15.0'
+
+require 'json'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -27,6 +28,16 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# Keep this project on CocoaPods, even with Flutter SDKs that default to SPM.
+# Regenerate plugin metadata through ios/flutter_cocoapods.sh before installing.
+plugin_metadata_path = File.expand_path('../.flutter-plugins-dependencies', __dir__)
+if File.exist?(plugin_metadata_path)
+  plugin_metadata = JSON.parse(File.read(plugin_metadata_path))
+  if plugin_metadata.dig('swift_package_manager_enabled', 'ios')
+    raise 'Regenerate CocoaPods metadata from the project root: bash ios/flutter_cocoapods.sh build ios --simulator --debug --config-only --no-pub (this project uses CocoaPods, not SPM).'
+  end
+end
+
 target 'Runner' do
   use_frameworks!
 
@@ -39,5 +50,11 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    target.build_configurations.each do |configuration|
+      deployment_target = configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+      if deployment_target && Gem::Version.new(deployment_target) < Gem::Version.new('15.0')
+        configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
+    end
   end
 end

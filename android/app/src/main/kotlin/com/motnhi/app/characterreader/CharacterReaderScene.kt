@@ -1,99 +1,119 @@
 package com.motnhi.app.characterreader
 
-import android.view.MotionEvent
+import android.os.SystemClock
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.google.ar.core.Config
-import com.google.ar.core.Plane
-import com.google.ar.core.TrackingState
+import com.google.ar.core.*
 import com.google.android.filament.gltfio.FilamentInstance
-import com.google.ar.core.Anchor
+import com.motnhi.app.R
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.rememberEngine
 import io.github.sceneview.rememberMaterialLoader
 import io.github.sceneview.rememberModelLoader
+import io.github.sceneview.rememberScene
+import io.github.sceneview.ar.rememberARCameraStream
+import io.github.sceneview.ar.scene.PlaneRenderer
+import android.util.Size
 
-/**
- * Screen state the activity drives. The audio and lifecycle logic lives on the activity, exactly as
- * it did when this was a View hierarchy; only the rendering moved to Compose, because SceneView 4.x
- * exposes ARScene as a composable and ships no Android View.
- */
 internal class ReaderUiState {
-    var guidance by mutableStateOf(GUIDANCE_PREPARING)
-    var readLabel by mutableStateOf("Read")
+    var automaticScan by mutableStateOf(false)
+    var preparingNarration by mutableStateOf(false)
+    var readingComplete by mutableStateOf(false)
+    var manualPlacementAvailable by mutableStateOf(false)
+    var guidance by mutableStateOf(R.string.reader_preparing)
+    var playbackStatus by mutableStateOf(R.string.reader_ready)
+    var readLabel by mutableStateOf(R.string.reader_read)
     var controlsVisible by mutableStateOf(false)
     var speaking by mutableStateOf(false)
-
-    /** Empty in the single-clip scan-any-page flow, which has no pages to move between. */
+    var moving by mutableStateOf(false)
+    var canPlace by mutableStateOf(false)
+    var trackingReady by mutableStateOf(false)
+    var needsReposition by mutableStateOf(false)
+    var placeRequested by mutableStateOf(false)
     var pageLabel by mutableStateOf("")
     var canGoPrevious by mutableStateOf(false)
     var canGoNext by mutableStateOf(false)
+    var transform by mutableStateOf(ReaderTransform())
+    var listening by mutableStateOf(false)
+    var voiceStatus by mutableStateOf(R.string.reader_voice_hint)
+    var panel by mutableStateOf(ReaderPanel.NONE)
+
+    val playback: ReaderPlaybackState get() = when {
+        preparingNarration -> ReaderPlaybackState.PREPARING
+        readingComplete -> ReaderPlaybackState.COMPLETED
+        speaking -> ReaderPlaybackState.READING
+        readLabel == R.string.reader_resume -> ReaderPlaybackState.PAUSED
+        else -> ReaderPlaybackState.READY
+    }
+
+    fun openPanel(next: ReaderPanel, interrupt: () -> Unit) {
+        interrupt()
+        panel = next
+    }
+
+    fun dismissPanel() { panel = ReaderPanel.NONE }
+
+    fun beginMove(interrupt: () -> Unit) {
+        interrupt()
+        dismissPanel()
+        canPlace = false
+        placeRequested = false
+        moving = true
+    }
+
+    fun cancelMove() {
+        moving = false
+        placeRequested = false
+    }
 }
 
-internal const val GUIDANCE_PREPARING = "Preparing character reader"
-internal const val GUIDANCE_LOADING = "Loading character"
-internal const val GUIDANCE_SEARCHING = "Move the phone slowly to find a table"
-internal const val GUIDANCE_SURFACE_FOUND = "Table found - Tap to place the character"
-internal const val GUIDANCE_READY = "Character ready"
+internal enum class ReaderPanel { NONE, MORE, ADJUSTMENTS, VOICE }
+internal enum class ReaderPlaybackState { PREPARING, READY, READING, PAUSED, COMPLETED }
 
-/** Uniform size the character is scaled to, in metres. Matches the iOS reader. */
-private const val MODEL_SIZE_METERS = 0.35f
+internal enum class ReaderCompletionAction { SCAN, NEXT, EXIT }
+internal fun readerCompletionAction(canScan: Boolean, canGoNext: Boolean) = when {
+    canScan -> ReaderCompletionAction.SCAN
+    canGoNext -> ReaderCompletionAction.NEXT
+    else -> ReaderCompletionAction.EXIT
+}
 
 @Composable
 internal fun CharacterReaderScreen(
     state: ReaderUiState,
     modelAssetFileName: String,
+    experimentalDepth: Boolean = false,
     onFailure: (String) -> Unit,
     onPlaced: () -> Unit,
     onReadClick: () -> Unit,
+    onVoiceClick: () -> Unit,
     onPreviousClick: () -> Unit,
     onNextClick: () -> Unit,
+    onPausePlayback: () -> Unit,
     onCloseClick: () -> Unit,
+    onFrameReady: () -> Unit = {},
+    onListenWithoutAr: (() -> Unit)? = null,
+    onScanNextPage: (() -> Unit)? = null,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-    ) {
-        // Deliberately not passed the page state: page turns must not recompose the AR scene,
-        // because the placed anchor lives in its remembered state.
-        CharacterReaderArScene(
-            state = state,
-            modelAssetFileName = modelAssetFileName,
-            onFailure = onFailure,
-            onPlaced = onPlaced,
-        )
-        Overlay(
-            state = state,
-            onReadClick = onReadClick,
-            onPreviousClick = onPreviousClick,
-            onNextClick = onNextClick,
-            onCloseClick = onCloseClick,
-        )
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        CharacterReaderArScene(state, modelAssetFileName, experimentalDepth, onFailure, onPlaced, onPausePlayback, onFrameReady)
+        if (!state.controlsVisible || state.moving) {
+            // Same full-viewport center as the AR hit test, independent of asymmetric insets.
+            Box(Modifier.align(Alignment.Center).size(28.dp)
+                .border(3.dp, if (state.canPlace) Color.Green else Color.White, CircleShape))
+        }
+        ReaderOverlay(state, onReadClick, onVoiceClick, onPreviousClick, onNextClick, onPausePlayback, onCloseClick, onListenWithoutAr, onScanNextPage)
     }
 }
 
@@ -101,250 +121,347 @@ internal fun CharacterReaderScreen(
 private fun CharacterReaderArScene(
     state: ReaderUiState,
     modelAssetFileName: String,
+    experimentalDepth: Boolean,
     onFailure: (String) -> Unit,
     onPlaced: () -> Unit,
+    onPausePlayback: () -> Unit,
+    onFrameReady: () -> Unit,
 ) {
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
     val materialLoader = rememberMaterialLoader(engine)
-    var placedAnchor by remember { mutableStateOf<Anchor?>(null) }
-    val placed = placedAnchor != null
-    var pendingTapX by remember { mutableStateOf<Float?>(null) }
-    var pendingTapY by remember { mutableStateOf<Float?>(null) }
-    var modelInstance by remember { mutableStateOf<FilamentInstance?>(null) }
-
-    // Loaded off the main thread. createModelInstance() is a blocking file read plus glTF parse,
-    // which would jank the reader's first frame in proportion to the model size. iOS loads
-    // asynchronously behind the same "Loading character" step. A missing .glb is already caught
-    // as model_missing before this screen is shown, so a failure here is a real parse failure.
-    LaunchedEffect(modelAssetFileName) {
-        state.guidance = GUIDANCE_LOADING
-        val loaded = runCatching { modelLoader.loadModelInstance(modelAssetFileName) }.getOrNull()
-        if (loaded == null) {
-            onFailure("model_load_failed")
-        } else {
-            modelInstance = loaded
-            state.guidance = GUIDANCE_SEARCHING
+    val scene = rememberScene(engine)
+    val cameraStream = rememberARCameraStream(materialLoader)
+    // Own exactly one supported V1 receiver. Built-in renderer below is disabled to avoid
+    // duplicate grids/shadows. Visibility and shadow receiving are independent in 4.18.
+    val planes = remember(engine, materialLoader, scene) { PlaneRenderer(engine, materialLoader, scene) }
+    val sceneStarted = remember { SystemClock.elapsedRealtime() }
+    val diagnostics = remember { ReaderDiagnostics(sceneStarted) }
+    fun mark(name: String) {
+        if (diagnostics.mark(name, SystemClock.elapsedRealtime())) {
+            android.util.Log.i("ReaderAR", "$name=${diagnostics.elapsed(name)}ms")
         }
     }
-
-    // Deliberately no surface-hunting timeout. iOS keeps searching for as long as the reader is
-    // open, and `ar_surface_not_found` is not in the method-channel contract on either platform:
-    // CharacterReaderResultMapper would not recognise it, so it would reach Dart as `cancelled`,
-    // reporting a failure as a deliberate user cancel. Giving up is the user's call, via Close.
-
-    val loadedModel = modelInstance ?: return
-
+    var depthSupported by remember { mutableStateOf<Boolean?>(null) }
+    // Depth sensing verifies placement in production. Occlusion remains a separate opt-in.
+    val requestedDepthMode = if (ReaderDepthPolicy.requestAutomatic(true, depthSupported))
+        Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
+    val observedDepthMode = remember { arrayOfNulls<Config.DepthMode>(1) }
+    DisposableEffect(planes) { onDispose {
+        planes.destroy()
+        android.util.Log.i("ReaderAR", "timings modelReady=${diagnostics.elapsed("modelReady")} firstFrame=${diagnostics.elapsed("firstFrame")} validPlacement=${diagnostics.elapsed("validPlacement")} placedFrame=${diagnostics.elapsed("placedFrame")} validDepth=${diagnostics.elapsed("validDepth")}")
+    } }
+    val placement = remember { PlacementTransaction<Anchor>() }
+    val tracking = remember { TrackingLossDebouncer() }
+    val surfaceStability = remember { ReaderSurfaceStability<Plane>() }
+    val surfaceVerification = remember { ReaderSurfaceVerification<Plane>() }
+    val depthStability = remember { ReaderSurfaceStability<Plane>(settleMillis = 350L) }
+    val depthSampler = remember { ReaderDepthSampler() }
+    val contactLoss = remember { TrackingLossDebouncer(700L) }
+    var supportingPlane by remember { mutableStateOf<Plane?>(null) }
+    var anchor by remember { mutableStateOf<Anchor?>(null) }
+    var initialAnchor by remember { mutableStateOf<Anchor?>(null) }
+    var anchorNode by remember { mutableStateOf<io.github.sceneview.ar.node.AnchorNode?>(null) }
+    var yaw by remember { mutableStateOf(0f) }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    var model by remember { mutableStateOf<FilamentInstance?>(null) }
+    var geometry by remember { mutableStateOf<ReaderModelGeometry?>(null) }
+    var preview by remember { mutableStateOf<Pose?>(null) }
+    val footprintMaterial = remember(materialLoader) {
+        materialLoader.createColorInstance(Color(0xFF66BB6A))
+    }
+    val checkingMaterial = remember(materialLoader) {
+        materialLoader.createColorInstance(Color(0xFFFFCA28))
+    }
+    // AnchorNode owns detach on replacement/disposal. Keep the node itself stable across moves:
+    // replacing its composable would recursively destroy the still-reused model's entities.
+    LaunchedEffect(modelAssetFileName) {
+        state.guidance = R.string.reader_loading
+        model = runCatching { modelLoader.loadModelInstance(modelAssetFileName) }.getOrNull()
+        geometry = model?.asset?.boundingBox?.let { bounds ->
+            runCatching { ReaderModelGeometry.fromBounds(bounds.center, bounds.halfExtent) }.getOrNull()
+        }
+        if (model == null || geometry == null) onFailure("model_load_failed")
+        else {
+            android.util.Log.i("ReaderAR", "model=$modelAssetFileName geometry=$geometry")
+            mark("modelReady")
+            state.guidance = R.string.reader_searching
+        }
+    }
+    val loadedModel = model
+    val modelGeometry = geometry
+    val footprintRadius = (modelGeometry?.footprintRadius ?: 0.175f) * state.transform.scale
+    val animationNames = remember(loadedModel) {
+        (0 until (loadedModel?.animator?.animationCount ?: 0)).map {
+            requireNotNull(loadedModel)
+            loadedModel.animator.getAnimationName(it)
+        }.toSet()
+    }
     ARSceneView(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().onSizeChanged { size = it }
+            .pointerInput(state.controlsVisible, state.moving, state.trackingReady) {
+                detectTransformGestures { _, _, zoom, rotation ->
+                    // No tap-to-place, translation, pitch or roll. Sibling overlay buttons win
+                    // hit testing; only two-finger zoom/twist changes this foot-pivot transform.
+                    if (state.controlsVisible && !state.moving && state.trackingReady) {
+                        state.transform = state.transform.adjust(zoom, rotation)
+                    }
+                }
+            },
         engine = engine,
+        scene = scene,
+        cameraStream = cameraStream,
         modelLoader = modelLoader,
         materialLoader = materialLoader,
-        planeRenderer = !placed,
+        planeRenderer = false,
         planeFindingMode = Config.PlaneFindingMode.HORIZONTAL,
-        sessionConfiguration = { _, config ->
-            config.lightEstimationMode = Config.LightEstimationMode.AMBIENT_INTENSITY
+        // Accuracy over speed: never invent a depth while ARCore is finding the floor.
+        instantPlacementMode = Config.InstantPlacementMode.DISABLED,
+        depthMode = requestedDepthMode,
+        sessionConfiguration = { session, config ->
+            // 4.18.0 consumes estimates for both main light and IBL, retaining baseline
+            // lighting for incomplete estimates.
+            config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
+            config.focusMode = Config.FocusMode.AUTO
+            val supported = session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
+            depthSupported = supported
+            // Start disabled until capability is known. Recomposition then updates the typed
+            // parameter, whose 4.18 LaunchedEffect owns reactive session reconfiguration.
+            // Do not independently set AUTOMATIC here: an older typed value would undo it.
+            config.depthMode = if (supported) requestedDepthMode else Config.DepthMode.DISABLED
+            android.util.Log.i("ReaderAR", "depth supported=$depthSupported configured=${config.depthMode} occlusion=$experimentalDepth")
         },
         onSessionFailed = { onFailure("ar_failed") },
         onSessionUpdated = { session, frame ->
-            // Guard on the state itself rather than the `placed` snapshot captured when these
-            // lambdas were composed: the library only swaps in fresh lambdas on recomposition, so
-            // a second tap arriving in the same frame would otherwise place a second anchor and
-            // leak the first.
-            if (placedAnchor == null) {
-                // Recomputed from all tracked planes each frame, not latched, so guidance reverts
-                // when tracking is lost. Matches iOS.
-                val guidance = if (
-                    session.getAllTrackables(Plane::class.java).any { plane ->
-                        plane.trackingState == TrackingState.TRACKING &&
-                            plane.type == Plane.Type.HORIZONTAL_UPWARD_FACING
-                    }
-                ) {
-                    GUIDANCE_SURFACE_FOUND
-                } else {
-                    GUIDANCE_SEARCHING
-                }
-                if (state.guidance != guidance) {
-                    state.guidance = guidance
-                }
-
-                val tapX = pendingTapX
-                val tapY = pendingTapY
-                if (tapX != null && tapY != null) {
-                    // ARCore Frames are only valid inside the update callback, so the tap is
-                    // recorded on the touch event and consumed here against a live frame.
-                    pendingTapX = null
-                    pendingTapY = null
-                    val hit = frame.hitTest(tapX, tapY).firstOrNull { hitResult ->
-                        val trackable = hitResult.trackable
-                        trackable is Plane &&
-                            trackable.type == Plane.Type.HORIZONTAL_UPWARD_FACING &&
-                            trackable.isPoseInPolygon(hitResult.hitPose)
-                    }
-                    if (hit != null) {
-                        placedAnchor = hit.createAnchor()
-                        onPlaced()
-                    }
-                }
+            state.manualPlacementAvailable = SystemClock.elapsedRealtime() - sceneStarted >= 8000
+            val effectiveDepthMode = session.config.depthMode
+            if (observedDepthMode[0] != effectiveDepthMode) {
+                observedDepthMode[0] = effectiveDepthMode
+                android.util.Log.i("ReaderAR", "observedDepth=$effectiveDepthMode requested=$requestedDepthMode supported=$depthSupported")
             }
-        },
-        onTouchEvent = { motionEvent, _ ->
-            if (placedAnchor == null && motionEvent.actionMasked == MotionEvent.ACTION_UP) {
-                pendingTapX = motionEvent.x
-                pendingTapY = motionEvent.y
+            if (diagnostics.elapsed("firstFrame") == null) {
+                android.util.Log.i("ReaderAR", "hdr=${session.config.lightEstimationMode} shadows=V1")
+                mark("firstFrame")
             }
-            false
+            val cameraTracked = frame.camera.trackingState == TrackingState.TRACKING
+            if (anchor != null) mark("placedFrame")
+            if (size.width > 0 && size.height > 0) {
+                planes.viewSize = Size(size.width, size.height)
+                planes.isVisible = anchor == null || state.moving
+                planes.isShadowReceiver = true
+                planes.update(session, frame)
+            }
+            // SceneView uploads depth before this callback. Validate this live image before
+            // drawing; on first enable upload once more so no uninitialised texture is used.
+            val configured = effectiveDepthMode == Config.DepthMode.AUTOMATIC
+            val validDepth = if (experimentalDepth && depthSupported == true && configured && cameraTracked) {
+                runCatching { frame.acquireDepthImage16Bits().use { image ->
+                    val plane = image.planes[0]
+                    val buffer = plane.buffer
+                    // Cheap centre-region samples reject empty depth; no scan/allocation/log per frame.
+                    val fresh = image.timestamp > 0 && frame.timestamp >= image.timestamp &&
+                        frame.timestamp - image.timestamp <= 250_000_000L
+                    fresh && (1..3).any { y -> (1..3).any { x ->
+                        val index = (image.height * y / 4) * plane.rowStride +
+                            (image.width * x / 4) * plane.pixelStride
+                        index + 1 < buffer.limit() &&
+                            ((buffer.get(index).toInt() and 255) or
+                                ((buffer.get(index + 1).toInt() and 255) shl 8)) > 0
+                    } }
+                } }.getOrDefault(false)
+            } else false
+            val occlude = ReaderDepthPolicy.enable(experimentalDepth, depthSupported == true, configured,
+                cameraTracked, validDepth)
+            val enabling = occlude && !cameraStream.isDepthOcclusionEnabled
+            cameraStream.isDepthOcclusionEnabled = occlude
+            if (enabling) cameraStream.update(session, frame)
+            if (occlude) mark("validDepth")
+            // Follow plane merges. An anchor can keep TRACKING even after its supporting
+            // surface has been refined away from the feet, so anchor tracking alone is insufficient.
+            var support = supportingPlane
+            while (support?.subsumedBy != null) support = support.subsumedBy
+            supportingPlane = support
+            val placed = anchor
+            val contactValid = placed == null || (support != null &&
+                ReaderPlacementGeometry.supportedContact(
+                    support.trackingState == TrackingState.TRACKING,
+                    support.isPoseInPolygon(placed.pose),
+                    support.centerPose.inverse().compose(placed.pose).ty()))
+            val tracked = cameraTracked && (placed == null || placed.trackingState == TrackingState.TRACKING)
+            state.trackingReady = tracked && contactValid
+            val trackingLost = tracking.update(tracked, SystemClock.elapsedRealtime())
+            val contactLost = contactLoss.update(placed == null || !cameraTracked || contactValid,
+                SystemClock.elapsedRealtime())
+            val anchorStopped = anchor?.trackingState == TrackingState.STOPPED
+            val previouslyLost = state.needsReposition
+            state.needsReposition = anchor != null && (trackingLost || anchorStopped || contactLost ||
+                (previouslyLost && !state.trackingReady))
+            // A brief pause retains the pose. Once it is unreliable, explain the loss rather
+            // than displaying a guessed world position or silently creating a replacement anchor.
+            anchorNode?.isVisible = !state.needsReposition
+            if (state.needsReposition && !previouslyLost) onPausePlayback()
+            if (!cameraTracked || trackingLost || anchorStopped) {
+                state.guidance = when (frame.camera.trackingFailureReason) {
+                    TrackingFailureReason.INSUFFICIENT_LIGHT -> R.string.reader_light
+                    TrackingFailureReason.EXCESSIVE_MOTION -> R.string.reader_slow
+                    else -> R.string.reader_recover
+                }
+            } else if (contactLost && !state.moving) {
+                state.guidance = R.string.reader_contact_lost
+            } else if (tracked && anchor != null && !state.moving) {
+                state.guidance = R.string.reader_ready
+            }
+            if (state.moving) placement.beginMove() else placement.cancel()
+            if (anchor == null || state.moving) {
+                val nearestSurface = if (cameraTracked && size.width > 0 && size.height > 0) {
+                    frame.hitTest(size.width / 2f, size.height / 2f).firstOrNull { result ->
+                        val plane = result.trackable as? Plane
+                        plane != null && ReaderPresentationPolicy.canPlace(
+                            cameraTracked,
+                            plane.trackingState == TrackingState.TRACKING,
+                            plane.type == Plane.Type.HORIZONTAL_UPWARD_FACING,
+                            plane.isPoseInPolygon(result.hitPose),
+                        ) && plane.subsumedBy == null
+                    }
+                } else null
+                // Never look through a small/unsuitable foreground surface to a farther plane.
+                val inRange = nearestSurface != null && nearestSurface.distance in 0.25f..3.0f
+                val lookingDown = nearestSurface != null &&
+                    (frame.camera.pose.ty() - nearestSurface.hitPose.ty()) / nearestSurface.distance >= 0.25f
+                val hasRoom = nearestSurface != null && footprintFits(nearestSurface.trackable as Plane,
+                    nearestSurface.hitPose, footprintRadius)
+                val hit = nearestSurface?.takeIf { inRange && lookingDown && hasRoom }
+                val measuredDepth = if (hit != null && configured && cameraTracked) {
+                    depthSampler.sample(frame, size.width / 2f, size.height / 2f)
+                } else null
+                val agreement = ReaderPlacementGeometry.depthAgreement(
+                    hit?.let { -frame.camera.pose.inverse().compose(it.hitPose).tz() } ?: 0f,
+                    measuredDepth)
+                if (agreement == ReaderDepthAgreement.CONFLICT) {
+                    surfaceStability.reset()
+                    surfaceVerification.reset()
+                }
+                val pose = hit?.hitPose
+                val surfaceVerified = surfaceVerification.update(hit?.trackable as? Plane,
+                    pose?.ty() ?: 0f, frame.camera.pose.tx(), frame.camera.pose.tz(),
+                    frame.timestamp / 1_000_000)
+                val targetSettled = surfaceStability.update(hit?.trackable as? Plane,
+                    pose?.tx() ?: 0f, pose?.ty() ?: 0f, pose?.tz() ?: 0f, frame.timestamp / 1_000_000)
+                // A single matching depth frame must not trigger automatic placement.
+                val depthSettled = depthStability.update(
+                    (hit?.trackable as? Plane).takeIf { agreement == ReaderDepthAgreement.MATCH },
+                    pose?.tx() ?: 0f, pose?.ty() ?: 0f, pose?.tz() ?: 0f, frame.timestamp / 1_000_000)
+                state.canPlace = surfaceVerified && targetSettled && modelGeometry != null &&
+                    agreement != ReaderDepthAgreement.CONFLICT
+                if (state.canPlace) mark("validPlacement")
+                // The center hit, footprint and eventual anchor are identical (no lagging smoothed
+                // pose that would make the visible preview differ from the committed placement).
+                preview = hit?.hitPose
+                if (cameraTracked) {
+                    state.guidance = when {
+                        nearestSurface == null -> R.string.reader_searching
+                        !inRange -> R.string.reader_distance
+                        !lookingDown -> R.string.reader_aim_down
+                        !hasRoom -> R.string.reader_more_room
+                        agreement == ReaderDepthAgreement.CONFLICT -> R.string.reader_depth_conflict
+                        !surfaceVerified -> R.string.reader_verify_surface
+                        !state.canPlace -> R.string.reader_surface_settling
+                        state.automaticScan && !state.moving && depthSupported != false &&
+                            !depthSettled -> R.string.reader_depth_waiting
+                        else -> R.string.reader_surface
+                    }
+                }
+                val autoPlace = ReaderPlacementGeometry.automaticPlacement(state.automaticScan,
+                    state.moving, state.canPlace, depthSupported,
+                    if (depthSettled) agreement else ReaderDepthAgreement.UNAVAILABLE)
+                if (state.placeRequested || autoPlace) {
+                    state.placeRequested = false
+                    // Consume only this live frame's validated hit, never a retained HitResult.
+                    if (hit != null && state.canPlace && loadedModel != null) {
+                        val next = runCatching { hit.createAnchor() }.getOrNull()
+                        if (next != null) {
+                            val localCamera = next.pose.inverse().transformPoint(frame.camera.pose.translation)
+                            val previousAnchor = anchor
+                            yaw = if (previousAnchor == null) {
+                                ReaderPresentationPolicy.viewerYawDegrees(localCamera[0], localCamera[2],
+                                    ReaderPresentationPolicy.forwardOffsetDegrees(modelAssetFileName))
+                            } else {
+                                // Preserve world heading when two horizontal planes use different
+                                // local coordinate frames; retain the user's relative yaw and scale.
+                                val radians = Math.toRadians(yaw.toDouble())
+                                val forward = floatArrayOf(kotlin.math.sin(radians).toFloat(), 0f,
+                                    kotlin.math.cos(radians).toFloat())
+                                val nextForward = next.pose.inverse().rotateVector(
+                                    previousAnchor.pose.rotateVector(forward))
+                                ReaderPresentationPolicy.viewerYawDegrees(nextForward[0], nextForward[2])
+                            }
+                            placement.confirm(next)
+                            val existingNode = anchorNode
+                            if (existingNode != null) existingNode.anchor = next
+                            else initialAnchor = next
+                             anchor = next
+                             supportingPlane = hit.trackable as Plane
+                             contactLoss.update(true, SystemClock.elapsedRealtime())
+                             android.util.Log.i("ReaderAR", "placed distance=${hit.distance} depth=$agreement automatic=$autoPlace footprint=$footprintRadius")
+                            state.moving = false
+                            state.needsReposition = false
+                             surfaceStability.reset()
+                             surfaceVerification.reset()
+                             depthStability.reset()
+                            preview = null
+                            onPlaced()
+                        }
+                    }
+                }
+            } else {
+                surfaceStability.reset()
+                surfaceVerification.reset()
+                depthStability.reset()
+                preview = null
+                state.canPlace = false
+            }
+            onFrameReady()
         },
     ) {
-        val anchor = placedAnchor
-        if (anchor != null) {
-            AnchorNode(anchor = anchor) {
-                ModelNode(
-                    modelInstance = loadedModel,
-                    autoAnimate = true,
-                    scaleToUnits = MODEL_SIZE_METERS,
-                    // Centred in X and Z, resting on the plane in Y.
-                    centerOrigin = Float3(0.0f, -1.0f, 0.0f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Overlay(
-    state: ReaderUiState,
-    onReadClick: () -> Unit,
-    onPreviousClick: () -> Unit,
-    onNextClick: () -> Unit,
-    onCloseClick: () -> Unit,
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        OverlayButton(
-            label = "Close",
-            onClick = onCloseClick,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-                .defaultMinSize(minWidth = 88.dp, minHeight = 48.dp),
-        )
-
-        BasicText(
-            text = state.guidance,
-            style = TextStyle(color = Color.White, fontSize = 18.sp, textAlign = TextAlign.Center),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 24.dp, start = 120.dp, end = 16.dp)
-                .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        )
-
-        if (state.controlsVisible) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                if (state.pageLabel.isNotEmpty()) {
-                    BasicText(
-                        text = state.pageLabel,
-                        style = TextStyle(color = Color.White, fontSize = 15.sp),
-                        modifier = Modifier
-                            .padding(bottom = 10.dp)
-                            .background(
-                                Color.Black.copy(alpha = 0.65f),
-                                RoundedCornerShape(10.dp),
-                            )
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
+        val committed = initialAnchor
+        if (committed != null && loadedModel != null && modelGeometry != null) {
+            AnchorNode(anchor = committed,
+                visibleTrackingStates = setOf(TrackingState.TRACKING, TrackingState.PAUSED),
+                apply = {
+                    isEditable = false
+                    // SceneView defaults to TRACKING only, causing immediate disappearance on
+                    // PAUSED. It already retains the last pose until tracking resumes.
+                    visibleCameraTrackingStates = setOf(TrackingState.TRACKING, TrackingState.PAUSED)
+                    anchorNode = this
+                }) {
+                // Transform the model AND its foot offset together; scaling preserves contact.
+                Node(scale = Float3(state.transform.scale),
+                    rotation = Float3(0f, yaw + state.transform.yaw, 0f),
+                    isVisible = !state.needsReposition) {
+                    ModelNode(
+                        modelInstance = loadedModel,
+                        autoAnimate = false,
+                        animationName = ReaderPresentationPolicy.animationName(state.speaking, animationNames),
+                        // SceneView 4.18 centerOrigin uses origin * size, ignoring the asset
+                        // bounds' center/minimum. Compute the actual bottom-center explicitly.
+                        scale = Float3(modelGeometry.scale),
+                        position = Float3(modelGeometry.x, modelGeometry.y, modelGeometry.z),
                     )
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    if (state.speaking) {
-                        SpeakingBadge()
-                    }
-                    if (state.pageLabel.isNotEmpty()) {
-                        OverlayButton(
-                            label = "Back",
-                            onClick = onPreviousClick,
-                            enabled = state.canGoPrevious,
-                            modifier = Modifier
-                                .padding(end = 10.dp)
-                                .defaultMinSize(minWidth = 96.dp, minHeight = 56.dp),
-                        )
-                    }
-                    OverlayButton(
-                        label = state.readLabel,
-                        onClick = onReadClick,
-                        modifier = Modifier.defaultMinSize(minWidth = 148.dp, minHeight = 56.dp),
-                    )
-                    if (state.pageLabel.isNotEmpty()) {
-                        OverlayButton(
-                            label = "Next",
-                            onClick = onNextClick,
-                            enabled = state.canGoNext,
-                            modifier = Modifier
-                                .padding(start = 10.dp)
-                                .defaultMinSize(minWidth = 96.dp, minHeight = 56.dp),
-                        )
-                    }
-                }
+            }
+        }
+        ReaderPresentationPolicy.visiblePreview(anchor != null, state.moving, preview)?.let { pose ->
+            PoseNode(pose = pose) {
+                CylinderNode(radius = footprintRadius, height = 0.002f,
+                    position = Float3(0f, 0.002f, 0f),
+                    materialInstance = if (state.canPlace) footprintMaterial else checkingMaterial)
             }
         }
     }
 }
 
-@Composable
-private fun OverlayButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    Box(
-        modifier = modifier
-            .background(
-                if (enabled) Color(0xFF3F51B5) else Color(0xFF3F51B5).copy(alpha = 0.35f),
-                RoundedCornerShape(14.dp),
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        BasicText(
-            text = label,
-            style = TextStyle(
-                color = if (enabled) Color.White else Color.White.copy(alpha = 0.55f),
-                fontSize = 16.sp,
-            ),
-        )
-    }
-}
-
-/**
- * Static stand-in for the animated wave bars on iOS. The indicator is present and driven by the
- * same playback state; it just does not animate.
- */
-@Composable
-private fun SpeakingBadge() {
-    Row(
-        modifier = Modifier
-            .padding(end = 14.dp)
-            .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(12.dp))
-            .padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        listOf(14.dp, 22.dp, 14.dp).forEach { barHeight ->
-            Box(
-                modifier = Modifier
-                    .size(width = 6.dp, height = barHeight)
-                    .background(Color.Green, RoundedCornerShape(2.dp)),
-            )
-        }
-    }
-}
+/** All four corners of the conservative character footprint must be on the measured plane. */
+private fun footprintFits(plane: Plane, pose: Pose, radius: Float): Boolean =
+    listOf(-radius, radius).all { x -> listOf(-radius, radius).all { z ->
+        plane.isPoseInPolygon(pose.compose(Pose.makeTranslation(x, 0f, z)))
+    } }

@@ -12,7 +12,6 @@ import '../../shared/widgets/async_views.dart';
 import '../../shared/widgets/big_play_button.dart';
 import '../../shared/widgets/storybook/storybook.dart';
 import '../ar/ar_character.dart';
-import '../ar/ar_character_providers.dart';
 import '../ar/ar_diagnostics_disclosure.dart';
 import '../ar/ar_preparing_dialog.dart';
 import '../ar/ar_reader_diagnostic.dart';
@@ -219,51 +218,6 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
     }
   }
 
-  /// Lets the reader pick which character joins them in AR. Dismissing the
-  /// sheet without a choice means "no AR": we return quietly with the player
-  /// still paused, and no error dialog for what is simply a change of mind.
-  Future<ArCharacter?> _chooseArCharacter() {
-    final s = AppLocalizations.of(context)!;
-    final selected = ref.read(selectedArCharacterProvider);
-    return showModalBottomSheet<ArCharacter>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        // shrinkWrap + Flexible: the list takes its natural height when there
-        // is room, and scrolls instead of overflowing on short/landscape
-        // screens where seven rows cannot fit.
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Text(
-                s.chooseArFriend,
-                style: Theme.of(sheetContext).textTheme.titleMedium,
-              ),
-            ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final character in arCharacters)
-                    ListTile(
-                      leading: const Icon(Icons.toys_rounded),
-                      title: Text(character.displayName),
-                      trailing: character.id == selected.id
-                          ? const Icon(Icons.check_rounded)
-                          : null,
-                      onTap: () => Navigator.of(sheetContext).pop(character),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _openArReader() async {
     if (_arBusy) return;
     _arBusy = true;
@@ -271,19 +225,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       await _player.pause();
       if (!mounted) return;
 
-      final character = await _chooseArCharacter();
-      if (!mounted || character == null) return;
-
-      // Persisted before AR opens on purpose: an attempt that later fails must
-      // not throw away the reader's choice — the same friend is preselected
-      // next time.
-      await ref.read(selectedArCharacterProvider.notifier).select(character);
-      if (!mounted) return;
-
       final controller = ArReaderController(
         detail: widget.detail,
         reader: ref.read(storyReaderProvider),
-        character: character,
+        character: dinosaurCharacter,
         resolver: ref.read(assetUrlResolverProvider),
         fetcher: _fetcher,
         tts: ref.read(ttsFileSynthesizerProvider),
@@ -293,7 +238,8 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
         // clip written there fails containment and AR returns audio_missing. This is
         // the same platform split main.dart already applies to TTS; on iOS the
         // provider is null and systemTemp (NSTemporaryDirectory) is correct.
-        directory: ref.read(ttsTemporaryDirectoryProvider)?.call() ??
+        directory:
+            ref.read(ttsTemporaryDirectoryProvider)?.call() ??
             Directory.systemTemp,
         initialPageIndex: _pageIndex,
       );
@@ -308,8 +254,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
       _arLiveDisposer = disposer;
       liveDisposers.add(disposer);
 
-      final result =
-          await showArPreparingDialog(context, controller: controller);
+      final result = await showArPreparingDialog(
+        context,
+        controller: controller,
+      );
       if (!mounted) return;
 
       if (result == null) {
@@ -523,8 +471,11 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                         color: t.paper,
                         border: Border.all(color: t.line),
                       ),
-                      child: Icon(Icons.arrow_back_rounded,
-                          size: 20, color: t.ink),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        size: 20,
+                        color: t.ink,
+                      ),
                     ),
                   ),
                   Expanded(
@@ -538,14 +489,10 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                         ),
                         const SizedBox(height: 1),
                         Text(
-                          s.pageTitle(
-                            page.pageNumber,
-                            _pages.last.pageNumber,
-                          ),
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(fontSize: 11),
+                          s.pageTitle(page.pageNumber, _pages.last.pageNumber),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(fontSize: 11),
                         ),
                       ],
                     ),
@@ -562,8 +509,11 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                         color: t.paper,
                         border: Border.all(color: t.line),
                       ),
-                      child: Icon(Icons.dark_mode_rounded,
-                          size: 19, color: t.lavender),
+                      child: Icon(
+                        Icons.dark_mode_rounded,
+                        size: 19,
+                        color: t.lavender,
+                      ),
                     ),
                   ),
                 ],
@@ -577,7 +527,9 @@ class _PlayerBodyState extends ConsumerState<_PlayerBody> {
                     color: t.gold.withValues(alpha: .3),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          vertical: 4, horizontal: 12),
+                        vertical: 4,
+                        horizontal: 12,
+                      ),
                       child: Text(
                         s.ttsFallbackBanner,
                         textAlign: TextAlign.center,
@@ -760,20 +712,17 @@ class _PageIllustration extends StatelessWidget {
   }
 
   Widget _placeholder(StitchTokens t) => DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              t.lavenderContainer.withValues(alpha: .45),
-              t.paper,
-            ],
-          ),
-        ),
-        child: Center(
-          child: Text('✦', style: TextStyle(fontSize: 44, color: t.lavender)),
-        ),
-      );
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [t.lavenderContainer.withValues(alpha: .45), t.paper],
+      ),
+    ),
+    child: Center(
+      child: Text('✦', style: TextStyle(fontSize: 44, color: t.lavender)),
+    ),
+  );
 }
 
 class _PlayerControls extends StatelessWidget {

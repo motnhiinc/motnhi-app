@@ -16,6 +16,8 @@ object CharacterReaderResultMapper {
 
     private val failureCodes = setOf(
         CANCELLED,
+        "listen_without_ar",
+        "scan_next_page",
         "ar_unsupported",
         "ar_failed",
         "audio_missing",

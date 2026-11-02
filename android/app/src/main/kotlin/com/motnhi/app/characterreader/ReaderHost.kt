@@ -7,6 +7,7 @@ import androidx.lifecycle.LifecycleOwner
 
 /** The bridge's view of the host activity: can it show something, and can it start the reader. */
 interface ReaderHost {
+    fun launchPreparingReader(sessionId: String, modelAssetFileName: String): Boolean = false
     fun isPresentable(): Boolean
 
     /** Returns false if the reader could not be started, which the bridge maps to `ar_failed`. */
@@ -30,6 +31,26 @@ class ActivityReaderHost(
     private val activity: Activity,
     private val readerRequestCode: Int,
 ) : ReaderHost {
+    override fun launchPreparingReader(sessionId: String, modelAssetFileName: String): Boolean =
+        try {
+            activity.startActivityForResult(
+                Intent(activity, CharacterReaderActivity::class.java)
+                    .putExtra(CharacterReaderActivity.EXTRA_PREPARING_SESSION_ID, sessionId)
+                    .putExtra(CharacterReaderActivity.EXTRA_MODEL_ASSET_FILE_NAME, modelAssetFileName)
+                    .forwardDebugDepth(),
+                readerRequestCode,
+            )
+            true
+        } catch (_: RuntimeException) { false }
+    /** Native debug QA only: no bridge fields and no exported internal reader activity. */
+    private fun Intent.forwardDebugDepth(): Intent = apply {
+        if (com.motnhi.app.BuildConfig.DEBUG) {
+            putExtra(CharacterReaderActivity.EXTRA_EXPERIMENTAL_DEPTH,
+                activity.intent?.getBooleanExtra(
+                    CharacterReaderActivity.EXTRA_EXPERIMENTAL_DEPTH, false) ?: false)
+        }
+    }
+
     override fun isPresentable(): Boolean {
         if (activity.isFinishing || activity.isDestroyed) return false
         val lifecycleOwner = activity as? LifecycleOwner ?: return true
@@ -40,6 +61,7 @@ class ActivityReaderHost(
         try {
             val intent = Intent(activity, CharacterReaderActivity::class.java)
                 .putExtra(CharacterReaderActivity.EXTRA_AUDIO_FILE_PATH, audioPath)
+                .forwardDebugDepth()
             activity.startActivityForResult(intent, readerRequestCode)
             true
         } catch (_: RuntimeException) {
@@ -62,6 +84,7 @@ class ActivityReaderHost(
                     CharacterReaderActivity.EXTRA_MODEL_ASSET_FILE_NAME,
                     modelAssetFileName,
                 )
+                .forwardDebugDepth()
             activity.startActivityForResult(intent, readerRequestCode)
             true
         } catch (_: RuntimeException) {

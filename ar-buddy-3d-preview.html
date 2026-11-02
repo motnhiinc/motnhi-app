@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Little Buddy · First 3D prototype</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f8f7f1;color:#233c35;font-family:system-ui,-apple-system,sans-serif}main{max-width:1140px;margin:auto;padding:30px}header{display:flex;justify-content:space-between;border-bottom:1px solid #dce1d5;padding-bottom:23px;font-size:13px}header strong{font-size:19px}header span{color:#77836f}.layout{display:grid;grid-template-columns:.7fr 1fr;align-items:center;gap:45px;padding:38px 0}.eyebrow{text-transform:uppercase;letter-spacing:2px;color:#738369;font-size:10px;font-weight:700}h1{font-family:Georgia,serif;font-size:62px;font-weight:400;letter-spacing:-2px;line-height:1.04;margin:20px 0}h1 em{color:#64845b}p{color:#71806e;line-height:1.8;font-size:14px}.facts{display:flex;gap:8px;flex-wrap:wrap;margin:25px 0}.facts span{background:#eaf0df;color:#607450;border-radius:20px;padding:8px 12px;font-size:11px}.render{position:relative;background:#eaf0df;border-radius:120px 120px 24px 24px;overflow:hidden}.render img{width:100%;display:block;aspect-ratio:1;object-fit:cover}.render figcaption{text-align:center;font-size:11px;color:#6b7e5d;padding:0 16px 20px}.controls{display:flex;gap:10px}button,a.download{background:#fffef9;border:1px solid #d3ddcc;color:#4e6847;padding:11px 17px;border-radius:25px;font:inherit;font-size:12px;cursor:pointer;text-decoration:none;display:inline-block}button[aria-pressed=true]{background:#2f5140;color:white;border-color:#2f5140}button:focus-visible,a:focus-visible{outline:3px solid #64845b;outline-offset:4px}.downloads{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}footer{border-top:1px solid #dce1d5;padding:22px 0;font-size:11px;color:#84907c;line-height:1.8}figure{margin:0}.note{font-size:12px;margin-top:25px}a{color:#4e6847}@media(max-width:720px){main{padding:22px}.layout{grid-template-columns:1fr;gap:25px}h1{font-size:52px}.render{max-width:550px}header span{font-size:10px}}
+  </style>
+</head>
+<body>
+  <main>
+    <header><strong>little buddy</strong><span>3D CHARACTER STUDY / 01</span></header>
+    <section class="layout">
+      <div>
+        <div class="eyebrow">From a sketch to a little friend</div>
+        <h1>Now in<br><em>three dimensions.</em></h1>
+        <p>The first sculpt of our gentle dinosaur buddy. A rounded silhouette, a cream belly, tiny feet, and a curious little smile.</p>
+        <div class="facts"><span>About 20 cm tall</span><span>Original geometry</span><span>Static prototype</span></div>
+        <div class="controls" role="group" aria-label="Choose rendered view">
+          <button data-view="three-quarter" aria-pressed="true">Three-quarter</button>
+          <button data-view="front" aria-pressed="false">Front view</button>
+        </div>
+        <p class="note">These are renders of the actual 3D model, not interactive AR. Rigging, animation, and phone testing come next.</p>
+        <div class="downloads">
+          <a class="download" href="assets/characters/little_buddy/little_buddy.blend" download>Blender source ↓</a>
+          <a class="download" href="assets/characters/little_buddy/little_buddy.glb" download>Android / GLB ↓</a>
+          <a class="download" href="assets/characters/little_buddy/little_buddy.usdz" download>iOS / USDZ ↓</a>
+        </div>
+        <p class="note"><a href="ar-buddy-concept.html">Compare with the original 2D concept ↗</a></p>
+      </div>
+      <figure class="render">
+        <img id="render" src="assets/characters/little_buddy/preview-three-quarter.png" alt="Three-quarter studio render of the original green baby dinosaur model">
+        <figcaption id="caption" aria-live="polite">Three-quarter view · Blender studio render</figcaption>
+      </figure>
+    </section>
+    <footer>Editable procedural Blender source · Solid-color materials, no external textures · Available in Android debug builds only<br>This is a first-pass sculpt made from overlapping rounded meshes, not a production-ready animated character.</footer>
+  </main>
+  <script>
+    const image=document.getElementById('render');
+    document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{
+      const view=button.dataset.view;
+      image.src=`assets/characters/little_buddy/preview-${view}.png`;
+      const name=view==='front'?'Front':'Three-quarter';
+      image.alt=`${name} studio render of the original green baby dinosaur model`;
+      document.getElementById('caption').textContent=`${name} view · Blender studio render`;
+      document.querySelectorAll('[data-view]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+    }));
+  </script>
+</body>
+</html>

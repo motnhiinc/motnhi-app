@@ -55,11 +55,29 @@ change, no UI rework.
 
 ## Run
 
+The iOS app targets **iOS 15 or newer** (approved for the current Flutter/Xcode
+toolchain). Full AR validation requires supported physical iOS/Android hardware;
+simulator builds and unit tests do not establish tracking or visual quality. See
+[AR verification](docs/ar-character-presentation-verification.md) for native build
+commands, experimental-effect gates, and outstanding device checks.
+
 ```bash
 flutter pub get
 dart run build_runner build      # regenerate models after editing them
 flutter run                      # iOS / Android device recommended for camera/AR
 ```
+
+For iOS, invoke Flutter through `bash ios/flutter_cocoapods.sh` (for example,
+`bash ios/flutter_cocoapods.sh pub get --enforce-lockfile` and
+`bash ios/flutter_cocoapods.sh run`). Run `pod install --deployment` from `ios/`
+after generating plugin metadata. This keeps CocoaPods integration consistent
+without changing global Flutter settings.
+
+## Android device builds
+
+For automatic signed APK builds on pushes to `main`, GitHub prereleases, and
+Telegram download notifications, see [Android device build setup](docs/android-device-builds.md).
+One-time GitHub secrets are required; no Firebase or Play account is needed.
 
 ## Verify
 

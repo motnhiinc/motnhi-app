@@ -1,0 +1,25 @@
+{
+  "blender_version": "4.5.3 LTS",
+  "static": true,
+  "rigged": false,
+  "units": "meters",
+  "bounds": {
+    "x": [
+      -0.06069,
+      0.08429
+    ],
+    "y": [
+      -0.06431,
+      0.07098
+    ],
+    "z": [
+      0.0,
+      0.206
+    ]
+  },
+  "mesh_objects": 32,
+  "triangles": 36720,
+  "materials": 8,
+  "device_tested": false,
+  "installed_in_app": false
+}

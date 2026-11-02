@@ -1,0 +1,2 @@
+# OpenUSD bindings: isolated tooling only; does not change application dependencies.
+usd-core==26.8
