@@ -65,4 +65,15 @@ class ReaderPlacementGeometryTest {
         assertFalse(ReaderPlacementGeometry.supportedContact(true, false, 0f))
         assertFalse(ReaderPlacementGeometry.supportedContact(true, true, Float.NaN))
     }
+
+    @Test fun depthDisabledCanAutoPlaceOnDepthCapablePhoneButStillRequiresVerifiedTarget() {
+        for (supported in listOf(true, false, null)) {
+            assertTrue(ReaderPlacementGeometry.automaticPlacement(true, false, true,
+                supported, ReaderDepthAgreement.UNAVAILABLE, requireDepth = false))
+            assertFalse(ReaderPlacementGeometry.automaticPlacement(true, false, false,
+                supported, ReaderDepthAgreement.UNAVAILABLE, requireDepth = false))
+            assertFalse(ReaderPlacementGeometry.automaticPlacement(true, true, true,
+                supported, ReaderDepthAgreement.UNAVAILABLE, requireDepth = false))
+        }
+    }
 }

@@ -32,6 +32,11 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Independent release-build A/B switches; lightest scanning path by default.
+        buildConfigField("boolean", "READER_DEPTH_ENABLED",
+            providers.gradleProperty("readerDepth").orElse("false").get().toBoolean().toString())
+        buildConfigField("boolean", "READER_HDR_ENABLED",
+            providers.gradleProperty("readerHdr").orElse("false").get().toBoolean().toString())
     }
 
     buildFeatures {

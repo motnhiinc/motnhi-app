@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.google.ar.core.*
 import com.google.android.filament.gltfio.FilamentInstance
 import com.motnhi.app.R
+import com.motnhi.app.BuildConfig
 import dev.romainguy.kotlin.math.Float3
 import io.github.sceneview.ar.ARSceneView
 import io.github.sceneview.rememberEngine
@@ -143,8 +144,10 @@ private fun CharacterReaderArScene(
         }
     }
     var depthSupported by remember { mutableStateOf<Boolean?>(null) }
-    // Depth sensing verifies placement in production. Occlusion remains a separate opt-in.
-    val requestedDepthMode = if (ReaderDepthPolicy.requestAutomatic(true, depthSupported))
+    // Occlusion experiments also need sensing. Production can place using measured planes
+    // and motion/stability evidence without generating depth images.
+    val depthRequested = BuildConfig.READER_DEPTH_ENABLED || experimentalDepth
+    val requestedDepthMode = if (ReaderDepthPolicy.requestAutomatic(depthRequested, depthSupported))
         Config.DepthMode.AUTOMATIC else Config.DepthMode.DISABLED
     val observedDepthMode = remember { arrayOfNulls<Config.DepthMode>(1) }
     DisposableEffect(planes) { onDispose {
@@ -219,9 +222,10 @@ private fun CharacterReaderArScene(
         instantPlacementMode = Config.InstantPlacementMode.DISABLED,
         depthMode = requestedDepthMode,
         sessionConfiguration = { session, config ->
-            // 4.18.0 consumes estimates for both main light and IBL, retaining baseline
-            // lighting for incomplete estimates.
-            config.lightEstimationMode = Config.LightEstimationMode.ENVIRONMENTAL_HDR
+            // Ambient is the lightweight baseline. HDR remains independently selectable
+            // for release-device comparisons, including its main-light and IBL updates.
+            config.lightEstimationMode = if (BuildConfig.READER_HDR_ENABLED)
+                Config.LightEstimationMode.ENVIRONMENTAL_HDR else Config.LightEstimationMode.AMBIENT_INTENSITY
             config.focusMode = Config.FocusMode.AUTO
             val supported = session.isDepthModeSupported(Config.DepthMode.AUTOMATIC)
             depthSupported = supported
@@ -373,7 +377,8 @@ private fun CharacterReaderArScene(
                 }
                 val autoPlace = ReaderPlacementGeometry.automaticPlacement(state.automaticScan,
                     state.moving, state.canPlace, depthSupported,
-                    if (depthSettled) agreement else ReaderDepthAgreement.UNAVAILABLE)
+                    if (depthSettled) agreement else ReaderDepthAgreement.UNAVAILABLE,
+                    requireDepth = depthRequested)
                 if (state.placeRequested || autoPlace) {
                     state.placeRequested = false
                     // Consume only this live frame's validated hit, never a retained HitResult.

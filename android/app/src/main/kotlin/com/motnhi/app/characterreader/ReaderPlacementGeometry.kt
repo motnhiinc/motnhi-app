@@ -41,8 +41,9 @@ internal object ReaderPlacementGeometry {
     }
 
     fun automaticPlacement(automatic: Boolean, moving: Boolean, ready: Boolean,
-        depthSupported: Boolean?, agreement: ReaderDepthAgreement): Boolean =
-        automatic && !moving && ready && (depthSupported == false || agreement == ReaderDepthAgreement.MATCH)
+        depthSupported: Boolean?, agreement: ReaderDepthAgreement, requireDepth: Boolean = true): Boolean =
+        automatic && !moving && ready &&
+            (!requireDepth || depthSupported == false || agreement == ReaderDepthAgreement.MATCH)
 
     fun supportedContact(tracked: Boolean, inPolygon: Boolean, planeLocalHeight: Float): Boolean =
         tracked && inPolygon && planeLocalHeight.isFinite() && abs(planeLocalHeight) <= 0.03f
