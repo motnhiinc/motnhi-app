@@ -9,13 +9,12 @@ import '../../shared/widgets/storybook/storybook.dart';
 import '../profile/profile_providers.dart';
 import '../privacy/privacy_providers.dart';
 import 'child_profile_settings.dart';
-import 'locale_providers.dart';
 import 'settings_providers.dart';
 
 /// Parent-controlled reading + safety settings (§7.2.4). Audio/pacing live in
 /// [ReadingSettings]; AR and microphone permissions live on the child profile
 /// (single source of truth, gated here). The mockup's time-limit, content
-/// filter, notifications, and app-language controls persist locally.
+/// filter and notifications controls persist locally.
 class ReadingSettingsScreen extends ConsumerWidget {
   const ReadingSettingsScreen({super.key});
 
@@ -238,37 +237,14 @@ class ReadingSettingsScreen extends ConsumerWidget {
               ),
             ),
 
-            // UI chrome language (system default + manual override).
+            // App language is fixed; story content language is independent.
             PaperCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _SettingTitle(s.appLanguageLabel),
                   const SizedBox(height: 10),
-                  Builder(builder: (context) {
-                    final override = ref.watch(localeOverrideProvider);
-                    final notifier = ref.read(localeOverrideProvider.notifier);
-                    return Wrap(
-                      spacing: 8,
-                      children: [
-                        _PillChip(
-                          label: s.languageSystem,
-                          selected: override == null,
-                          onTap: () => notifier.set(null),
-                        ),
-                        _PillChip(
-                          label: 'English',
-                          selected: override?.languageCode == 'en',
-                          onTap: () => notifier.set(const Locale('en')),
-                        ),
-                        _PillChip(
-                          label: 'Tiếng Việt',
-                          selected: override?.languageCode == 'vi',
-                          onTap: () => notifier.set(const Locale('vi')),
-                        ),
-                      ],
-                    );
-                  }),
+                  const Text('Tiếng Việt'),
                 ],
               ),
             ),

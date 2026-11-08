@@ -12,8 +12,8 @@ import 'features/settings/settings_providers.dart';
 import 'l10n/app_localizations.dart';
 
 /// App root. Bedtime mode (§7.1.6) swaps the whole app to the calm dark theme
-/// via [ThemeMode]; UI language follows the system unless overridden in
-/// Settings (EN/VI). Also observes app lifecycle to report daily foreground
+/// via [ThemeMode]; UI language is always Vietnamese.
+/// Also observes app lifecycle to report daily foreground
 /// activity (Task 22).
 class StorybookApp extends ConsumerStatefulWidget {
   const StorybookApp({super.key});
@@ -49,7 +49,7 @@ class _StorybookAppState extends ConsumerState<StorybookApp>
   Widget build(BuildContext context) {
     final router = ref.watch(goRouterProvider);
     final bedtime = ref.watch(bedtimeModeProvider);
-    final localeOverride = ref.watch(localeOverrideProvider);
+    final locale = ref.watch(appLocaleProvider);
 
     return MaterialApp.router(
       onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
@@ -57,14 +57,14 @@ class _StorybookAppState extends ConsumerState<StorybookApp>
       theme: AppTheme.day(),
       darkTheme: AppTheme.bedtime(),
       themeMode: bedtime ? ThemeMode.dark : ThemeMode.light,
-      locale: localeOverride,
+      locale: locale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: const [Locale('en'), Locale('vi')],
+      supportedLocales: const [Locale('vi')],
       routerConfig: router,
     );
   }
