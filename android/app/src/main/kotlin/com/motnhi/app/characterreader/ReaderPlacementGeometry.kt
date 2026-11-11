@@ -30,6 +30,31 @@ internal data class ReaderModelGeometry(
 internal enum class ReaderDepthAgreement { UNAVAILABLE, MATCH, CONFLICT }
 
 internal object ReaderPlacementGeometry {
+    /** ARCore polygons are convex; the center must be inside and clear every edge. */
+    fun diskFits(polygon: java.nio.FloatBuffer, x: Float, z: Float, radius: Float): Boolean {
+        val start = polygon.position()
+        val count = polygon.remaining() / 2
+        if (count < 3 || !x.isFinite() || !z.isFinite() || !radius.isFinite() || radius < 0f) return false
+        var positive = false
+        var negative = false
+        for (i in 0 until count) {
+            val next = (i + 1) % count
+            val ax = polygon.get(start + 2 * i)
+            val az = polygon.get(start + 2 * i + 1)
+            if (!ax.isFinite() || !az.isFinite()) return false
+            val dx = polygon.get(start + 2 * next) - ax
+            val dz = polygon.get(start + 2 * next + 1) - az
+            val lengthSquared = dx * dx + dz * dz
+            if (!lengthSquared.isFinite() || lengthSquared <= 0f) return false
+            val cross = dx * (z - az) - dz * (x - ax)
+            positive = positive || cross > 0f
+            negative = negative || cross < 0f
+            if (positive && negative) return false
+            if (cross * cross + 0.00000001f < radius * radius * lengthSquared) return false
+        }
+        return true
+    }
+
     /** ARCore depth is camera-space Z, NOT the ray length returned by HitResult.distance. */
     fun depthAgreement(expectedCameraDepth: Float, measuredDepth: Float?): ReaderDepthAgreement {
         if (measuredDepth == null || !measuredDepth.isFinite() || measuredDepth <= 0f ||
@@ -39,6 +64,11 @@ internal object ReaderPlacementGeometry {
         return if (abs(expectedCameraDepth - measuredDepth) <= max(0.04f, expectedCameraDepth * 0.03f))
             ReaderDepthAgreement.MATCH else ReaderDepthAgreement.CONFLICT
     }
+
+    /** Explicit placement needs a live, stable target, not a camera-motion baseline. */
+    fun manualPlacement(liveHit: Boolean, targetSettled: Boolean, modelReady: Boolean,
+        agreement: ReaderDepthAgreement): Boolean =
+        liveHit && targetSettled && modelReady && agreement != ReaderDepthAgreement.CONFLICT
 
     fun automaticPlacement(automatic: Boolean, moving: Boolean, ready: Boolean,
         depthSupported: Boolean?, agreement: ReaderDepthAgreement, requireDepth: Boolean = true): Boolean =

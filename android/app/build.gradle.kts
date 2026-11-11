@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -7,6 +9,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
 android {
@@ -47,7 +55,7 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
-    // CI supplies a persistent release key; local builds keep the debug fallback.
+    // Prefer CI credentials, then local key.properties, then the debug fallback.
     val releaseKeystore = System.getenv("ANDROID_KEYSTORE_PATH")
     if (!releaseKeystore.isNullOrBlank()) {
         signingConfigs.create("ciRelease") {
@@ -56,12 +64,23 @@ android {
             keyAlias = System.getenv("ANDROID_KEY_ALIAS")
             keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
         }
+    } else if (keystorePropertiesFile.exists()) {
+        signingConfigs.create("release") {
+            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+        }
     }
 
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName(
-                if (releaseKeystore.isNullOrBlank()) "debug" else "ciRelease"
+                when {
+                    !releaseKeystore.isNullOrBlank() -> "ciRelease"
+                    keystorePropertiesFile.exists() -> "release"
+                    else -> "debug"
+                }
             )
         }
     }
@@ -77,6 +96,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     implementation("androidx.camera:camera-view:1.4.2")
     // The page scanner and the ARCore character reader both ship in release builds.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("com.google.ar:core:1.54.0")

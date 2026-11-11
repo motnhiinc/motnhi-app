@@ -33,14 +33,14 @@
     <string name="reader_listen_without_ar">Listen without AR</string>
     <string name="reader_auto_placing">Hold steady — placing your buddy…</string>
     <string name="scan_point_page">Point at a page and hold steady. Keep the whole page in view.</string>
-    <string name="scan_hold_steady">Hold steady…</string>
+    <string name="scan_hold_steady">Text found—hold steady to capture automatically.</string>
     <string name="scan_capture_manually">Capture page</string>
     <string name="scan_captured">Got it! Finding your reading buddy…</string>
-    <string name="reader_surface_settling">Hold the target on this spot while we check the surface.</string>
+    <string name="reader_surface_settling">Surface found—hold steady on this spot.</string>
     <string name="reader_verify_surface">Move your phone slowly sideways while aiming at the same floor or table, then hold still.</string>
     <string name="reader_distance">Aim at a floor or table between 25 cm and 3 m away.</string>
     <string name="reader_aim_down">Tilt your phone down toward the floor or tabletop.</string>
-    <string name="reader_more_room">Aim farther from the edge, where your buddy has room to stand.</string>
+    <string name="reader_more_room">Surface found. Move the yellow marker farther from the edge, or scan a little wider to find more room.</string>
     <string name="reader_depth_conflict">The surface measurements disagree. Move slowly and aim at a clear, flat spot.</string>
     <string name="reader_depth_waiting">Hold steady while we check depth. You can also check the marker and choose Place character.</string>
     <string name="reader_contact_lost">The surface has shifted. Place your buddy again so their feet stay on the surface.</string>

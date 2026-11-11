@@ -89,20 +89,23 @@ internal class ReaderSurfaceVerification<T> {
 internal class ReaderSurfaceStability<T>(
     private val settleMillis: Long = 700L,
     private val toleranceMeters: Float = 0.04f,
+    private val minimumSamples: Int = 10,
 ) {
     private var surface: T? = null
     private var origin = floatArrayOf(0f, 0f, 0f)
     private var since = 0L
     private var last = 0L
     private var samples = 0
+    private var ready = false
 
-    fun reset() { surface = null; samples = 0 }
+    fun reset() { surface = null; samples = 0; ready = false }
 
     fun update(plane: T?, x: Float, y: Float, z: Float, nowMillis: Long): Boolean {
         if (plane == null || !x.isFinite() || !y.isFinite() || !z.isFinite()) {
             reset()
             return false
         }
+        if (surface == plane && nowMillis == last) return ready
         val distanceSquared = (x - origin[0]) * (x - origin[0]) +
             (y - origin[1]) * (y - origin[1]) + (z - origin[2]) * (z - origin[2])
         if (surface != plane || nowMillis - last > 200 || nowMillis < last ||
@@ -114,7 +117,8 @@ internal class ReaderSurfaceStability<T>(
         }
         last = nowMillis
         samples++
-        return samples >= 10 && nowMillis - since >= settleMillis
+        ready = samples >= minimumSamples && nowMillis - since >= settleMillis
+        return ready
     }
 }
 

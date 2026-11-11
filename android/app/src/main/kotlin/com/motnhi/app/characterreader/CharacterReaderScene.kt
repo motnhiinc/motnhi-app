@@ -156,7 +156,10 @@ private fun CharacterReaderArScene(
     } }
     val placement = remember { PlacementTransaction<Anchor>() }
     val tracking = remember { TrackingLossDebouncer() }
-    val surfaceStability = remember { ReaderSurfaceStability<Plane>() }
+    val surfaceStability = remember {
+        ReaderSurfaceStability<Plane>(settleMillis = 250L, toleranceMeters = 0.06f, minimumSamples = 4)
+    }
+    val automaticTargetStability = remember { ReaderSurfaceStability<Plane>() }
     val surfaceVerification = remember { ReaderSurfaceVerification<Plane>() }
     val depthStability = remember { ReaderSurfaceStability<Plane>(settleMillis = 350L) }
     val depthSampler = remember { ReaderDepthSampler() }
@@ -251,9 +254,11 @@ private fun CharacterReaderArScene(
             if (anchor != null) mark("placedFrame")
             if (size.width > 0 && size.height > 0) {
                 planes.viewSize = Size(size.width, size.height)
-                planes.isVisible = anchor == null || state.moving
+                // The target footprint is the scan affordance; avoid updating/drawing a
+                // room-wide grid before placement. Retain plane updates for placed shadows.
+                planes.isVisible = false
                 planes.isShadowReceiver = true
-                planes.update(session, frame)
+                if (anchor != null) planes.update(session, frame)
             }
             // SceneView uploads depth before this callback. Validate this live image before
             // drawing; on first enable upload once more so no uninitialised texture is used.
@@ -289,7 +294,7 @@ private fun CharacterReaderArScene(
             val contactValid = placed == null || (support != null &&
                 ReaderPlacementGeometry.supportedContact(
                     support.trackingState == TrackingState.TRACKING,
-                    support.isPoseInPolygon(placed.pose),
+                    footprintFits(support, placed.pose, footprintRadius),
                     support.centerPose.inverse().compose(placed.pose).ty()))
             val tracked = cameraTracked && (placed == null || placed.trackingState == TrackingState.TRACKING)
             state.trackingReady = tracked && contactValid
@@ -334,33 +339,40 @@ private fun CharacterReaderArScene(
                     (frame.camera.pose.ty() - nearestSurface.hitPose.ty()) / nearestSurface.distance >= 0.25f
                 val hasRoom = nearestSurface != null && footprintFits(nearestSurface.trackable as Plane,
                     nearestSurface.hitPose, footprintRadius)
-                val hit = nearestSurface?.takeIf { inRange && lookingDown && hasRoom }
-                val measuredDepth = if (hit != null && configured && cameraTracked) {
+                // Surface evidence survives an unsuitable footprint near the measured edge.
+                // Placement still requires a fitting, stable target on the current frame.
+                val candidate = nearestSurface?.takeIf { inRange && lookingDown }
+                val hit = candidate?.takeIf { hasRoom }
+                val measuredDepth = if (candidate != null && configured && cameraTracked) {
                     depthSampler.sample(frame, size.width / 2f, size.height / 2f)
                 } else null
                 val agreement = ReaderPlacementGeometry.depthAgreement(
-                    hit?.let { -frame.camera.pose.inverse().compose(it.hitPose).tz() } ?: 0f,
+                    candidate?.let { -frame.camera.pose.inverse().compose(it.hitPose).tz() } ?: 0f,
                     measuredDepth)
                 if (agreement == ReaderDepthAgreement.CONFLICT) {
                     surfaceStability.reset()
+                    automaticTargetStability.reset()
                     surfaceVerification.reset()
                 }
                 val pose = hit?.hitPose
-                val surfaceVerified = surfaceVerification.update(hit?.trackable as? Plane,
-                    pose?.ty() ?: 0f, frame.camera.pose.tx(), frame.camera.pose.tz(),
+                val surfaceVerified = surfaceVerification.update(candidate?.trackable as? Plane,
+                    candidate?.hitPose?.ty() ?: 0f, frame.camera.pose.tx(), frame.camera.pose.tz(),
                     frame.timestamp / 1_000_000)
                 val targetSettled = surfaceStability.update(hit?.trackable as? Plane,
+                    pose?.tx() ?: 0f, pose?.ty() ?: 0f, pose?.tz() ?: 0f, frame.timestamp / 1_000_000)
+                val automaticTargetSettled = automaticTargetStability.update(hit?.trackable as? Plane,
                     pose?.tx() ?: 0f, pose?.ty() ?: 0f, pose?.tz() ?: 0f, frame.timestamp / 1_000_000)
                 // A single matching depth frame must not trigger automatic placement.
                 val depthSettled = depthStability.update(
                     (hit?.trackable as? Plane).takeIf { agreement == ReaderDepthAgreement.MATCH },
                     pose?.tx() ?: 0f, pose?.ty() ?: 0f, pose?.tz() ?: 0f, frame.timestamp / 1_000_000)
-                state.canPlace = surfaceVerified && targetSettled && modelGeometry != null &&
-                    agreement != ReaderDepthAgreement.CONFLICT
+                state.canPlace = ReaderPlacementGeometry.manualPlacement(
+                    hit != null, targetSettled, modelGeometry != null, agreement)
                 if (state.canPlace) mark("validPlacement")
                 // The center hit, footprint and eventual anchor are identical (no lagging smoothed
                 // pose that would make the visible preview differ from the committed placement).
-                preview = hit?.hitPose
+                // Show the amber footprint even when there is not yet enough measured room.
+                preview = candidate?.hitPose
                 if (cameraTracked) {
                     state.guidance = when {
                         nearestSurface == null -> R.string.reader_searching
@@ -368,15 +380,12 @@ private fun CharacterReaderArScene(
                         !lookingDown -> R.string.reader_aim_down
                         !hasRoom -> R.string.reader_more_room
                         agreement == ReaderDepthAgreement.CONFLICT -> R.string.reader_depth_conflict
-                        !surfaceVerified -> R.string.reader_verify_surface
                         !state.canPlace -> R.string.reader_surface_settling
-                        state.automaticScan && !state.moving && depthSupported != false &&
-                            !depthSettled -> R.string.reader_depth_waiting
                         else -> R.string.reader_surface
                     }
                 }
                 val autoPlace = ReaderPlacementGeometry.automaticPlacement(state.automaticScan,
-                    state.moving, state.canPlace, depthSupported,
+                    state.moving, state.canPlace && surfaceVerified && automaticTargetSettled, depthSupported,
                     if (depthSettled) agreement else ReaderDepthAgreement.UNAVAILABLE,
                     requireDepth = depthRequested)
                 if (state.placeRequested || autoPlace) {
@@ -410,7 +419,8 @@ private fun CharacterReaderArScene(
                              android.util.Log.i("ReaderAR", "placed distance=${hit.distance} depth=$agreement automatic=$autoPlace footprint=$footprintRadius")
                             state.moving = false
                             state.needsReposition = false
-                             surfaceStability.reset()
+                              surfaceStability.reset()
+                              automaticTargetStability.reset()
                              surfaceVerification.reset()
                              depthStability.reset()
                             preview = null
@@ -420,6 +430,7 @@ private fun CharacterReaderArScene(
                 }
             } else {
                 surfaceStability.reset()
+                automaticTargetStability.reset()
                 surfaceVerification.reset()
                 depthStability.reset()
                 preview = null
@@ -465,8 +476,9 @@ private fun CharacterReaderArScene(
     }
 }
 
-/** All four corners of the conservative character footprint must be on the measured plane. */
-private fun footprintFits(plane: Plane, pose: Pose, radius: Float): Boolean =
-    listOf(-radius, radius).all { x -> listOf(-radius, radius).all { z ->
-        plane.isPoseInPolygon(pose.compose(Pose.makeTranslation(x, 0f, z)))
-    } }
+/** Match the displayed disk rather than requiring its larger enclosing square. */
+private fun footprintFits(plane: Plane, pose: Pose, radius: Float): Boolean {
+    if (!plane.isPoseInPolygon(pose)) return false
+    val local = plane.centerPose.inverse().compose(pose)
+    return ReaderPlacementGeometry.diskFits(plane.polygon, local.tx(), local.tz(), radius)
+}

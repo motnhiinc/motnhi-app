@@ -33,14 +33,14 @@
     <string name="reader_listen_without_ar">Nghe không cần AR</string>
     <string name="reader_auto_placing">Giữ yên — bạn đọc sách sắp xuất hiện…</string>
     <string name="scan_point_page">Hướng máy vào trang sách và giữ yên. Để cả trang trong khung hình.</string>
-    <string name="scan_hold_steady">Giữ yên nhé…</string>
+    <string name="scan_hold_steady">Đã tìm thấy chữ—giữ yên để tự động chụp nhé.</string>
     <string name="scan_capture_manually">Chụp trang sách</string>
     <string name="scan_captured">Chụp được rồi! Đang tìm bạn đọc sách…</string>
-    <string name="reader_surface_settling">Giữ tâm ngắm ở chỗ này để kiểm tra mặt phẳng nhé.</string>
+    <string name="reader_surface_settling">Đã tìm thấy mặt phẳng—giữ tâm ngắm ổn định ở chỗ này nhé.</string>
     <string name="reader_verify_surface">Di chuyển điện thoại chậm sang ngang, vẫn hướng vào cùng sàn hoặc bàn, rồi giữ yên nhé.</string>
     <string name="reader_distance">Hướng vào sàn hoặc bàn cách điện thoại từ 25 cm đến 3 m nhé.</string>
     <string name="reader_aim_down">Nghiêng điện thoại xuống phía sàn hoặc mặt bàn nhé.</string>
-    <string name="reader_more_room">Hướng vào chỗ xa mép hơn để bạn nhỏ có đủ chỗ đứng nhé.</string>
+    <string name="reader_more_room">Đã tìm thấy mặt phẳng. Di chuyển dấu màu vàng ra xa mép, hoặc quét rộng hơn một chút để tìm thêm chỗ nhé.</string>
     <string name="reader_depth_conflict">Các phép đo mặt phẳng chưa khớp. Di chuyển chậm và hướng vào chỗ bằng phẳng, không có vật cản nhé.</string>
     <string name="reader_depth_waiting">Giữ yên để kiểm tra độ sâu nhé. Bé cũng có thể kiểm tra dấu trên mặt phẳng rồi chọn Đặt nhân vật.</string>
     <string name="reader_contact_lost">Mặt phẳng đã thay đổi. Hãy đặt lại bạn nhỏ để chân chạm mặt phẳng nhé.</string>

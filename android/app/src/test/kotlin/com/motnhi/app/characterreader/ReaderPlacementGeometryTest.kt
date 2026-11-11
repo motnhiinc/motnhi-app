@@ -4,6 +4,56 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReaderPlacementGeometryTest {
+    @Test fun circularFootprintFitsWhereItsEnclosingSquareWouldNot() {
+        // The circle fits this diamond-shaped patch, but its enclosing square does not.
+        val polygon = java.nio.FloatBuffer.wrap(floatArrayOf(0f, 1f, 1f, 0f, 0f, -1f, -1f, 0f))
+        assertTrue(ReaderPlacementGeometry.diskFits(polygon, 0f, 0f, .6f))
+        assertFalse(ReaderPlacementGeometry.diskFits(polygon, 0f, 0f, .8f))
+        assertFalse(ReaderPlacementGeometry.diskFits(polygon, .5f, 0f, .6f))
+        assertFalse(ReaderPlacementGeometry.diskFits(polygon, 2f, 0f, .1f))
+        assertEquals(0, polygon.position())
+    }
+
+    @Test fun manualTargetSettlesQuicklyButMotionAndMissingHitsStillBlock() {
+        val manual = ReaderSurfaceStability<String>(250L, .06f, 4)
+        val automatic = ReaderSurfaceStability<String>()
+        for (time in 0L..200L step 50) {
+            assertFalse(manual.update("table", 0f, 0f, 1f, time))
+            assertFalse(automatic.update("table", 0f, 0f, 1f, time))
+        }
+        assertTrue(manual.update("table", .01f, 0f, 1f, 250))
+        assertFalse(automatic.update("table", .01f, 0f, 1f, 250))
+        assertFalse(manual.update("table", .2f, 0f, 1f, 300))
+        assertFalse(manual.update(null, 0f, 0f, 0f, 350))
+    }
+
+    @Test fun stationaryPhoneCanPlaceManuallyButCannotAutoPlace() {
+        val stability = ReaderSurfaceStability<String>()
+        val verification = ReaderSurfaceVerification<String>()
+        var settled = false
+        var verified = false
+        for (time in 0L..2000L step 50) {
+            settled = stability.update("table", 0f, 0f, 1f, time)
+            verified = verification.update("table", 0f, 0f, 0f, time)
+        }
+        val ready = ReaderPlacementGeometry.manualPlacement(true, settled, true, ReaderDepthAgreement.MATCH)
+        assertTrue(ready)
+        assertFalse(verified)
+        assertFalse(ReaderPlacementGeometry.automaticPlacement(true, false, ready && verified,
+            true, ReaderDepthAgreement.MATCH))
+        // Losing the live target must immediately disable manual placement too.
+        settled = stability.update(null, 0f, 0f, 0f, 2050)
+        assertFalse(ReaderPlacementGeometry.manualPlacement(false, settled, true, ReaderDepthAgreement.MATCH))
+    }
+
+    @Test fun manualPlacementAllowsMissingDepthButRequiresLiveStableTargetAndModel() {
+        assertTrue(ReaderPlacementGeometry.manualPlacement(true, true, true, ReaderDepthAgreement.UNAVAILABLE))
+        assertFalse(ReaderPlacementGeometry.manualPlacement(true, true, true, ReaderDepthAgreement.CONFLICT))
+        assertFalse(ReaderPlacementGeometry.manualPlacement(false, true, true, ReaderDepthAgreement.MATCH))
+        assertFalse(ReaderPlacementGeometry.manualPlacement(true, false, true, ReaderDepthAgreement.MATCH))
+        assertFalse(ReaderPlacementGeometry.manualPlacement(true, true, false, ReaderDepthAgreement.MATCH))
+    }
+
     @Test fun offsetAndCenteredModelsHaveFeetAtZeroAtEveryUserScale() {
         for (center in listOf(floatArrayOf(0f, 0f, 0f), floatArrayOf(4f, 7f, -2f),
             floatArrayOf(0f, -3f, 0f))) {

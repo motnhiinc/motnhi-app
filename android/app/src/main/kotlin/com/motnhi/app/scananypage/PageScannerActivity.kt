@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.RectF
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.Gravity
@@ -16,6 +17,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.camera.view.transform.CoordinateTransform
+import androidx.camera.view.transform.ImageProxyTransformFactory
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -33,6 +36,7 @@ class PageScannerActivity : ComponentActivity() {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     private val stability = ScanCaptureStability()
     private lateinit var preview: PreviewView
+    private lateinit var detection: ScanDetectionOverlay
     private lateinit var status: TextView
     private lateinit var progress: ProgressBar
     private lateinit var shutter: Button
@@ -58,8 +62,10 @@ class PageScannerActivity : ComponentActivity() {
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
-        preview = PreviewView(this)
+        preview = PreviewView(this).apply { implementationMode = PreviewView.ImplementationMode.COMPATIBLE }
         root.addView(preview, FrameLayout.LayoutParams(-1, -1))
+        detection = ScanDetectionOverlay(this)
+        root.addView(detection, FrameLayout.LayoutParams(-1, -1))
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(16), dp(20), dp(16))
@@ -96,6 +102,8 @@ class PageScannerActivity : ComponentActivity() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             if (terminal || isDestroyed) return@addListener
+            val viewport = preview.viewPort
+            if (viewport == null) { preview.post { startCamera() }; return@addListener }
             try {
                 val provider = future.get()
                 cameraProvider = provider
@@ -106,12 +114,15 @@ class PageScannerActivity : ComponentActivity() {
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build().also {
                         it.setAnalyzer(executor, ::analyze)
                     }
-                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, live, capture, analysis)
+                val group = UseCaseGroup.Builder().setViewPort(viewport)
+                    .addUseCase(live).addUseCase(requireNotNull(capture))
+                    .addUseCase(requireNotNull(analysis)).build()
+                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, group)
             } catch (_: Exception) { fail("camera_unavailable") }
         }, ContextCompat.getMainExecutor(this))
     }
 
-    @androidx.annotation.OptIn(ExperimentalGetImage::class)
+    @androidx.annotation.OptIn(ExperimentalGetImage::class, androidx.camera.view.TransformExperimental::class)
     private fun analyze(frame: ImageProxy) {
         if (terminal || capturing) { frame.close(); return }
         val now = SystemClock.elapsedRealtime()
@@ -121,6 +132,9 @@ class PageScannerActivity : ComponentActivity() {
         val rotation = frame.imageInfo.rotationDegrees
         val width = if (rotation % 180 == 0) frame.width else frame.height
         val height = if (rotation % 180 == 0) frame.height else frame.width
+        val sourceTransform = ImageProxyTransformFactory().apply {
+            isUsingRotationDegrees = true
+        }.getOutputTransform(frame)
         // Sample luminance/edges before ML Kit finishes; never access a closed proxy.
         val plane = frame.planes[0]
         val buffer = plane.buffer
@@ -151,17 +165,27 @@ class PageScannerActivity : ComponentActivity() {
                     floatArrayOf(it.left.toFloat() / width, it.top.toFloat() / height,
                         it.right.toFloat() / width, it.bottom.toFloat() / height)
                 }
+                val targetTransform = preview.outputTransform
+                val displayedBounds = if (bounds != null && targetTransform != null) {
+                    RectF(bounds).also { CoordinateTransform(sourceTransform, targetTransform).mapRect(it) }
+                } else null
                 val readable = quality && lines.isNotEmpty() && text.text.length >= 12 &&
                     bounds != null && bounds.width() > width * 0.25 && bounds.height() > height * 0.02 &&
                     bounds.left > width * 0.02 && bounds.right < width * 0.98 &&
                     bounds.top > height * 0.02 && bounds.bottom < height * 0.98 &&
                     boxes.map { it.height() }.average() >= height * 0.014
                 val fraction = stability.observe(text.text, normalized, readable, SystemClock.elapsedRealtime())
+                detection.show(displayedBounds, readable)
                 progress.progress = (fraction * 100).toInt()
                 status.setText(if (readable) R.string.scan_hold_steady else R.string.scan_point_page)
                 if (fraction >= 1) capturePage()
             }
-            .addOnFailureListener { stability.reset() }
+            .addOnFailureListener {
+                stability.reset()
+                detection.show(null, false)
+                progress.progress = 0
+                status.setText(R.string.scan_point_page)
+            }
             .addOnCompleteListener { frame.close() }
     }
 
@@ -202,6 +226,7 @@ class PageScannerActivity : ComponentActivity() {
     override fun onPause() {
         stability.reset()
         progress.progress = 0
+        detection.show(null, false)
         super.onPause()
     }
 

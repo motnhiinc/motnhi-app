@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReaderPresentationPolicyTest {
+    @Test fun repeatedCameraFramesCannotSatisfyMinimumSampleCount() {
+        val stable = ReaderSurfaceStability<String>()
+        for (time in 0L..800L step 100) {
+            repeat(20) { assertFalse(stable.update("floor", 0f, 0f, 0f, time)) }
+        }
+        assertTrue(stable.update("floor", 0f, 0f, 0f, 900))
+        assertFalse(stable.update(null, 0f, 0f, 0f, 900))
+    }
+
     @Test fun automaticDepthEvidenceMustBeContinuousAndAtTheSameTarget() {
         val stable = ReaderSurfaceStability<String>(settleMillis = 350L)
         for (time in 0L..330L step 30) assertFalse(stable.update("floor", 0f, 0f, 0f, time))

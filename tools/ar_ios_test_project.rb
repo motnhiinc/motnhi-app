@@ -24,6 +24,9 @@ tests.frameworks_build_phase.add_file_reference(framework.product_reference)
 ].each do |path|
   framework.source_build_phase.add_file_reference(project.main_group.new_file(File.join(root, path)))
 end
+framework.resources_build_phase.add_file_reference(project.main_group.new_file(
+  File.join(root, 'Runner/CharacterReader/little_buddy.usdz')
+))
 tests.source_build_phase.add_file_reference(project.main_group.new_file(
   File.join(root, 'RunnerTests/CharacterReaderPresentationTests.swift')
 ))

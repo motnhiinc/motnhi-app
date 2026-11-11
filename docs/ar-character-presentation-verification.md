@@ -1,5 +1,46 @@
 # AR character presentation — local verification
 
+## Surface/placement follow-up — 2026-11-03
+
+- iOS now requires continuous measured-plane dwell plus 8 cm camera parallax and
+  1.5 seconds of stable surface-height observation for **both** manual and automatic
+  placement. Move remains explicit; reaching a stable target no longer confirms
+  a move automatically. Repeated camera timestamps cannot manufacture dwell samples.
+- iOS room checks use the measured convex boundary and the normalized model's
+  rotation-independent footprint plus 1 cm margin, rather than the plane's bounding
+  rectangle and a fixed 25 cm margin. Both native readers recheck full-footprint
+  support after placement. iOS also checks plane-relative foot height (3 cm), permits
+  valid merged planes, hides unreliable content after debounced loss, and requires
+  healthy placement before starting audio or adjustments. Stale iOS frames (>250 ms)
+  are not healthy tracking. No synthetic replacement anchor or auto-resume is added.
+- Little Buddy's RealityKit loader puts its USD Z-up correction on the loaded root.
+  Measuring relative to that root excludes the correction. An identity wrapper now
+  makes preview/footprint bounds agree with normalization, **without** applying the
+  rotation twice. Actual macOS RealityKit load measured extents
+  `(0.14497966, 0.20599999, 0.13528985)` meters and minimum Y `-2.8e-9`;
+  normalized height is 0.35 m. XCTest loads the real bundled USDZ and checks
+  upright dimensions and grounded feet at 0.5×, 1×, and 1.5× user scale.
+- Android GLB copies match the source SHA-256. All eight materials use lit PBR
+  metallic/roughness shading (no unlit extension). Existing Environmental HDR,
+  shadow receiving, automatic RealityKit environment texturing, and conservative
+  default-OFF occlusion experiments remain unchanged; none proves visual realism.
+- Local verification: **372 Flutter tests passed**, **140 Android native tests /
+  0 failures / 0 errors**, Android release Kotlin compilation passed, and **59 full
+  Runner workspace XCTest tests passed** on iPhone 18 Pro / iOS 27.0 Simulator.
+  Device-target iOS 15 Swift type-check passed with the pre-existing
+  `contentEdgeInsets` deprecation warning. The isolated harness now bundles the
+  actual Little Buddy USDZ for its loader regression test.
+- Evidence: approved temporary directory
+  `ar-placement-verification-20261103/runner-final-tests.xcresult` under the session's
+  OpenCode temporary folder. `xcrun xcresulttool get test-results summary --path …`
+  reports `result: Passed`, `passedTests: 59`, `failedTests: 0`.
+- **Physical acceptance remains blocked:** `adb devices -l` lists no devices;
+  `xcrun xctrace list devices` lists both paired iOS devices as offline. Connect an
+  unlocked, trusted AR-capable phone/tablet to verify real surface finding,
+  grounding/shadows, facing, occlusion, drift/recovery, and sustained frame pacing.
+  Simulator/native-load results do not establish those properties. The character
+  remains an intentionally static prototype; no talking rig or animation was added.
+
 Date: 2026-10-22. Implementation follows
 `superpowers/plans/2026-10-22-ar-character-presentation.md`.
 

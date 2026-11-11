@@ -63,6 +63,7 @@ final class CharacterReaderViewController: UIViewController {
   private let automaticScanFlow: Bool
   private var automaticStartPending: Bool
   private var surfaceDwell = CharacterSurfaceDwell()
+  private var surfaceVerification = CharacterSurfaceVerification()
   private var placedAt: TimeInterval = 0
   private let storyMode: Bool
   /// Base name, without extension, of the bundled `.usdz` character to load. Chosen by the
@@ -108,6 +109,7 @@ final class CharacterReaderViewController: UIViewController {
 
   private var configuration: ARWorldTrackingConfiguration?
   private var modelTemplate: Entity?
+  private var baseFootprintRadius: Float?
   private var modelLoadCancellable: AnyCancellable?
   private var audioPlayer: AVAudioPlayer?
   private var audioCompletion = CharacterAudioCompletionPolicy()
@@ -522,7 +524,15 @@ final class CharacterReaderViewController: UIViewController {
         },
         receiveValue: { [weak self] entity in
           guard let self, !self.isTerminal else { return }
-          self.modelTemplate = entity
+          let template = Self.presentationModel(entity, asset: self.modelAssetBaseName)
+          let bounds = template.visualBounds(relativeTo: template)
+          guard CharacterModelNormalization(minimum: bounds.min, maximum: bounds.max) != nil,
+                let radius = CharacterSurfaceGeometry.footprintRadius(extents: bounds.extents) else {
+            self.finish(.failure(.modelLoadFailed))
+            return
+          }
+          self.modelTemplate = template
+          self.baseFootprintRadius = radius
           self.markDiagnostic("model_ready")
           self.auditAnimations(on: entity)
           // Rebuild the discovery footprint with the loaded model's exact bounds.
@@ -531,6 +541,16 @@ final class CharacterReaderViewController: UIViewController {
           self.reticleEntity = nil
         }
       )
+  }
+
+  static func presentationModel(_ entity: Entity, asset: String) -> Entity {
+    guard asset == "little_buddy" else { return entity }
+    // RealityKit puts the USD Z-up -> Y-up correction on the LOADED ROOT.
+    // Measuring relative to that root excludes its correction. An identity outer
+    // frame includes it in footprint/preview bounds, without rotating it twice.
+    let root = Entity()
+    root.addChild(entity)
+    return root
   }
 
   private func startARSession() {
@@ -586,7 +606,7 @@ final class CharacterReaderViewController: UIViewController {
     updateTracking(at: displayLink.timestamp)
     if placementState.isPreviewing { updateRaycast() }
     if automaticStartPending, isApplicationActive, !isTerminal,
-       placementState == .placed, normalTracking, committedEntity?.isAnchored == true,
+       placementState == .placed, placementHealthy,
        !trackingRecovery.requiresRecovery, audioPlayer != nil,
        ProcessInfo.processInfo.systemUptime - placedAt >= 0.35 {
       automaticStartPending = false
@@ -598,12 +618,48 @@ final class CharacterReaderViewController: UIViewController {
   private var normalTracking: Bool {
     guard isApplicationActive, !sessionInterrupted, !sessionFailed,
           let frame = arView.session.currentFrame,
-          case .normal = frame.camera.trackingState else { return false }
+          case .normal = frame.camera.trackingState,
+          ProcessInfo.processInfo.systemUptime - frame.timestamp >= 0,
+          ProcessInfo.processInfo.systemUptime - frame.timestamp <= 0.25 else { return false }
     return true
   }
 
+  private var modelFootprintRadius: Float? {
+    // Static authored bounds are measured once, not by walking every mesh for
+    // each plane/tracking/playback gate on every display frame.
+    baseFootprintRadius.map { $0 * adjustment.scale }
+  }
+
+  private func supportsFootprint(_ plane: ARPlaneAnchor, worldPosition: SIMD4<Float>) -> Bool {
+    guard plane.alignment == .horizontal, plane.transform.columns.1.y > 0.9,
+          let radius = modelFootprintRadius else { return false }
+    let local = simd_inverse(plane.transform) * worldPosition
+    guard abs(local.y - plane.center.y) <= 0.03 else { return false }
+    let geometry = plane.geometry
+    let boundary = geometry.boundaryVertices.map { vertex in
+      return SIMD2(vertex.x, vertex.z)
+    }
+    return CharacterSurfaceGeometry.containsFootprint(center: SIMD2(local.x, local.z),
+      radius: radius, boundary: boundary)
+  }
+
+  private var placementHealthy: Bool {
+    guard normalTracking else { return false }
+    guard isPlaced else { return true }
+    guard let committedEntity, committedEntity.isAnchored,
+          let frame = arView.session.currentFrame else { return false }
+    let position = committedEntity.transformMatrix(relativeTo: nil).columns.3
+    // Search current measured planes so a valid merged plane can replace its old identifier.
+    return frame.anchors.compactMap { $0 as? ARPlaneAnchor }.contains {
+      supportsFootprint($0, worldPosition: position)
+    }
+  }
+
   private func targetHit() -> (ARRaycastResult?, CharacterPlacementEligibility) {
-    guard normalTracking else { return (nil, .searching) }
+    guard normalTracking, let frame = arView.session.currentFrame else {
+      surfaceDwell.reset(); surfaceVerification.reset()
+      return (nil, .searching)
+    }
     let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
     let geometryHit = arView.raycast(from: center, allowing: .existingPlaneGeometry,
       alignment: .horizontal).first
@@ -613,18 +669,24 @@ final class CharacterReaderViewController: UIViewController {
     var eligibility = CharacterPlacementEligibility.evaluate(normalTracking: normalTracking,
       hasHit: result != nil, trackedPlane: geometryHit != nil && plane?.alignment == .horizontal,
       upwardNormal: result?.worldTransform.columns.1.y ?? 0)
-    if automaticScanFlow, let result, let plane, let frame = arView.session.currentFrame {
+    if let result {
       let p = result.worldTransform.columns.3
       let camera = frame.camera.transform.columns.3
-      let distance = simd_distance(SIMD3(p.x, p.y, p.z), SIMD3(camera.x, camera.y, camera.z))
-      let local = simd_inverse(plane.transform) * p
-      let margin: Float = 0.25 * adjustment.scale
-      if distance < 0.25 || distance > 3 || (camera.y - p.y) / distance < 0.25 ||
-         abs(local.x - plane.center.x) + margin > plane.extent.x / 2 ||
-         abs(local.z - plane.center.z) + margin > plane.extent.z / 2 {
+      let hasSupport = plane.map { supportsFootprint($0, worldPosition: p) } ?? false
+      if !CharacterSurfaceGeometry.reachable(position: SIMD3(p.x, p.y, p.z),
+           camera: SIMD3(camera.x, camera.y, camera.z)) ||
+         (eligibility == .ready && !hasSupport) {
         eligibility = .searching
       }
     }
+    let p = result?.worldTransform.columns.3 ?? SIMD4<Float>(repeating: 0)
+    let camera = frame.camera.transform.columns.3
+    let measuredPlane = eligibility == .ready ? plane?.identifier : nil
+    let settled = surfaceDwell.update(plane: measuredPlane,
+      position: SIMD3(p.x, p.y, p.z), at: frame.timestamp)
+    let verified = surfaceVerification.update(plane: measuredPlane, height: p.y,
+      camera: SIMD2(camera.x, camera.z), at: frame.timestamp)
+    if eligibility == .ready && (!settled || !verified) { eligibility = .provisional }
     return (result, eligibility)
   }
 
@@ -633,7 +695,7 @@ final class CharacterReaderViewController: UIViewController {
     if eligibility == .ready { markDiagnostic("first_valid_center_placement") }
     placeButton.isHidden = modelTemplate == nil || (automaticScanFlow &&
       ProcessInfo.processInfo.systemUptime - nativeStart < 8 && placementState != .moving)
-    placeButton.isEnabled = eligibility == .ready
+    placeButton.isEnabled = eligibility == .ready && modelTemplate != nil
     guard let result, eligibility != .searching else {
       surfaceDwell.reset()
       reticleEntity?.isEnabled = false
@@ -644,7 +706,7 @@ final class CharacterReaderViewController: UIViewController {
     }
     guidanceLabel.text = readerText(eligibility == .ready
       ? (automaticScanFlow ? "Hold steady - Placing your buddy" : "Surface ready - Choose Place character")
-      : "Surface estimated - Keep scanning to confirm")
+      : "Move slowly sideways, then hold steady to confirm the surface")
     let anchor = reticleAnchor ?? makeReticleAnchor()
     let wasVisible = reticleEntity?.isEnabled == true
     var transform = presentationTransform(for: result)
@@ -657,13 +719,8 @@ final class CharacterReaderViewController: UIViewController {
     reticleEntity?.model?.materials = [eligibility == .ready
       ? readyPreviewMaterial : provisionalPreviewMaterial]
     reticleEntity?.isEnabled = true
-    if automaticScanFlow, modelTemplate != nil {
-      let p = result.worldTransform.columns.3
-      let stable = surfaceDwell.update(
-        plane: eligibility == .ready ? result.anchor?.identifier : nil,
-        position: SIMD3(p.x, p.y, p.z), at: ProcessInfo.processInfo.systemUptime)
-      if stable { placeCharacter() }
-    }
+    if automaticScanFlow, placementState == .searching,
+       modelTemplate != nil, eligibility == .ready { placeCharacter() }
   }
 
   private func makeReticleAnchor() -> AnchorEntity {
@@ -682,11 +739,19 @@ final class CharacterReaderViewController: UIViewController {
     arView.scene.addAnchor(anchor)
     reticleAnchor = anchor
     reticleEntity = reticle
+    applyAdjustment()
     return anchor
   }
 
   private func presentationTransform(for result: ARRaycastResult) -> simd_float4x4 {
     let column = result.worldTransform.columns.3
+    if let committedEntity {
+      // Move changes position, not the character's established world heading.
+      // The user's relative adjustment remains on the nested foot pivot.
+      var transform = committedEntity.transformMatrix(relativeTo: nil)
+      transform.columns.3 = column
+      return transform
+    }
     let camera = arView.cameraTransform.matrix.columns.3
     let yaw = CharacterAssetPresentation.viewerYaw(position: SIMD3(column.x, column.y, column.z),
       camera: SIMD3(camera.x, camera.y, camera.z))
@@ -728,6 +793,7 @@ final class CharacterReaderViewController: UIViewController {
     placedModel = model
     placementState.confirm()
     surfaceDwell.reset()
+    surfaceVerification.reset()
     placedAt = ProcessInfo.processInfo.systemUptime
     if automaticScanFlow { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     applyAdjustment()
@@ -764,6 +830,7 @@ final class CharacterReaderViewController: UIViewController {
     placementState.beginMove()
     automaticStartPending = false
     surfaceDwell.reset()
+    surfaceVerification.reset()
     pausePreservingPlayback()
     if sessionFailed, let configuration { activateARSession(configuration) }
     updatePlacementControls()
@@ -791,7 +858,7 @@ final class CharacterReaderViewController: UIViewController {
 
   private var canAdjust: Bool {
     CharacterAdjustment.canAdjust(placement: placementState,
-      healthy: normalTracking && committedEntity?.isAnchored == true,
+      healthy: placementHealthy,
       recovering: trackingRecovery.requiresRecovery, active: isApplicationActive, terminal: isTerminal)
   }
 
@@ -1024,9 +1091,11 @@ final class CharacterReaderViewController: UIViewController {
   }
 
   private func updateTracking(at time: TimeInterval) {
-    let healthy = normalTracking && (!isPlaced || committedEntity?.isAnchored == true)
+    let healthy = placementHealthy
     let previouslyRecovering = trackingRecovery.requiresRecovery
     let needsRecovery = trackingRecovery.update(healthy: healthy, at: time)
+    // Keep a brief tracking pause stable, but never leave a known-unreliable model floating.
+    placedModel?.isEnabled = !needsRecovery
     updateAdjustmentControls()
     if previouslyRecovering != needsRecovery { updateAnimationPlayback() }
     guard isPlaced else { return }
@@ -1048,7 +1117,7 @@ final class CharacterReaderViewController: UIViewController {
       pausePreservingPlayback()
       return
     }
-    guard normalTracking, !trackingRecovery.requiresRecovery else { return }
+    guard placementHealthy, !trackingRecovery.requiresRecovery else { return }
     if playbackState == .retry, !loadCurrentClip() {
       showPlaybackRetry()
       return
@@ -1102,7 +1171,7 @@ final class CharacterReaderViewController: UIViewController {
   }
 
   private func startCurrentClip() -> Bool {
-    guard placementState == .placed, normalTracking,
+    guard placementState == .placed, placementHealthy,
           !trackingRecovery.requiresRecovery, let audioPlayer else { return false }
     do {
       let session = AVAudioSession.sharedInstance()
@@ -1363,7 +1432,7 @@ extension CharacterReaderViewController: AVAudioPlayerDelegate {
       if self.clipIndex + 1 < clips {
         let autostart = CharacterAudioCompletionPolicy.canAutostart(playback: self.playbackState,
           placement: self.placementState, active: self.isApplicationActive,
-          healthy: self.normalTracking, recovering: self.trackingRecovery.requiresRecovery)
+          healthy: self.placementHealthy, recovering: self.trackingRecovery.requiresRecovery)
         self.clipIndex += 1
         if self.loadCurrentClip() {
           guard autostart else {

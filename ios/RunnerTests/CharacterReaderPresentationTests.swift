@@ -1,9 +1,105 @@
 import UIKit
 import XCTest
 import simd
+import RealityKit
 @testable import Runner
 
 final class CharacterReaderPresentationTests: XCTestCase {
+  @MainActor
+  func testBundledLittleBuddyLoadsUprightWithGroundedNormalizedFeet() throws {
+    let bundle = Bundle(for: CharacterReaderViewController.self)
+    let url = try XCTUnwrap(bundle.url(forResource: "little_buddy", withExtension: "usdz"))
+    let loaded = try Entity.load(contentsOf: url)
+    let template = CharacterReaderViewController.presentationModel(loaded, asset: "little_buddy")
+    let bounds = template.visualBounds(relativeTo: template)
+    XCTAssertEqual(bounds.extents.y, 0.206, accuracy: 0.0001)
+    XCTAssertEqual(bounds.min.y, 0, accuracy: 0.0001)
+    XCTAssertGreaterThan(bounds.extents.y, max(bounds.extents.x, bounds.extents.z))
+    let normalization = try XCTUnwrap(CharacterModelNormalization(minimum: bounds.min, maximum: bounds.max))
+    for scale: Float in [0.5, 1, 1.5] {
+      XCTAssertEqual((bounds.min.y * normalization.scale + normalization.translation.y) * scale,
+        0, accuracy: 0.0001)
+      XCTAssertEqual(bounds.extents.y * normalization.scale * scale, 0.35 * scale, accuracy: 0.0001)
+    }
+  }
+
+  @MainActor
+  func testLittleBuddyLoaderRootCorrectionIsIncludedInBoundsExactlyOnce() {
+    // Stand-in for Entity.load: authored Z-up mesh under a corrected root.
+    let authored = ModelEntity(mesh: .generateBox(size: SIMD3(0.14, 0.13, 0.206)))
+    authored.position.z = 0.103
+    let loaded = Entity()
+    loaded.orientation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
+    loaded.addChild(authored)
+    let template = CharacterReaderViewController.presentationModel(loaded, asset: "little_buddy")
+    let bounds = template.visualBounds(relativeTo: template)
+    XCTAssertEqual(bounds.extents.y, 0.206, accuracy: 0.00001)
+    XCTAssertEqual(bounds.min.y, 0, accuracy: 0.00001)
+    let normalized = CharacterModelNormalization(minimum: bounds.min, maximum: bounds.max)!
+    XCTAssertEqual(bounds.extents.y * normalized.scale, 0.35, accuracy: 0.00001)
+    XCTAssertEqual(bounds.min.y * normalized.scale + normalized.translation.y, 0, accuracy: 0.00001)
+    XCTAssertLessThan(simd_distance(loaded.orientation.act(SIMD3(0, -1, 0)), SIMD3(0, 0, 1)), 0.00001)
+  }
+
+  func testRepeatedCameraFramesCannotSatisfyDwellSampleCount() {
+    var dwell = CharacterSurfaceDwell()
+    let plane = UUID()
+    let position = SIMD3<Float>(0, 0, -1)
+    for time in stride(from: 0.0, through: 0.8, by: 0.1) {
+      for _ in 0..<20 {
+        XCTAssertFalse(dwell.update(plane: plane, position: position, at: time))
+      }
+    }
+    XCTAssertTrue(dwell.update(plane: plane, position: position, at: 0.9))
+    XCTAssertFalse(dwell.update(plane: plane, position: position, at: .nan))
+  }
+
+  func testSurfaceRequiresParallaxStableHeightAndContinuousFrames() {
+    var verification = CharacterSurfaceVerification()
+    let plane = UUID()
+    for frame in 0...40 {
+      XCTAssertFalse(verification.update(plane: plane, height: 0, camera: .zero,
+        at: Double(frame) * 0.05))
+    }
+    XCTAssertTrue(verification.update(plane: plane, height: 0, camera: SIMD2(0.09, 0), at: 2.05))
+    XCTAssertFalse(verification.update(plane: plane, height: 0.03, camera: SIMD2(0.09, 0), at: 2.1))
+    XCTAssertFalse(verification.update(plane: plane, height: 0.03, camera: SIMD2(0.2, 0), at: 2.15))
+    XCTAssertFalse(verification.update(plane: plane, height: 0.03, camera: SIMD2(0.2, 0), at: 3))
+    XCTAssertFalse(verification.update(plane: plane, height: 0.03, camera: SIMD2(0.3, 0), at: 2))
+    XCTAssertFalse(verification.update(plane: nil, height: 0, camera: .zero, at: 2.1))
+    XCTAssertFalse(verification.update(plane: plane, height: .nan, camera: .zero, at: 2.2))
+  }
+
+  func testMeasuredPolygonRejectsBoundingRectangleCornersAndUnsupportedFootprints() {
+    let diamond: [SIMD2<Float>] = [SIMD2(0, -1), SIMD2(1, 0), SIMD2(0, 1), SIMD2(-1, 0)]
+    for polygon in [diamond, Array(diamond.reversed())] {
+      XCTAssertTrue(CharacterSurfaceGeometry.containsFootprint(center: .zero, radius: 0.2, boundary: polygon))
+      // Inside ARPlaneAnchor.extent, but outside the measured diamond.
+      XCTAssertFalse(CharacterSurfaceGeometry.containsFootprint(center: SIMD2(0.8, 0.8), radius: 0.1, boundary: polygon))
+      XCTAssertFalse(CharacterSurfaceGeometry.containsFootprint(center: SIMD2(0.7, 0), radius: 0.25, boundary: polygon))
+      XCTAssertFalse(CharacterSurfaceGeometry.containsFootprint(center: .zero, radius: .nan, boundary: polygon))
+      XCTAssertFalse(CharacterSurfaceGeometry.containsFootprint(center: SIMD2(.nan, 0), radius: 0.1, boundary: polygon))
+    }
+    for invalid in [[], [SIMD2<Float>(0, 0)], [SIMD2<Float>(0, 0), .zero, SIMD2(1, 1)]] {
+      XCTAssertFalse(CharacterSurfaceGeometry.containsFootprint(center: .zero, radius: 0.1, boundary: invalid))
+    }
+  }
+
+  func testFootprintMatchesNormalizedModelAndRejectsInvalidBounds() {
+    let radius = CharacterSurfaceGeometry.footprintRadius(extents: SIMD3(2, 4, 1))!
+    XCTAssertEqual(radius, sqrt(1.0 + 0.25) * 0.35 / 4 + 0.01, accuracy: 0.00001)
+    for extents in [SIMD3<Float>.zero, SIMD3(-1, 1, 1), SIMD3(.nan, 1, 1)] {
+      XCTAssertNil(CharacterSurfaceGeometry.footprintRadius(extents: extents))
+    }
+  }
+
+  func testReachabilityRejectsDistantCloseAndNearlyHorizontalTargets() {
+    XCTAssertTrue(CharacterSurfaceGeometry.reachable(position: .zero, camera: SIMD3(0, 1, 1)))
+    for camera in [SIMD3<Float>(0, 0.1, 0), SIMD3(0, 4, 1), SIMD3(0, 0.1, 1), SIMD3(0, -1, 1), SIMD3(.nan, 1, 1)] {
+      XCTAssertFalse(CharacterSurfaceGeometry.reachable(position: .zero, camera: camera))
+    }
+  }
+
   func testAutomaticPlacementRequiresContinuousStableMeasuredSurface() {
     var dwell = CharacterSurfaceDwell()
     let plane = UUID()

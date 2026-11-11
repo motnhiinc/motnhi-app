@@ -38,6 +38,10 @@ or a new, unsaved Blender scene—not a scene containing other work.
 - Blender source: Z up, front faces -Y.
 - glTF export: Y up, front faces +Z.
 - USDZ retains USD axis/unit metadata. Check orientation in the native loader.
+- RealityKit applies the USDZ's Z-up correction on the loaded root. The reader
+  wraps that root in an identity entity before measuring presentation bounds;
+  measuring relative to the loaded root itself excludes the correction. Do not
+  apply another -90° rotation. Native loader tests check Y-up height and feet.
 - 32 mesh objects, 36,720 triangles, eight solid-color materials.
 - No skeleton, animation clips, textures, audio, or runtime behavior.
 

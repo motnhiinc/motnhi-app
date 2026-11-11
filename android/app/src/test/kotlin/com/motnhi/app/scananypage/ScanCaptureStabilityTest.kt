@@ -5,6 +5,18 @@ import org.junit.Test
 
 class ScanCaptureStabilityTest {
     private val bounds = floatArrayOf(.1f, .1f, .9f, .9f)
+    @Test fun punctuationAccentsAndMinorOcrChangesDoNotRestartCapture() {
+        val stability = ScanCaptureStability()
+        val original = "Bé mèo ngồi bên cửa sổ nhìn ra khu vườn"
+        for (time in 0L..1600L step 200) {
+            val words = if (time == 0L) original else "BE MEO ngồi bên cửa sổ nhìn ra khu vườn!"
+            val result = stability.observe(words, bounds, true, time)
+            if (time == 1600L) assertEquals(1f, result, 0f)
+        }
+        assertEquals(1f, stability.observe("Bé mèo ngồi bên cửa sổ nhìn ra khu sân", bounds, true, 1800), 0f)
+        assertEquals(0f, stability.observe("Một con chó chạy qua đường rất nhanh", bounds, true, 2000), 0f)
+    }
+
     @Test fun capturesOnlyAfterContinuousReadableStableText() {
         val stability = ScanCaptureStability()
         for (time in 0L..1400L step 200) {

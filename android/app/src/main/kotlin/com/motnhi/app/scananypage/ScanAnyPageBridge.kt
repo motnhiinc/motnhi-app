@@ -2,6 +2,7 @@ package com.motnhi.app.scananypage
 
 import android.app.Activity
 import android.content.Intent
+import android.content.IntentSender
 import android.net.Uri
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -14,6 +15,9 @@ import java.util.UUID
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.motnhi.app.OneAtATimeGate
@@ -81,30 +85,64 @@ class ScanAnyPageBridge(
     }
 
     private fun launchScanner() {
-        scannerStarted = SystemClock.elapsedRealtime()
-        try {
-            activity.startActivityForResult(Intent(activity, PageScannerActivity::class.java), requestCode)
-        } catch (_: RuntimeException) { finishError("camera_unavailable") }
+        // Restore the managed document scanner used before 850f4c7: page edges,
+        // automatic/manual capture and perspective correction belong to this UI.
+        val generation = replyGate
+        val started = SystemClock.elapsedRealtime()
+        val initializationTimeout = Runnable {
+            if (replyGate === generation) finishError("scanner_initialization_timeout")
+        }
+        mainHandler.postDelayed(initializationTimeout, 30_000)
+        val options = GmsDocumentScannerOptions.Builder()
+            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+            .setGalleryImportAllowed(false)
+            .setPageLimit(1)
+            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+            .build()
+
+        GmsDocumentScanning.getClient(options)
+            .getStartScanIntent(activity)
+            .addOnSuccessListener { intentSender ->
+                runOnMain {
+                    if (replyGate !== generation) return@runOnMain
+                    mainHandler.removeCallbacks(initializationTimeout)
+                    Log.d("ScanStages", "attempt=$attemptId stage=scanner_intent elapsed_ms=${SystemClock.elapsedRealtime() - started}")
+                    scannerStarted = SystemClock.elapsedRealtime()
+                    try {
+                        activity.startIntentSenderForResult(intentSender, requestCode, null, 0, 0, 0, null)
+                    } catch (_: IntentSender.SendIntentException) {
+                        finishError("camera_unavailable")
+                    } catch (_: RuntimeException) {
+                        finishError("camera_unavailable")
+                    }
+                }
+            }
+            .addOnFailureListener {
+                if (replyGate === generation) {
+                    mainHandler.removeCallbacks(initializationTimeout)
+                    finishError("camera_unavailable")
+                }
+            }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != this.requestCode) return false
         if (pendingResult == null) return true
         captureReturned = SystemClock.elapsedRealtime()
-        Log.d("ScanStages", "attempt=$attemptId stage=scanner_round_trip elapsed_ms=${SystemClock.elapsedRealtime() - scannerStarted}")
+        Log.d("ScanStages", "attempt=$attemptId stage=managed_scanner_round_trip elapsed_ms=${SystemClock.elapsedRealtime() - scannerStarted}")
 
-        if (resultCode != Activity.RESULT_OK) {
-            finishError(data?.getStringExtra("scan_failure") ?: "cancelled")
+        val scanResult = data?.let { GmsDocumentScanningResult.fromActivityResultIntent(it) }
+        val pages = scanResult?.pages.orEmpty()
+        val failureCode = ScannerFailureMapper.activityResultFailureCode(
+            resultCode = resultCode,
+            hasParsedResult = scanResult != null,
+            pageCount = pages.size,
+        )
+        if (failureCode != null) {
+            finishError(failureCode)
             return true
         }
-        val path = data?.getStringExtra(PageScannerActivity.EXTRA_IMAGE_PATH)
-        val file = path?.let { java.io.File(it) }
-        val owned = try {
-            file != null && file.parentFile?.canonicalFile == activity.cacheDir.canonicalFile &&
-                file.name.startsWith("page-capture-") && file.extension == "jpg" && file.isFile
-        } catch (_: Exception) { false }
-        if (!owned) { finishError("capture_failed"); return true }
-        val uri = Uri.fromFile(file)
+        val uri = pages.first().imageUri
         recognize(uri)
         return true
     }
@@ -119,13 +157,6 @@ class ScanAnyPageBridge(
                 val code = if (error is IllegalArgumentException && error.message in setOf("image_decode_failed", "image_encode_failed")) error.message!! else "image_decode_failed"
                 runOnMain { finishError(code) }
                 return@Thread
-            } finally {
-                // Only the private scanner's owned cache file may be removed.
-                if (uri.scheme == "file") {
-                    val file = java.io.File(uri.path ?: "")
-                    if (file.parentFile?.canonicalFile == activity.cacheDir.canonicalFile &&
-                        file.name.startsWith("page-capture-")) file.delete()
-                }
             }
             runOnMain { recognizePage(page) }
         }.start()

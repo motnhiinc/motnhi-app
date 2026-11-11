@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Little Buddy AR — Before &amp; After</title>
+  <style>
+    :root{--paper:#f7f6f0;--ink:#25392f;--muted:#617166;--line:#dce2d5;--green:#285a40;--mint:#eaf2e5;--amber:#80551c;--sand:#fbf1dc;--white:#fffefa}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{max-width:1120px;margin:auto;padding:64px 28px 40px}header{max-width:850px}.eyebrow{font-size:12px;font-weight:750;letter-spacing:.15em;text-transform:uppercase;color:var(--green)}h1{font-size:clamp(36px,6vw,64px);line-height:1.08;letter-spacing:-.055em;margin:20px 0}h1 span{color:#608363}p{margin:0 0 14px}.lead{font-size:20px;color:var(--muted);max-width:740px}.chips{display:flex;gap:9px;flex-wrap:wrap;margin:24px 0 36px}.chip,.platform{font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:30px;padding:5px 11px;background:var(--white)}.chip.good{background:var(--mint);border-color:#c8d8c0}.chip.pending{background:var(--sand);color:var(--amber);border-color:#e8d7b4}
+    .summary{padding:26px 30px;border-radius:20px;background:var(--ink);color:var(--white);display:grid;grid-template-columns:1.3fr 1fr;gap:32px;margin-bottom:52px}.summary h2{font-size:22px;line-height:1.3;margin:0 0 8px;letter-spacing:-.02em}.summary p{color:#d5e2d4;margin:0}.summary .note{border-left:1px solid #597060;padding-left:28px;font-size:14px}
+    .section-title{font-size:27px;letter-spacing:-.035em;margin:0 0 6px}.section-intro{color:var(--muted);margin-bottom:24px}.comparison{margin:0 0 22px;background:var(--white);border:1px solid var(--line);border-radius:18px;overflow:hidden}.card-title{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}.number{color:#819779;font-size:13px;font-weight:750;letter-spacing:.05em}.card-title h3{font-size:19px;margin:0;letter-spacing:-.02em;flex:1;min-width:200px}.platform{background:transparent;font-size:11px;padding:3px 10px;color:var(--muted)}.pair{display:grid;grid-template-columns:1fr 1fr}.cell{padding:23px 24px}.cell.after{background:#f0f5eb;border-left:1px solid var(--line)}.label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:10px}.after .label{color:var(--green)}.cell p:last-child{margin-bottom:0}.benefit{padding:13px 24px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}.benefit strong{color:var(--green)}
+    .evidence{margin-top:52px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:24px 0}.stat{border:1px solid var(--line);background:var(--white);border-radius:16px;padding:22px}.stat strong{display:block;font-size:38px;line-height:1.2;letter-spacing:-.04em}.stat span{color:var(--muted);font-size:14px}.checks{padding:20px 24px;background:var(--mint);border-radius:16px}.checks ul{margin:0;padding-left:20px}.checks li+li{margin-top:7px}.limits{margin-top:30px;padding:26px 28px;background:var(--sand);border:1px solid #e8d7b4;border-radius:18px}.limits h2{font-size:21px;margin:0 0 10px;color:var(--amber)}.limits ul{padding-left:20px;margin:12px 0 0}.limits li+li{margin-top:6px}.limits p:last-child{margin-bottom:0}footer{margin-top:40px;border-top:1px solid var(--line);padding-top:20px;color:var(--muted);font-size:12px}code{font-size:.85em;background:#e7eadf;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}a{color:var(--green);text-underline-offset:3px}:focus-visible{outline:3px solid var(--green);outline-offset:4px}
+    @media(max-width:650px){main{padding:34px 18px}.summary{grid-template-columns:1fr;gap:20px;padding:24px}.summary .note{border-left:0;border-top:1px solid #597060;padding:18px 0 0}.pair{grid-template-columns:1fr}.cell.after{border-left:0;border-top:1px solid var(--line)}.stats{grid-template-columns:1fr}.stat strong{font-size:30px}.card-title,.cell{padding:18px 20px}.platform{margin-left:auto}.lead{font-size:18px}}
+    @media print{body{background:white}main{max-width:none;padding:12px}h1{font-size:38px}.comparison,.summary,.stats,.limits{break-inside:avoid}.summary{background:#eef2e9;color:var(--ink)}.summary p{color:var(--muted)}.summary .note{border-color:var(--line)}footer{font-size:10px}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Little Buddy · AR placement improvements · November 3, 2026</div>
+    <h1>A steadier place<br>for <span>Little Buddy.</span></h1>
+    <p class="lead">Stronger surface checks, more accurate placement geometry, and safer recovery when the real world changes.</p>
+    <div class="chips"><span class="chip good">Implemented &amp; locally tested</span><span class="chip">Android + iOS</span><span class="chip pending">Real-device visual review pending</span></div>
+  </header>
+
+  <section class="summary" aria-label="What changed">
+    <div><h2>The main improvement</h2><p>The reader is more careful about <strong>when</strong> it places Buddy and whether there is still enough measured surface beneath the character afterward.</p></div>
+    <p class="note">This is a placement and grounding update—not a new character model, animation system, or proven photorealistic rendering upgrade. Most changes close gaps in iOS; Android already had several of these safeguards.</p>
+  </section>
+
+  <section aria-labelledby="changes">
+    <h2 id="changes" class="section-title">Before → After</h2>
+    <p class="section-intro">What the code did before, what it does now, and why that matters.</p>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">01</span><h3>Confirming a real surface</h3><span class="platform">iOS</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>Automatic placement waited for a steady measured hit, but manual placement could bypass that wait. There was no camera-parallax requirement.</p></div><div class="cell after"><div class="label">After</div><p><strong>Both manual and automatic placement</strong> require a stable target plus at least <strong>8 cm of sideways camera movement</strong> and <strong>1.5 seconds of stable surface-height observation</strong>.</p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> reduces premature placement on a surface that AR is still reconstructing. Guidance now asks the user to move slowly sideways, then hold steady.</div>
+    </article>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">02</span><h3>Checking enough room for Buddy</h3><span class="platform">iOS</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>The automatic flow checked the plane’s rectangular extent using a fixed <strong>25 cm × user scale</strong> margin. Manual placement did not use that same room check.</p></div><div class="cell after"><div class="label">After</div><p>Every placement checks the <strong>actual measured plane boundary</strong>, using a rotation-independent footprint calculated from the normalized model, with an extra <strong>1 cm margin</strong>.</p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> rejects unobserved corners inside a plane’s bounding rectangle, while avoiding an unnecessarily large, fixed room requirement.</div>
+    </article>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">03</span><h3>Matching the preview to the loaded model</h3><span class="platform">iOS · Little Buddy</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>Preview dimensions were measured relative to the USDZ’s loaded root. That excludes the root’s Z-up → Y-up correction, so preview bounds did not match the rendered presentation basis.</p></div><div class="cell after"><div class="label">After</div><p>An identity wrapper includes the loader’s existing correction when measuring bounds. <strong>No extra rotation is applied.</strong> Native loading confirms a Y-up height of approximately <strong>20.6 cm</strong> before the reader’s 35 cm normalization.</p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> footprint and preview dimensions now use the same upright geometry as the placed model. This fixes a bounds mismatch—not a demonstrated sideways-rendering bug.</div>
+    </article>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">04</span><h3>Keeping the whole figure supported</h3><span class="platform">Android + iOS</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>Android checked the placed anchor’s point and height against its supporting plane. iOS mainly relied on normal camera tracking and whether the committed entity was anchored.</p></div><div class="cell after"><div class="label">After</div><p>Both readers recheck support beneath the <strong>full footprint</strong>. iOS also verifies foot height within <strong>3 cm</strong> of the plane and accepts a valid merged plane. Sustained loss hides the unreliable figure and pauses playback.</p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> a tracked anchor alone no longer counts as proof that Buddy still has a suitable surface underneath it.</div>
+    </article>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">05</span><h3>Trusting fresh camera evidence</h3><span class="platform">Android + iOS</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>Repeated timestamps could increase the settling sample count. On iOS, display updates could count the same camera frame repeatedly, and camera tracking had no explicit frame-age check.</p></div><div class="cell after"><div class="label">After</div><p>A camera timestamp counts only once toward the settling sample count. iOS uses the camera frame’s timestamp for dwell and rejects tracking frames older than <strong>250 milliseconds</strong>.</p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> a fast display refresh or stalled camera cannot manufacture new surface observations.</div>
+    </article>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">06</span><h3>Making Move predictable</h3><span class="platform">iOS</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>In the automatic scan flow, a steady target could confirm a Move automatically. Moving also recalculated the viewer-facing heading, changing Buddy’s established world orientation.</p></div><div class="cell after"><div class="label">After</div><p>Automatic placement applies only to the initial search. <strong>Move requires explicit confirmation</strong> and preserves the existing world heading, user rotation, and size. Recreated previews retain the current adjustment.</p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> moving Buddy changes its location without unexpectedly confirming the action or turning the character.</div>
+    </article>
+
+    <article class="comparison">
+      <div class="card-title"><span class="number">07</span><h3>Handling unreliable placement safely</h3><span class="platform">iOS</span></div>
+      <div class="pair"><div class="cell"><div class="label">Before</div><p>Audio and adjustment gates did not verify measured surface support. The model could remain visible during recovery even when its placement was no longer reliable.</p></div><div class="cell after"><div class="label">After</div><p>Starting audio and adjusting Buddy require healthy placement. Brief loss is debounced; sustained loss hides the model and pauses narration. <strong>Recovery does not automatically resume paused narration.</strong></p></div></div>
+      <div class="benefit"><strong>Why it helps:</strong> avoids continuing an apparently normal reading experience while the spatial placement is untrustworthy.</div>
+    </article>
+  </section>
+
+  <section class="evidence" aria-labelledby="verified">
+    <div class="eyebrow">Evidence, not just intent</div>
+    <h2 id="verified" class="section-title">What passed locally</h2>
+    <div class="stats"><div class="stat"><strong>372</strong><span>Flutter tests passed</span></div><div class="stat"><strong>140</strong><span>Android native tests passed</span></div><div class="stat"><strong>59</strong><span>iOS workspace tests passed</span></div></div>
+    <div class="checks"><ul>
+      <li><strong>Android release Kotlin compilation:</strong> passed.</li>
+      <li><strong>Real bundled USDZ loading:</strong> passed in iOS Simulator. Tests check upright dimensions and bottom-contact math at 0.5×, 1×, and 1.5× user scale.</li>
+      <li><strong>Regression coverage:</strong> repeated frames, slow drift, camera parallax, plane changes, polygon edges, reachability, and loader-root transforms.</li>
+      <li><strong>Model audit:</strong> Android asset copies match the source. All eight GLB materials use lit PBR shading, without an unlit extension.</li>
+    </ul></div>
+  </section>
+
+  <aside class="limits" aria-labelledby="pending">
+    <h2 id="pending">What is not proven yet</h2>
+    <p><strong>These changes improve the conditions for believable AR. They do not prove that Buddy looks realistic on a phone.</strong></p>
+    <ul>
+      <li>Environmental HDR, shadow receiving, and RealityKit environment texturing already existed; they were not introduced by this update.</li>
+      <li>Depth/people occlusion experiments remain <strong>off by default</strong>. Objects and people hiding Buddy correctly still need physical testing.</li>
+      <li>Little Buddy remains a <strong>static prototype</strong>: no new idle animation, talking rig, lip sync, or photorealistic texture work.</li>
+      <li>Surface-finding success, real shadows, contact, facing, drift, recovery, and sustained performance need an unlocked, trusted AR-capable device. None is currently connected.</li>
+    </ul>
+  </aside>
+
+  <footer>
+    <p>Comparison baseline: commit <code>850f4c7</code> → local working changes. No physical before/after camera recordings are presented.</p>
+    <p>Implementation evidence: <a href="docs/ar-character-presentation-verification.md">docs/ar-character-presentation-verification.md</a>. Changes described here are not yet committed.</p>
+  </footer>
+</main>
+</body>
+</html>

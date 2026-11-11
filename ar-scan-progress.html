@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How AR scan progress works · Motnhi</title>
+<style>
+:root{--paper:#fffaf4;--ink:#201a18;--muted:#746b66;--line:#dbd0c4;--sage:#3b644c;--sage-tint:#e7efe5;--gold:#f2d493}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,sans-serif;line-height:1.6}main{max-width:1120px;margin:auto;padding:48px 32px}header{max-width:840px}.eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--sage);font-weight:700}h1{font-family:Georgia,serif;font-weight:400;font-size:48px;line-height:1.12;margin:16px 0 24px}h2{font-size:24px;line-height:1.3;margin:0 0 16px}h3{font-size:20px;margin:0 0 8px}p{margin:0 0 16px}.lede{font-size:20px;color:var(--muted)}.key{border-left:4px solid var(--sage);padding:12px 20px;margin:32px 0}.diagram{overflow-x:auto;margin:32px 0 16px}svg{display:block;width:100%;min-width:800px;height:auto}svg text{font-family:system-ui,-apple-system,sans-serif;fill:var(--ink)}svg .small{font-size:16px;fill:var(--muted)}svg .name{font-size:20px;font-weight:650}svg .tag{font-size:12px;letter-spacing:.12em;fill:var(--sage);font-weight:700}.legend{display:flex;gap:24px;flex-wrap:wrap;border-top:1px solid var(--line);padding:16px 0;font-size:14px;color:var(--muted)}.swatch{display:inline-block;width:12px;height:12px;margin-right:8px;border:1px solid var(--sage);background:var(--sage-tint)}.swatch.amber{background:var(--gold);border-color:#946c20}.explain{display:grid;grid-template-columns:1.2fr 1fr;gap:24px;margin:40px 0}.panel{border:1px solid var(--line);padding:24px;border-radius:8px;background:#fff}.panel ul{padding-left:20px;margin-bottom:0}.panel li{margin:12px 0}.example{border-top:1px solid var(--line);padding-top:32px}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin:24px 0}.step{border-top:2px solid var(--line);padding-top:16px}.number{font-size:12px;color:var(--sage);font-weight:700}.step strong{display:block;margin:8px 0}.note{font-size:14px;color:var(--muted)}footer{border-top:1px solid var(--line);padding-top:20px;margin-top:40px;font-size:12px;color:var(--muted)}code{font-size:12px;overflow-wrap:anywhere}@media(max-width:680px){main{padding:32px 20px}h1{font-size:36px}.explain,.steps{grid-template-columns:1fr}.lede{font-size:18px}}@media print{main{padding:0}.diagram{overflow:visible}svg{min-width:0}.panel,.step{break-inside:avoid}}
+</style>
+</head>
+<body><main>
+<header><div class="eyebrow">Motnhi / Android AR / Implemented behavior</div><h1>Keep the scan.<br>Find a better spot.</h1><p class="lede">The app now learns about the surface independently of whether the character fits at the exact point you are aiming at.</p></header>
+<p class="key"><strong>The important change:</strong> while the center still hits a valid surface, an oversized footprint near its detected edge no longer erases surface verification progress.</p>
+<figure style="margin:0" aria-label="Placement verification flow">
+<div class="diagram">
+<svg viewBox="0 0 1024 704" role="img" aria-labelledby="scan-flow-title scan-flow-desc">
+<title id="scan-flow-title">Two checks combine to enable AR placement</title>
+<desc id="scan-flow-desc">A valid surface feeds independent surface verification and current target checks; an edge footprint failure preserves surface verification, but placement requires both checks, a loaded model, and no conflicting depth.</desc>
+<defs>
+<marker id="arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#746b66"/></marker>
+<marker id="arrow-accent" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#3b644c"/></marker>
+<marker id="arrow-link" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#746b66"/></marker>
+</defs>
+<!-- Connectors are routed through open space before nodes are painted. -->
+<g fill="none" stroke="#746b66" stroke-width="2" marker-end="url(#arrow)">
+<path d="M448 136V160Q448 168 440 168H256Q248 168 248 176V216"/>
+<path d="M576 136V160Q576 168 584 168H768Q776 168 776 176V216"/>
+<path d="M248 408V448Q248 456 256 456H448Q456 456 456 464V504"/>
+<path d="M776 408V448Q776 456 768 456H576Q568 456 568 464V504"/>
+<path d="M512 600V648"/>
+</g>
+<rect x="272" y="16" width="480" height="120" rx="8" fill="#fff" stroke="#dbd0c4"/>
+<text x="512" y="44" text-anchor="middle" class="tag">EACH CAMERA FRAME</text>
+<text x="512" y="76" text-anchor="middle" class="name">Center hits a valid surface</text>
+<text x="512" y="104" text-anchor="middle" class="small">Tracked, upward-facing, in range, aimed downward</text>
+<rect x="40" y="216" width="416" height="192" rx="8" fill="#e7efe5" stroke="#3b644c"/>
+<text x="64" y="248" class="tag">CHECK 1 / SURFACE MEMORY</text>
+<text x="64" y="284" class="name">“Do we trust this surface?”</text>
+<text x="64" y="316" class="small">Move the phone horizontally at least 8 cm.</text>
+<text x="64" y="344" class="small">Observe the same stable-height plane for 1.5 s.</text>
+<text x="64" y="384" font-size="16" font-weight="650">Footprint too close to edge? Keep progress.</text>
+<rect x="568" y="216" width="416" height="192" rx="8" fill="#fff" stroke="#dbd0c4"/>
+<text x="592" y="248" class="tag">CHECK 2 / CURRENT TARGET</text>
+<text x="592" y="284" class="name">“Can the buddy stand here?”</text>
+<text x="592" y="316" class="small">All four footprint corners must fit.</text>
+<text x="592" y="344" class="small">Target settles for ≥700 ms and ≥10 frames.</text>
+<text x="592" y="384" font-size="16" font-weight="650">Doesn’t fit? Amber marker; placement waits.</text>
+<rect x="280" y="504" width="464" height="96" rx="8" fill="#fff" stroke="#201a18"/>
+<text x="512" y="540" text-anchor="middle" class="name">Both checks pass on this frame</text>
+<text x="512" y="572" text-anchor="middle" class="small">Model geometry loaded + no depth conflict</text>
+<rect x="344" y="648" width="336" height="48" rx="20" fill="#e7efe5" stroke="#3b644c"/>
+<text x="512" y="680" text-anchor="middle" class="name">Green marker · Place enabled</text>
+</svg></div>
+<figcaption class="legend"><span><i class="swatch"></i>Sage highlights the retained evidence and ready state</span><span><i class="swatch amber"></i>Amber in the app means placement is still being checked</span></figcaption>
+</figure>
+<section class="explain">
+<article class="panel"><div class="eyebrow">What “progress” means</div><h2>Evidence, not a percentage.</h2><p>The app remembers which plane it is observing, its height, the starting camera position, and when observation started.</p><p>It records whether the phone has moved at least <strong>8 cm from that starting position</strong> in the horizontal plane. Rotating the phone or moving it only vertically does not count.</p><p>After <strong>1.5 seconds</strong> of continuous valid observation, that movement evidence can verify the surface. The two conditions can accumulate together.</p><p class="note">These are internal checks. The app does not currently show a percentage bar. Actual readiness may take longer because target stability and other checks also need to pass.</p></article>
+<article class="panel"><div class="eyebrow">What still starts over</div><h2>Lost evidence still resets.</h2><ul><li>The center loses its valid surface hit, leaves the allowed range, or no longer aims sufficiently downward.</li><li>The detected plane changes, its height shifts by more than <strong>2 cm</strong>, or the observation gap exceeds <strong>200 ms</strong>.</li><li>Measured depth conflicts with the plane.</li></ul><p class="note">The fix covers footprint-fit failures while a valid center hit continues. It does not preserve progress through tracking loss or every boundary crossing.</p></article>
+</section>
+<section class="example"><div class="eyebrow">Example / Your tabletop</div><h2>What you should experience now</h2><div class="steps">
+<div class="step"><span class="number">01 / FOUND</span><strong>Aim at the table.</strong><p>The center hits its detected surface. Surface observation begins.</p></div>
+<div class="step"><span class="number">02 / NEAR EDGE</span><strong>Scan sideways.</strong><p>The footprint may extend beyond the detected patch. The amber marker remains visible, and valid surface observation continues.</p></div>
+<div class="step"><span class="number">03 / ROOM TO STAND</span><strong>Aim farther inward.</strong><p>The footprint fits. Previously collected surface evidence is available; the new target must still settle.</p></div>
+<div class="step"><span class="number">04 / READY</span><strong>Hold steady, then place.</strong><p>Once both checks and the remaining gates pass, the marker turns green and the button is enabled.</p></div>
+</div><p class="note"><strong>Target settling:</strong> movement more than 4 cm from its reference position restarts the target check. The marker is circular, but the current fit test still checks the four corners of its enclosing square.</p>
+<p class="note"><strong>Automatic placement:</strong> outside move mode, supported depth additionally needs matching, settled depth evidence (350 ms and at least 10 frames). The manual button can be ready sooner. Missing depth alone does not block manual placement; conflicting depth does.</p></section>
+<footer>Based on the current Android implementation in <code>CharacterReaderScene.kt</code>, <code>ReaderPresentationPolicy.kt</code>, and <code>ReaderPlacementGeometry.kt</code>.<br>Palette from <code>lib/core/theme/app_theme.dart</code>. System sans-serif and Georgia keep this explanation fully offline. Static schematic; real-device validation remains pending.</footer>
+</main></body></html>

@@ -42,9 +42,11 @@ struct CharacterSurfaceDwell {
   mutating func reset() { planeId = nil; started = nil; last = nil; samples = 0 }
 
   mutating func update(plane: UUID?, position: SIMD3<Float>, at time: TimeInterval) -> Bool {
-    guard let plane, (0..<3).allSatisfy({ position[$0].isFinite }) else {
+    guard let plane, time.isFinite, (0..<3).allSatisfy({ position[$0].isFinite }) else {
       reset(); return false
     }
+    // Display refresh can outpace the camera. One camera frame is only one sample.
+    if planeId == plane, time == last { return samples >= 10 && time - (started ?? time) >= 0.8 }
     if planeId != plane || simd_distance(origin, position) > 0.035 || started == nil ||
        time - (last ?? time) > 0.2 || time < (last ?? time) {
       planeId = plane; origin = position; started = time
@@ -53,6 +55,69 @@ struct CharacterSurfaceDwell {
     last = time
     samples += 1
     return samples >= 10 && time - (started ?? time) >= 0.8
+  }
+}
+
+/// Conservative disk containment in ARKit's convex measured boundary, not its
+/// rectangular extent (which can include unobserved space at table corners).
+enum CharacterSurfaceGeometry {
+  static func footprintRadius(extents: SIMD3<Float>) -> Float? {
+    guard (0..<3).allSatisfy({ extents[$0].isFinite && extents[$0] >= 0 }),
+          let largest = [extents.x, extents.y, extents.z].max(), largest > 0 else { return nil }
+    let half = extents / largest * 0.175
+    return simd_length(SIMD2(half.x, half.z)) + 0.01
+  }
+
+  static func containsFootprint(center: SIMD2<Float>, radius: Float,
+                                boundary: [SIMD2<Float>]) -> Bool {
+    guard center.x.isFinite, center.y.isFinite, radius.isFinite, radius > 0,
+          boundary.count >= 3 else { return false }
+    var winding: Float = 0
+    for index in boundary.indices {
+      let a = boundary[index], b = boundary[(index + 1) % boundary.count]
+      guard a.x.isFinite, a.y.isFinite, b.x.isFinite, b.y.isFinite else { return false }
+      let edge = b - a
+      let length = simd_length(edge)
+      guard length > 0.00001 else { return false }
+      let offset = center - a
+      let cross = edge.x * offset.y - edge.y * offset.x
+      guard abs(cross) / length >= radius else { return false }
+      if winding == 0 { winding = cross }
+      else if winding * cross <= 0 { return false }
+    }
+    return true
+  }
+
+  static func reachable(position: SIMD3<Float>, camera: SIMD3<Float>) -> Bool {
+    let distance = simd_distance(position, camera)
+    return distance.isFinite && distance >= 0.25 && distance <= 3 &&
+      (camera.y - position.y) / distance >= 0.25
+  }
+}
+
+/// Require parallax and a stable surface height, independently of reticle dwell.
+struct CharacterSurfaceVerification {
+  private var planeId: UUID?
+  private var height: Float = 0
+  private var cameraOrigin = SIMD2<Float>(repeating: 0)
+  private var started: TimeInterval = 0
+  private var last: TimeInterval = 0
+  private var hasBaseline = false
+
+  mutating func reset() { planeId = nil; hasBaseline = false }
+
+  mutating func update(plane: UUID?, height: Float, camera: SIMD2<Float>,
+                       at time: TimeInterval) -> Bool {
+    guard let plane, height.isFinite, camera.x.isFinite, camera.y.isFinite, time.isFinite else {
+      reset(); return false
+    }
+    if planeId != plane || time < last || time - last > 0.2 || abs(height - self.height) > 0.02 {
+      planeId = plane; self.height = height; cameraOrigin = camera
+      started = time; hasBaseline = false
+    }
+    last = time
+    hasBaseline = hasBaseline || simd_distance(camera, cameraOrigin) >= 0.08
+    return hasBaseline && time - started >= 1.5
   }
 }
 
